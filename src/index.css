@@ -1,0 +1,87 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=JetBrains+Mono:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: #030304;
+    color: #ffffff;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Enforce tabular numerals on all monospace / numeric elements */
+  .font-mono,
+  input[inputmode="decimal"],
+  input[inputmode="numeric"],
+  table {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.font-requiem {
+  font-family: 'Cinzel', serif;
+}
+
+/* Custom sleek dark scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050507;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 9999px;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #f59e0b;
+}
+
+/* Hide scrollbar for horizontal pill nav */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Reusable Requiem Black-Fill + Amber-Outline Interactive Button (Never overflows text) */
+.btn-amber-outline {
+  background-color: #050507;
+  color: #fbbf24;
+  border: 1.5px solid #f59e0b;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.16), inset 0 1px 0 rgba(251, 191, 36, 0.15);
+  transition: all 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.btn-amber-outline:hover:not(:disabled) {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #ffffff;
+  border-color: #fbbf24;
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.35), inset 0 0 12px rgba(245, 158, 11, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-amber-outline:active:not(:disabled) {
+  transform: translateY(0px) scale(0.985);
+}
+
+/* Architectural glass card surface */
+.requiem-card {
+  background: linear-gradient(180deg, rgba(12, 12, 15, 0.92) 0%, rgba(5, 5, 7, 0.96) 100%);
+  backdrop-filter: blur(12px);
+}
