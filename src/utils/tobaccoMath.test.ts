@@ -200,3 +200,89 @@ test('buildGoogleSheetText formats columns and totals matching the Google Sheet 
   assert.equal(csvLines[2].startsWith('TOTAL,1 SERI'), true);
 });
 
+test('Case Study 1 (Buy-Side Weight Profit): Karung Goni 2kg real mass with 10% + 2kg potongan on 50kg Bruto yields 43kg Paid vs 48kg Real (+5kg Weight Profit)', () => {
+  const goniPurchase = calculateRawTobaccoCost({
+    grossWeightKg: 50,
+    pricePerKgPurchase: 70000,
+    realPackagingMassKg: 2, // Karung goni riil hanya 2 kg
+    taraFormula: {
+      rawFormula: '10% + 2 kg',
+      percent: 10,
+      flatKg: 2,
+      pricingBasis: 'NET_WEIGHT',
+      packagingType: 'BALL GONI PRESS',
+      packagingMassKg: 2,
+    },
+  });
+
+  // Potongan Nota = 10% of 50 (5 kg) + 2 kg = 7 kg -> Netto Bayar = 43 kg
+  assert.equal(goniPurchase.deductionKg, 7);
+  assert.equal(goniPurchase.netWeightKg, 43);
+  assert.equal(goniPurchase.totalModalAsal, 43 * 70000); // Rp 3,010,000 Paid Value
+
+  // Berat Riil = 50 kg - 2 kg Goni = 48 kg -> Real Value = 48 * 70,000 = Rp 3,360,000
+  assert.equal(goniPurchase.realNetWeightKg, 48);
+  assert.equal(goniPurchase.realStockValueRp, 48 * 70000);
+
+  // Weight Profit = +5 kg (+Rp 350,000) before even sending sample to factory!
+  assert.equal(goniPurchase.purchaseWeightProfitKg, 5);
+  assert.equal(goniPurchase.purchaseWeightProfitRp, 350000);
+  // Effective cost per real kg = 3,010,000 / 48 = 62,708.33
+  assert.equal(goniPurchase.effectiveCostPerRealKg, 62708.33);
+});
+
+test('Case Study 2 & 3 (Factory-Side Weight Profit & Loss): 3kg real packaging with 2kg factory potongan (+1kg gain) vs 6kg Keranjang Muntilan with 10%+2 potongan on 50kg (-1kg loss)', () => {
+  // Case Study 2: Real packaging 3kg, 48kg real tobacco (Bruto 51kg), Factory potongan 2kg -> Billable 49kg (+1kg gain)
+  const factoryGain = calculateFactoryDelivery({
+    packaging: {
+      packagingType: 'KRJ MUNTILAN',
+      packagingMassKg: 3, // Real packaging weight = 3 kg
+      packageCount: 1,
+      netTobaccoWeightKg: 48, // Real tobacco weight = 48 kg
+      grossWeightPerPackage: 51,
+      factoryTaraFormula: {
+        rawFormula: '2 kg',
+        percent: 0,
+        flatKg: 2, // Factory only deducts 2 kg
+        pricingBasis: 'NET_WEIGHT',
+      },
+    },
+    hppPerNetKg: 80000,
+    totalProductionCost: 3840000,
+    factoryTargetPricePerKg: 120000,
+  });
+
+  assert.equal(factoryGain.factoryDeductionKg, 2);
+  assert.equal(factoryGain.factoryNetBillableKg, 49);
+  assert.equal(factoryGain.realTobaccoNetTotalKg, 48);
+  assert.equal(factoryGain.factoryWeightProfitKg, 1); // +1 kg gained from packaging weight!
+  assert.equal(factoryGain.factoryWeightProfitRp, 120000);
+
+  // Case Study 3: Bruto 50kg, Real Keranjang Muntilan weight 6kg (Real tobacco = 44kg), Factory potongan 10% + 2 = 7kg -> Billable 43kg (-1kg loss)
+  const factoryLoss = calculateFactoryDelivery({
+    packaging: {
+      packagingType: 'KRJ MUNTILAN TEBAL',
+      packagingMassKg: 6, // Real basket weight = 6 kg
+      packageCount: 1,
+      netTobaccoWeightKg: 44, // Real tobacco inside = 50 - 6 = 44 kg
+      grossWeightPerPackage: 50,
+      factoryTaraFormula: {
+        rawFormula: '10% + 2 kg',
+        percent: 10,
+        flatKg: 2, // 10% of 50 (5kg) + 2kg = 7kg deduction
+        pricingBasis: 'NET_WEIGHT',
+      },
+    },
+    hppPerNetKg: 80000,
+    totalProductionCost: 3520000,
+    factoryTargetPricePerKg: 120000,
+  });
+
+  assert.equal(factoryLoss.factoryDeductionKg, 7);
+  assert.equal(factoryLoss.factoryNetBillableKg, 43);
+  assert.equal(factoryLoss.realTobaccoNetTotalKg, 44);
+  assert.equal(factoryLoss.factoryWeightProfitKg, -1); // -1 kg loss of tobacco value!
+  assert.equal(factoryLoss.factoryWeightProfitRp, -120000);
+});
+
+

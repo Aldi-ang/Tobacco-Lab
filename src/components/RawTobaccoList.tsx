@@ -17,15 +17,28 @@ import {
   ArrowRightCircle,
   SlidersHorizontal,
   X,
+  Calculator,
 } from 'lucide-react';
 import {
   RawTobacco,
   FinishedTobaccoSerial,
   TobaccoRollSample,
 } from '../types/tobacco';
-import { GRADE_LABELS, formatRupiah, clampRating5 } from '../utils/tobaccoMath';
+import {
+  GRADE_LABELS,
+  formatRupiah,
+  clampRating5,
+  calculateRawTobaccoCost,
+} from '../utils/tobaccoMath';
 import { SegmentedControl } from './RatingSegmentSlider';
 import { SpinningStatTicker } from './SpinningStatTicker';
+import {
+  CalculationDetailModal,
+  CalculationDetailData,
+  CalcSymbolBadge,
+  RawTobaccoCalcFocus,
+  buildRawTobaccoCalcDetail,
+} from './CalculationDetailModal';
 
 interface RawTobaccoListProps {
   tobaccos: RawTobacco[];
@@ -54,7 +67,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrigin, setSelectedOrigin] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
-  const [sortBy, setSortBy] = useState<'name' | 'stock' | 'hpp' | 'power'>('name');
+  const [sortBy, setSortBy] = useState<'name' | 'stock' | 'hpp' | 'power' | 'weightProfit'>('name');
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
 
   // Active item for "hidden until pressed" detail modal
@@ -62,6 +75,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
   const [selectedRejectDetail, setSelectedRejectDetail] = useState<FinishedTobaccoSerial | null>(
     null
   );
+  const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
 
   const newestRollId = rollSamples[rollSamples.length - 1]?.id || rollSamples[0]?.id || '';
   const [selectedTargetRollMap, setSelectedTargetRollMap] = useState<Record<string, string>>({});
@@ -71,6 +85,37 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
   );
 
   const origins = ['ALL', ...Array.from(new Set(tobaccos.map((t) => t.origin.split(' ')[0])))];
+
+  // Helper to guarantee Paid vs Real Weight & Value metrics even for older cloud documents
+  const getRawWeightMetrics = (t: RawTobacco) => {
+    const calc = calculateRawTobaccoCost({
+      grossWeightKg: t.grossWeightKg,
+      pricePerKgPurchase: t.pricePerKgPurchase,
+      taraFormula: t.taraFormula,
+    });
+    const paidNetKg = t.netWeightKg ?? calc.netWeightKg;
+    const realNetKg = t.realNetWeightKg ?? calc.realNetWeightKg;
+    const paidValueRp = t.totalModalAsal || calc.totalModalAsal;
+    const realValueRp = t.realStockValueRp ?? calc.realStockValueRp;
+    const weightProfitKg =
+      t.purchaseWeightProfitKg ?? Number((realNetKg - paidNetKg).toFixed(2));
+    const weightProfitRp = t.purchaseWeightProfitRp ?? realValueRp - paidValueRp;
+    const effectiveRealCostPerKg =
+      t.effectiveCostPerRealKg ?? calc.effectiveCostPerRealKg;
+    const realPkgMassKg =
+      t.taraFormula.packagingMassKg ?? t.taraFormula.flatKg ?? t.deductionKg;
+
+    return {
+      paidNetKg,
+      realNetKg,
+      paidValueRp,
+      realValueRp,
+      weightProfitKg,
+      weightProfitRp,
+      effectiveRealCostPerKg,
+      realPkgMassKg,
+    };
+  };
 
   const filteredRaw = tobaccos
     .filter((t) => {
@@ -90,6 +135,9 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
       if (sortBy === 'stock') return b.currentStockNetKg - a.currentStockNetKg;
       if (sortBy === 'hpp') return b.realCostPerNetKg - a.realCostPerNetKg;
       if (sortBy === 'power') return b.powerRating - a.powerRating;
+      if (sortBy === 'weightProfit') {
+        return getRawWeightMetrics(b).weightProfitRp - getRawWeightMetrics(a).weightProfitRp;
+      }
       return a.name.localeCompare(b.name);
     });
 
@@ -149,6 +197,273 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
       {/* PANEL 1: STOK TEMBAKAU MENTAH */}
       {activeStockPanel === 'raw' && (
         <>
+          {/* Warehouse Paid Value vs Real Value & Buy-Side Weight Profit Summary Strip */}
+          {(() => {
+            const totals = filteredRaw.reduce(
+              (acc, t) => {
+                const paidVal =
+                  t.totalModalAsal || Math.round(t.netWeightKg * t.pricePerKgPurchase);
+                const realPkg = t.taraFormula.packagingMassKg ?? t.deductionKg;
+                const realNet =
+                  t.realNetWeightKg ??
+                  Number(Math.max(0, t.grossWeightKg - realPkg).toFixed(2));
+                const realVal =
+                  t.realStockValueRp ?? Math.round(realNet * t.pricePerKgPurchase);
+                const wpKg =
+                  t.purchaseWeightProfitKg ?? Number((realNet - t.netWeightKg).toFixed(2));
+                const wpRp = t.purchaseWeightProfitRp ?? realVal - paidVal;
+
+                return {
+                  paidNetKg: Number((acc.paidNetKg + t.netWeightKg).toFixed(2)),
+                  realNetKg: Number((acc.realNetKg + realNet).toFixed(2)),
+                  paidValueRp: acc.paidValueRp + paidVal,
+                  realValueRp: acc.realValueRp + realVal,
+                  weightProfitKg: Number((acc.weightProfitKg + wpKg).toFixed(2)),
+                  weightProfitRp: acc.weightProfitRp + wpRp,
+                };
+              },
+              {
+                paidNetKg: 0,
+                realNetKg: 0,
+                paidValueRp: 0,
+                realValueRp: 0,
+                weightProfitKg: 0,
+                weightProfitRp: 0,
+              }
+            );
+
+            const openWarehouseCalcModal = (focus: RawTobaccoCalcFocus) => {
+              if (focus === 'PAID_VALUE') {
+                const itemSteps = filteredRaw.map((item, idx) => {
+                  const m = getRawWeightMetrics(item);
+                  return {
+                    stepNumber: idx + 1,
+                    title: `${item.name} (${item.origin})`,
+                    formula: `Netto Bayar = Bruto ${item.grossWeightKg} kg − Potongan Nota ${item.deductionKg} kg = ${m.paidNetKg} kg`,
+                    substitution: `${m.paidNetKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${formatRupiah(m.paidValueRp)}`,
+                    resultLabel: 'Nilai Bayar',
+                    resultValue: formatRupiah(m.paidValueRp),
+                    explanation: `Dari Bruto ${item.grossWeightKg} kg dipotong tarra nota ${item.deductionKg} kg (${item.taraFormula.rawFormula}) menjadi ${m.paidNetKg} kg.`,
+                    highlight: 'white' as const,
+                  };
+                });
+
+                setCalcDetail({
+                  title: `1. Total Nilai Bayar (Paid Value) — ${filteredRaw.length} Stok`,
+                  subtitle: `Total Netto Nota Dibayar: ${totals.paidNetKg} kg`,
+                  badgeText: 'PANEL 1 GUDANG • ASAL ANGKA TOTAL NILAI BAYAR',
+                  coreFormula:
+                    'Total Nilai Bayar = Σ ((Bruto − Potongan Nota) × Harga Beli / KG)',
+                  steps: itemSteps,
+                  summaryRows: [
+                    {
+                      label: 'Jumlah Jenis Stok',
+                      value: `${filteredRaw.length} Jenis Tembakau`,
+                      highlight: 'white',
+                    },
+                    {
+                      label: 'Total Netto Nota Dibayar',
+                      value: `${totals.paidNetKg} kg`,
+                      highlight: 'white',
+                    },
+                    {
+                      label: 'Total Nilai Bayar (Paid)',
+                      value: formatRupiah(totals.paidValueRp),
+                      highlight: 'amber',
+                    },
+                  ],
+                  conclusion: `Total Nilai Bayar sebesar ${formatRupiah(totals.paidValueRp)} diperoleh dari penjumlahan Netto Bayar Nota seluruh stok (${totals.paidNetKg} kg) dikalikan harga beli masing-masing.`,
+                });
+                return;
+              }
+
+              if (focus === 'REAL_VALUE') {
+                const itemSteps = filteredRaw.map((item, idx) => {
+                  const m = getRawWeightMetrics(item);
+                  return {
+                    stepNumber: idx + 1,
+                    title: `${item.name} (${item.origin})`,
+                    formula: `Netto Riil = Bruto ${item.grossWeightKg} kg − Wadah Riil ${m.realPkgMassKg} kg = ${m.realNetKg} kg`,
+                    substitution: `${m.realNetKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${formatRupiah(m.realValueRp)}`,
+                    resultLabel: 'Nilai Riil',
+                    resultValue: formatRupiah(m.realValueRp),
+                    explanation: `Berat wadah asli (${item.taraFormula.packagingType || 'Standar'}) adalah ${m.realPkgMassKg} kg, sehingga fisik tembakau adalah ${m.realNetKg} kg.`,
+                    highlight: 'amber' as const,
+                  };
+                });
+
+                setCalcDetail({
+                  title: `2. Total Nilai Barang Riil (Real Value) — ${filteredRaw.length} Stok`,
+                  subtitle: `Total Netto Fisik Sebenarnya: ${totals.realNetKg} kg`,
+                  badgeText: 'PANEL 2 GUDANG • ASAL ANGKA TOTAL NILAI BARANG RIIL',
+                  coreFormula:
+                    'Total Nilai Barang Riil = Σ ((Bruto − Berat Wadah Riil) × Harga Beli / KG)',
+                  steps: itemSteps,
+                  summaryRows: [
+                    {
+                      label: 'Jumlah Jenis Stok',
+                      value: `${filteredRaw.length} Jenis Tembakau`,
+                      highlight: 'white',
+                    },
+                    {
+                      label: 'Total Netto Fisik Sebenarnya',
+                      value: `${totals.realNetKg} kg`,
+                      highlight: 'amber',
+                    },
+                    {
+                      label: 'Total Nilai Barang Riil',
+                      value: formatRupiah(totals.realValueRp),
+                      highlight: 'amber',
+                    },
+                  ],
+                  conclusion: `Total Nilai Barang Riil sebesar ${formatRupiah(totals.realValueRp)} diperoleh dari berat fisik tembakau sebenarnya di gudang (${totals.realNetKg} kg setelah dikurangi berat wadah asli) dikalikan harga beli masing-masing.`,
+                });
+                return;
+              }
+
+              // focus === 'WEIGHT_PROFIT'
+              const itemSteps = filteredRaw.map((item, idx) => {
+                const m = getRawWeightMetrics(item);
+                return {
+                  stepNumber: idx + 1,
+                  title: `${item.name} (${item.origin})`,
+                  formula: `Selisih Kg = Netto Riil ${m.realNetKg} kg − Netto Bayar ${m.paidNetKg} kg = ${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg`,
+                  substitution: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)}`,
+                  resultLabel: 'Weight Profit',
+                  resultValue: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg (${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)})`,
+                  explanation: `Potongan nota ${item.deductionKg} kg vs berat wadah asli ${m.realPkgMassKg} kg (${item.taraFormula.packagingType || 'Standar'}).`,
+                  highlight: (m.weightProfitKg >= 0 ? 'amber' : 'red') as 'amber' | 'red',
+                };
+              });
+
+              setCalcDetail({
+                title: `3. Weight Profit (Untung Timbangan Beli) — ${filteredRaw.length} Stok`,
+                subtitle: `Selisih Berat Total: ${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg tembakau ekstra`,
+                badgeText: 'PANEL 3 GUDANG • ASAL ANGKA WEIGHT PROFIT BELI',
+                coreFormula:
+                  'Total Weight Profit = Total Nilai Barang Riil − Total Nilai Bayar Nota',
+                steps: itemSteps,
+                summaryRows: [
+                  {
+                    label: 'Total Selisih Berat',
+                    value: `${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
+                    highlight: totals.weightProfitKg >= 0 ? 'amber' : 'red',
+                  },
+                  {
+                    label: 'Nilai Riil vs Nilai Bayar',
+                    value: `${formatRupiah(totals.realValueRp)} − ${formatRupiah(totals.paidValueRp)}`,
+                    highlight: 'white',
+                  },
+                  {
+                    label: 'Total Weight Profit (Rp)',
+                    value: `${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
+                    highlight: totals.weightProfitRp >= 0 ? 'amber' : 'red',
+                  },
+                ],
+                conclusion: `Angka Weight Profit ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)} berasal dari selisih antara Total Nilai Barang Riil ${formatRupiah(totals.realValueRp)} (${totals.realNetKg} kg) dengan Total Nilai Bayar ${formatRupiah(totals.paidValueRp)} (${totals.paidNetKg} kg).`,
+              });
+            };
+
+            return (
+              <div className="requiem-card p-3.5 sm:p-4 rounded-2xl border border-amber-500/60 bg-black/95 space-y-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="text-[11px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                    <Scale className="w-3.5 h-3.5" />
+                    <span>Perbandingan Nilai Bayar (Paid) vs Nilai Riil Barang & Weight Profit</span>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-zinc-400">
+                    <CalcSymbolBadge />
+                    <span>Simbol rincian angka</span>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs items-stretch">
+                  <button
+                    type="button"
+                    onClick={() => openWarehouseCalcModal('PAID_VALUE')}
+                    className="text-left group bg-zinc-950 p-3 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1.5"
+                  >
+                    <div className="space-y-0.5 w-full">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-zinc-400 uppercase font-bold block truncate">
+                          1. Total Nilai Bayar (Paid Value)
+                        </span>
+                        <CalcSymbolBadge />
+                      </div>
+                      <div className="font-mono font-black text-white text-sm sm:text-base">
+                        {formatRupiah(totals.paidValueRp)}
+                      </div>
+                      <span className="text-[11px] font-mono text-zinc-400 block">
+                        Netto Nota Dibayar: <b className="text-white">{totals.paidNetKg} kg</b>
+                      </span>
+                    </div>
+                    <div className="w-full pt-1.5 border-t border-zinc-900 text-[10px] text-zinc-400 font-mono">
+                      Σ (Netto Nota × Harga)
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => openWarehouseCalcModal('REAL_VALUE')}
+                    className="text-left group bg-zinc-950 p-3 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1.5"
+                  >
+                    <div className="space-y-0.5 w-full">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-amber-300 uppercase font-bold block truncate">
+                          2. Total Nilai Barang Riil (Real Value)
+                        </span>
+                        <CalcSymbolBadge />
+                      </div>
+                      <div className="font-mono font-black text-amber-300 text-sm sm:text-base">
+                        {formatRupiah(totals.realValueRp)}
+                      </div>
+                      <span className="text-[11px] font-mono text-zinc-400 block">
+                        Netto Fisik Sebenarnya: <b className="text-amber-300">{totals.realNetKg} kg</b>
+                      </span>
+                    </div>
+                    <div className="w-full pt-1.5 border-t border-zinc-900 text-[10px] text-zinc-400 font-mono">
+                      Σ (Netto Riil × Harga)
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => openWarehouseCalcModal('WEIGHT_PROFIT')}
+                    className="text-left group bg-zinc-950 p-3 rounded-xl border border-amber-500/80 hover:border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.12)] transition-all cursor-pointer flex flex-col justify-between h-full space-y-1.5"
+                  >
+                    <div className="space-y-0.5 w-full">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] text-amber-400 uppercase font-black block truncate">
+                          3. Weight Profit (Untung Timbangan Beli)
+                        </span>
+                        <CalcSymbolBadge />
+                      </div>
+                      <div
+                        className={`font-mono font-black text-sm sm:text-base ${
+                          totals.weightProfitRp >= 0 ? 'text-amber-400' : 'text-red-400'
+                        }`}
+                      >
+                        {totals.weightProfitRp >= 0 ? '+' : ''}
+                        {formatRupiah(totals.weightProfitRp)}
+                      </div>
+                      <span className="text-[11px] font-mono text-zinc-300 block">
+                        Selisih Berat:{' '}
+                        <b className="text-amber-400">
+                          {totals.weightProfitKg >= 0 ? '+' : ''}
+                          {totals.weightProfitKg} kg
+                        </b>{' '}
+                        tembakau ekstra
+                      </span>
+                    </div>
+                    <div className="w-full pt-1.5 border-t border-zinc-900 text-[10px] text-zinc-400 font-mono">
+                      Nilai Riil − Nilai Bayar
+                    </div>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Compact Search Bar + Collapsible Filters (Hidden Until Pressed) */}
           <div className="requiem-card p-3 rounded-xl border border-zinc-800/90 space-y-3">
             <div className="flex items-center gap-2">
@@ -219,6 +534,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     aria-label="Urutkan"
                   >
                     <option value="name">Urut: Nama</option>
+                    <option value="weightProfit">Urut: Weight Profit Tertinggi</option>
                     <option value="stock">Urut: Stok Terbanyak</option>
                     <option value="hpp">Urut: Modal Tertinggi</option>
                     <option value="power">Urut: Power Terkuat</option>
@@ -228,14 +544,14 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
             </AnimatePresence>
           </div>
 
-          {/* 2 Cards per Horizontal Line on Phone (grid-cols-2) — Slightly Longer Vertically for Rich Info */}
+          {/* Dynamic CSS Grid: 1 card per row on small phones (<420px), 2 per row when space permits (>=420px), 3-4 on larger screens */}
           {filteredRaw.length === 0 ? (
             <div className="text-center py-12 requiem-card rounded-2xl border border-zinc-800">
               <Scale className="w-10 h-10 text-zinc-600 mx-auto mb-2" />
               <p className="text-white font-bold text-sm">Tidak ada tembakau mentah yang cocok</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
               {filteredRaw.map((tobacco, idx) => {
                 const gradeInfo = GRADE_LABELS[tobacco.colorGrade] || GRADE_LABELS['D'];
                 const power5 = clampRating5(tobacco.powerRating);
@@ -247,10 +563,25 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 const totalModalAsal =
                   tobacco.totalModalAsal ||
                   Math.round(tobacco.netWeightKg * tobacco.pricePerKgPurchase);
+                const realPkgMassKg =
+                  tobacco.taraFormula.packagingMassKg ?? tobacco.deductionKg;
+                const realNetWeightKg =
+                  tobacco.realNetWeightKg ??
+                  Number(Math.max(0, tobacco.grossWeightKg - realPkgMassKg).toFixed(2));
+                const realStockValueRp =
+                  tobacco.realStockValueRp ??
+                  Math.round(realNetWeightKg * tobacco.pricePerKgPurchase);
+                const purchaseWeightProfitKg =
+                  tobacco.purchaseWeightProfitKg ??
+                  Number((realNetWeightKg - tobacco.netWeightKg).toFixed(2));
+                const purchaseWeightProfitRp =
+                  tobacco.purchaseWeightProfitRp ??
+                  realStockValueRp - totalModalAsal;
 
                 const tickerItems = [
                   {
                     id: 'all-5-characters',
+                    shortTab: 'Rasa /5',
                     label: '5 Karakter (/5)',
                     value: '',
                     characterParams: [
@@ -262,28 +593,31 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     ],
                   },
                   {
+                    id: 'weight-profit-beli',
+                    shortTab: 'Untung Kg',
+                    label: 'Paid vs Real Value',
+                    value: `${purchaseWeightProfitKg >= 0 ? '+' : ''}${purchaseWeightProfitKg} kg (${purchaseWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(purchaseWeightProfitRp)})`,
+                    subValue: `Riil ${realNetWeightKg}kg`,
+                    detailLine: `Bayar ${formatRupiah(totalModalAsal)} vs Riil ${formatRupiah(realStockValueRp)}`,
+                    accent: 'amber' as const,
+                  },
+                  {
                     id: 'timbangan-beli',
+                    shortTab: 'Berat',
                     label: 'Timbangan & Tarra',
-                    value: `Netto ${tobacco.netWeightKg} kg`,
+                    value: `Bayar ${tobacco.netWeightKg}kg • Riil ${realNetWeightKg}kg`,
                     subValue: `Tarra -${tobacco.deductionKg}kg`,
-                    detailLine: `Bruto ${tobacco.grossWeightKg}kg • ${pkgName}`,
+                    detailLine: `Bruto ${tobacco.grossWeightKg}kg • Wadah ${realPkgMassKg}kg (${pkgName})`,
                     accent: 'white' as const,
                   },
                   {
                     id: 'harga-modal',
+                    shortTab: 'Modal',
                     label: 'Beli & Modal Asal',
                     value: `${formatRupiah(tobacco.pricePerKgPurchase)}/kg`,
                     subValue: 'Beli',
-                    detailLine: `Total: ${formatRupiah(totalModalAsal)}`,
+                    detailLine: `Paid: ${formatRupiah(totalModalAsal)}`,
                     accent: 'amber' as const,
-                  },
-                  {
-                    id: 'penjual-asal',
-                    label: 'Penjual & Asal',
-                    value: tobacco.origin.split(' ')[0],
-                    subValue: `Grade ${tobacco.colorGrade}`,
-                    detailLine: tobacco.sellerName || tobacco.origin,
-                    accent: 'white' as const,
                   },
                 ];
 
@@ -293,7 +627,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.18, delay: Math.min(idx * 0.02, 0.15) }}
-                    className="requiem-card border border-zinc-800/90 hover:border-amber-500 rounded-2xl p-3 sm:p-4 flex flex-col justify-between shadow-lg transition-all duration-200 group min-h-[284px] sm:min-h-[300px]"
+                    className="requiem-card border border-zinc-800/90 hover:border-amber-500 rounded-2xl p-3 sm:p-4 flex flex-col justify-between shadow-lg transition-all duration-200 group min-h-[308px] sm:min-h-[320px]"
                   >
                     {/* Clickable Area -> Opens Full Detail Modal */}
                     <div
@@ -316,24 +650,37 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         {tobacco.name}
                       </h3>
 
-                      {/* Permanent 2-Row Summary Box (Full horizontal room so Rp values never get cut off!) */}
+                      {/* Permanent Summary Box with Paid vs Real Weight & Value */}
                       <div className="bg-zinc-950/95 border border-zinc-800/90 rounded-xl px-2.5 py-2 space-y-1">
                         <div className="flex items-center justify-between gap-1">
                           <span className="text-[9px] font-bold uppercase text-zinc-400">
-                            Sisa Stok
+                            Netto Bayar / Riil
                           </span>
                           <span className="font-mono font-black text-[11px] sm:text-xs text-white whitespace-nowrap">
-                            {tobacco.currentStockNetKg.toFixed(1)} kg
+                            {tobacco.netWeightKg} kg{' '}
+                            <span className="text-amber-400">/ {realNetWeightKg} kg</span>
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
                           <span className="text-[9px] font-bold uppercase text-zinc-400">
-                            Modal / KG
+                            Harga Beli / KG
                           </span>
                           <span className="font-mono font-black text-[11px] sm:text-xs text-amber-400 whitespace-nowrap">
                             {formatRupiah(tobacco.realCostPerNetKg)}
                           </span>
                         </div>
+                        {purchaseWeightProfitKg !== 0 && (
+                          <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
+                            <span className="text-[9px] font-black uppercase text-amber-400">
+                              Weight Profit
+                            </span>
+                            <span className="font-mono font-black text-[10px] sm:text-[11px] text-amber-300 whitespace-nowrap">
+                              {purchaseWeightProfitKg > 0 ? '+' : ''}
+                              {purchaseWeightProfitKg} kg ({purchaseWeightProfitRp > 0 ? '+' : ''}
+                              {formatRupiah(purchaseWeightProfitRp)})
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Moving Panel with All 5 Character Parameters (/5) & Clear Breakdown */}
@@ -387,13 +734,13 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     key={item.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="requiem-card border-2 border-amber-500/50 rounded-2xl p-4 space-y-3.5 shadow-xl"
+                    className="requiem-card border-2 border-amber-500/50 rounded-2xl p-4 space-y-3.5 shadow-xl min-w-0 overflow-hidden"
                   >
                     <div
                       onClick={() => setSelectedRejectDetail(item)}
-                      className="cursor-pointer flex items-start justify-between gap-2"
+                      className="cursor-pointer flex items-start justify-between gap-2 min-w-0"
                     >
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="px-2.5 py-1 rounded-lg bg-black text-amber-400 border border-amber-500 font-mono font-black text-xs">
                             SERI {item.serialNumber}
@@ -405,7 +752,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                             {item.packaging.packagingType} (Utuh)
                           </span>
                         </div>
-                        <p className="text-xs text-zinc-400 mt-1.5">
+                        <p className="text-xs text-zinc-400 mt-1.5 truncate">
                           Eks-Gulungan:{' '}
                           <b className="text-white font-mono">
                             {item.previousRollNumber || item.rollNumber || 'GUL-2026-001'}
@@ -422,7 +769,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     </div>
 
                     {/* Primary Action: Reassign into Newest Gulungan (Packaging & Weight Intact) */}
-                    <div className="pt-2.5 border-t border-zinc-800 flex flex-col sm:flex-row gap-2">
+                    <div className="pt-2.5 border-t border-zinc-800 flex flex-col gap-2 w-full min-w-0">
                       <select
                         value={targetRollId}
                         onChange={(e) =>
@@ -431,7 +778,8 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                             [item.id]: e.target.value,
                           }))
                         }
-                        className="flex-1 h-9 px-3 bg-black border border-zinc-700 rounded-xl text-xs text-white font-bold focus:outline-hidden focus:border-amber-500"
+                        aria-label={`Pilih Gulungan Tujuan untuk Seri ${item.serialNumber}`}
+                        className="w-full min-w-0 max-w-full h-9 px-3 bg-black border border-zinc-700 rounded-xl text-xs text-white font-bold truncate focus:outline-hidden focus:border-amber-500"
                       >
                         {rollSamples.map((r, idx) => (
                           <option key={r.id} value={r.id}>
@@ -445,7 +793,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         type="button"
                         title="Masukkan Seri Reject ke Gulungan Ini (Kemasan & Berat Tetap Utuh)"
                         onClick={() => onReassignRejectedToRoll(item.id, targetRollId)}
-                        className="btn-amber-outline min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                        className="btn-amber-outline w-full min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <ArrowRightCircle className="w-4 h-4 stroke-[2.2] shrink-0" />
                         <span>Masukkan ke Gulungan</span>
@@ -472,6 +820,23 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
               const t = selectedRawDetail;
               const modalAsal =
                 t.totalModalAsal || Math.round(t.netWeightKg * t.pricePerKgPurchase);
+              const realPkgMassKg = t.taraFormula.packagingMassKg ?? t.deductionKg;
+              const realNetWeightKg =
+                t.realNetWeightKg ??
+                Number(Math.max(0, t.grossWeightKg - realPkgMassKg).toFixed(2));
+              const realStockValueRp =
+                t.realStockValueRp ?? Math.round(realNetWeightKg * t.pricePerKgPurchase);
+              const purchaseWeightProfitKg =
+                t.purchaseWeightProfitKg ??
+                Number((realNetWeightKg - t.netWeightKg).toFixed(2));
+              const purchaseWeightProfitRp =
+                t.purchaseWeightProfitRp ?? realStockValueRp - modalAsal;
+              const effectiveCostPerRealKg =
+                t.effectiveCostPerRealKg ??
+                (realNetWeightKg > 0
+                  ? Math.round((modalAsal / realNetWeightKg) * 100) / 100
+                  : t.realCostPerNetKg);
+
               return (
                 <motion.div
                   initial={{ scale: 0.95, y: 12 }}
@@ -517,38 +882,133 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       )}
                     </div>
 
-                    {/* Timbangan & Modal Asal */}
-                    <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2">
-                      <div className="flex justify-between text-zinc-400">
+                    {/* Timbangan Nota vs Timbangan Riil & Weight Profit (Specific Per-Panel Breakdown) */}
+                    <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2.5">
+                      <div className="flex items-center justify-between flex-wrap gap-1.5 text-zinc-400">
                         <span>Kemasan ({t.taraFormula.packagingType || 'Standar'}):</span>
-                        <b className="text-amber-400 font-mono">
-                          Tarra: {t.taraFormula.rawFormula}
-                        </b>
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-zinc-400">
+                          <CalcSymbolBadge />
+                          <span>Simbol rincian angka</span>
+                        </span>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-zinc-900">
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-zinc-900 items-stretch">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCalcDetail(
+                              buildRawTobaccoCalcDetail({
+                                name: t.name,
+                                packagingType: t.taraFormula.packagingType || 'Standar',
+                                grossWeightKg: t.grossWeightKg,
+                                realPackagingMassKg: realPkgMassKg,
+                                percentTara: t.taraFormula.percent,
+                                flatKgTara: t.taraFormula.flatKg,
+                                pricePerKg: t.pricePerKgPurchase,
+                                additionalCost: t.additionalPurchaseCost || 0,
+                                focus: 'PAID_VALUE',
+                              })
+                            )
+                          }
+                          className="text-left group bg-zinc-950 p-3 rounded-lg border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1.5"
+                        >
+                          <div className="space-y-1 w-full">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] text-zinc-400 font-bold uppercase block truncate">
+                                1. Nilai Bayar Nota (Paid Value)
+                              </span>
+                              <CalcSymbolBadge />
+                            </div>
+                            <div className="font-mono text-white">
+                              Bruto {t.grossWeightKg} − Tarra {t.deductionKg} ={' '}
+                              <b className="text-white">{t.netWeightKg} kg</b>
+                            </div>
+                            <div className="font-mono font-black text-white text-sm">
+                              {formatRupiah(modalAsal)}
+                            </div>
+                          </div>
+                          <div className="pt-1.5 border-t border-zinc-900 text-[10px] font-mono text-zinc-400">
+                            {t.netWeightKg} kg × {formatRupiah(t.pricePerKgPurchase)}
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCalcDetail(
+                              buildRawTobaccoCalcDetail({
+                                name: t.name,
+                                packagingType: t.taraFormula.packagingType || 'Standar',
+                                grossWeightKg: t.grossWeightKg,
+                                realPackagingMassKg: realPkgMassKg,
+                                percentTara: t.taraFormula.percent,
+                                flatKgTara: t.taraFormula.flatKg,
+                                pricePerKg: t.pricePerKgPurchase,
+                                additionalCost: t.additionalPurchaseCost || 0,
+                                focus: 'REAL_VALUE',
+                              })
+                            )
+                          }
+                          className="text-left group bg-zinc-950 p-3 rounded-lg border border-amber-500/50 hover:border-amber-400 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1.5"
+                        >
+                          <div className="space-y-1 w-full">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[10px] text-amber-300 font-bold uppercase block truncate">
+                                2. Nilai Barang Riil (Real Value)
+                              </span>
+                              <CalcSymbolBadge />
+                            </div>
+                            <div className="font-mono text-zinc-200">
+                              Bruto {t.grossWeightKg} − Wadah {realPkgMassKg} ={' '}
+                              <b className="text-amber-300">{realNetWeightKg} kg</b>
+                            </div>
+                            <div className="font-mono font-black text-amber-300 text-sm">
+                              {formatRupiah(realStockValueRp)}
+                            </div>
+                          </div>
+                          <div className="pt-1.5 border-t border-zinc-900 text-[10px] font-mono text-zinc-400">
+                            {realNetWeightKg} kg × {formatRupiah(t.pricePerKgPurchase)}
+                          </div>
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCalcDetail(
+                            buildRawTobaccoCalcDetail({
+                              name: t.name,
+                              packagingType: t.taraFormula.packagingType || 'Standar',
+                              grossWeightKg: t.grossWeightKg,
+                              realPackagingMassKg: realPkgMassKg,
+                              percentTara: t.taraFormula.percent,
+                              flatKgTara: t.taraFormula.flatKg,
+                              pricePerKg: t.pricePerKgPurchase,
+                              additionalCost: t.additionalPurchaseCost || 0,
+                              focus: 'WEIGHT_PROFIT',
+                            })
+                          )
+                        }
+                        className="w-full text-left group bg-zinc-950 p-3 rounded-lg border border-amber-500/80 hover:border-amber-400 transition-all cursor-pointer flex items-center justify-between flex-wrap gap-2"
+                      >
                         <div>
-                          <span className="text-[10px] text-zinc-400 block uppercase">Bruto</span>
-                          <b className="font-mono text-white">{t.grossWeightKg} kg</b>
+                          <span className="text-[10px] font-black uppercase text-amber-400 block">
+                            3. Weight Profit (Untung Timbangan Beli)
+                          </span>
+                          <span className="text-[11px] font-mono text-zinc-300">
+                            Modal Riil / KG Fisik:{' '}
+                            <b className="text-white">{formatRupiah(effectiveCostPerRealKg)}/kg</b>
+                          </span>
                         </div>
-                        <div>
-                          <span className="text-[10px] text-zinc-400 block uppercase">Tarra</span>
-                          <b className="font-mono text-amber-400">-{t.deductionKg} kg</b>
+                        <div className="flex items-center gap-2.5">
+                          <div className="font-mono font-black text-amber-400 text-sm text-right">
+                            {purchaseWeightProfitKg >= 0 ? '+' : ''}
+                            {purchaseWeightProfitKg} kg ({purchaseWeightProfitRp >= 0 ? '+' : ''}
+                            {formatRupiah(purchaseWeightProfitRp)})
+                          </div>
+                          <CalcSymbolBadge />
                         </div>
-                        <div>
-                          <span className="text-[10px] text-zinc-400 block uppercase">Netto</span>
-                          <b className="font-mono text-white">{t.netWeightKg} kg</b>
-                        </div>
-                      </div>
-                      <div className="flex justify-between pt-2 border-t border-zinc-900">
-                        <span className="text-zinc-300">Modal Asal (Harga × Netto):</span>
-                        <b className="font-mono text-white">{formatRupiah(modalAsal)}</b>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-amber-400 font-bold">Harga / KG Netto:</span>
-                        <b className="font-mono text-amber-400 text-sm">
-                          {formatRupiah(t.realCostPerNetKg)}/kg
-                        </b>
-                      </div>
+                      </button>
                     </div>
 
                     {/* 5 Sensory Ratings (/5) */}
@@ -715,6 +1175,8 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <CalculationDetailModal data={calcDetail} onClose={() => setCalcDetail(null)} />
     </div>
   );
 };

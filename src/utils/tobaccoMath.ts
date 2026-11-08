@@ -163,15 +163,21 @@ export function calculateTaraDeduction(
 }
 
 /**
- * Menghitung Modal Asal tembakau mentah:
- * Netto = Bruto - Tarra (Tarra eksklusif per seri / penjual)
- * Modal Asal = Price * Netto (secara default NET_WEIGHT, atau GROSS_WEIGHT jika dipilih khusus)
+ * Menghitung Modal Asal (Paid Value) vs Nilai Barang Sebenarnya (Real Value) & Weight Profit Pembelian:
+ * - Netto Bayar (Paid Netto) = Bruto - Potongan Tarra Nota (misal 50 - 7 = 43 kg)
+ * - Nilai Bayar (Paid Value / Modal Asal) = Netto Bayar * Harga Beli (misal 43 * Harga)
+ * - Netto Riil Sebenarnya (Real Netto) = Bruto - Berat Kemasan Riil (misal 50 - 2 = 48 kg)
+ * - Nilai Barang Sebenarnya (Real Value) = Netto Riil * Harga Beli (misal 48 * Harga)
+ * - Weight Profit Pembelian (Kg) = Netto Riil - Netto Bayar (= Potongan Tarra Nota - Berat Kemasan Riil, misal +5 kg)
+ * - Weight Profit Pembelian (Rp) = Real Value - Paid Value (misal +5 * Harga)
+ * - Harga Modal Efektif per KG Riil = Paid Value / Netto Riil (Rp/kg)
  */
 export function calculateRawTobaccoCost(params: {
   grossWeightKg: number;
   pricePerKgPurchase: number;
   taraFormula: TaraFormula;
   additionalCost?: number;
+  realPackagingMassKg?: number;
 }): {
   deductionKg: number;
   netWeightKg: number;
@@ -179,26 +185,58 @@ export function calculateRawTobaccoCost(params: {
   totalInvoiceCost: number;
   realCostPerNetKg: number;
   effectiveTaraPercent: number;
+  realPackagingMassKg: number;
+  realNetWeightKg: number;
+  realStockValueRp: number;
+  purchaseWeightProfitKg: number;
+  purchaseWeightProfitRp: number;
+  effectiveCostPerRealKg: number;
 } {
-  const { grossWeightKg, pricePerKgPurchase, taraFormula, additionalCost = 0 } = params;
-
-  const { deductionKg, netWeightKg, effectivePercent } = calculateTaraDeduction(
+  const {
     grossWeightKg,
+    pricePerKgPurchase,
+    taraFormula,
+    additionalCost = 0,
+    realPackagingMassKg: explicitPkgMassKg,
+  } = params;
+
+  const gross = Math.max(0, grossWeightKg);
+  const { deductionKg, netWeightKg, effectivePercent } = calculateTaraDeduction(
+    gross,
     taraFormula
   );
 
-  // Modal Asal murni = Price * Netto (dimana Netto = Bruto - Tarra)
-  const totalModalAsal = Math.round(netWeightKg * pricePerKgPurchase);
+  // Berat kemasan/wadah fisik sebenarnya (contoh: Karung Goni 2 kg, Keranjang 3 kg)
+  const realPackagingMassKg = Number(
+    Math.min(
+      gross,
+      Math.max(
+        0,
+        explicitPkgMassKg !== undefined
+          ? explicitPkgMassKg
+          : taraFormula.packagingMassKg !== undefined
+          ? taraFormula.packagingMassKg
+          : taraFormula.flatKg || 0
+      )
+    ).toFixed(2)
+  );
 
-  let totalInvoiceCost = 0;
-  if (taraFormula.pricingBasis === 'GROSS_WEIGHT') {
-    totalInvoiceCost = grossWeightKg * pricePerKgPurchase + additionalCost;
-  } else {
-    // Default: Modal Asal = Price * Netto (+ ongkos angkut jika ada)
-    totalInvoiceCost = netWeightKg * pricePerKgPurchase + additionalCost;
-  }
+  // Netto Riil Sebenarnya = Bruto - Berat Wadah Riil (misal: 50 kg - 2 kg = 48 kg)
+  const realNetWeightKg = Number(Math.max(0, gross - realPackagingMassKg).toFixed(2));
+
+  // Modal Asal (Paid Value) = Harga * Netto Bayar
+  const totalModalAsal = Math.round(netWeightKg * pricePerKgPurchase);
+  const totalInvoiceCost = netWeightKg * pricePerKgPurchase + additionalCost;
+
+  // Real Value (Nilai Barang Sebenarnya di Gudang) = Netto Riil * Harga Beli
+  const realStockValueRp = Math.round(realNetWeightKg * pricePerKgPurchase);
+
+  // Weight Profit Pembelian (Selisih Berat & Nilai antara Barang Riil vs yang Kita Bayar)
+  const purchaseWeightProfitKg = Number((realNetWeightKg - netWeightKg).toFixed(2));
+  const purchaseWeightProfitRp = Math.round(realStockValueRp - totalModalAsal);
 
   const realCostPerNetKg = netWeightKg > 0 ? totalInvoiceCost / netWeightKg : 0;
+  const effectiveCostPerRealKg = realNetWeightKg > 0 ? totalInvoiceCost / realNetWeightKg : 0;
 
   return {
     deductionKg,
@@ -207,6 +245,12 @@ export function calculateRawTobaccoCost(params: {
     totalInvoiceCost: Math.round(totalInvoiceCost),
     realCostPerNetKg: Math.round(realCostPerNetKg * 100) / 100,
     effectiveTaraPercent: effectivePercent,
+    realPackagingMassKg,
+    realNetWeightKg,
+    realStockValueRp,
+    purchaseWeightProfitKg,
+    purchaseWeightProfitRp,
+    effectiveCostPerRealKg: Math.round(effectiveCostPerRealKg * 100) / 100,
   };
 }
 
@@ -244,9 +288,13 @@ export function calculateBlendMetrics(params: {
 }): {
   totalBlendNetKg: number;
   totalMaterialCost: number;
+  totalRealPaidMaterialCost: number;
+  totalBuyWeightProfitRp: number;
   totalOverheadCost: number;
   totalProductionCost: number;
+  totalRealPaidProductionCost: number;
   hppPerNetKg: number;
+  effectiveRealPaidHppPerKg: number;
   weightedPower: number;
   weightedImpact: number;
   weightedBitter: number;
@@ -264,9 +312,13 @@ export function calculateBlendMetrics(params: {
     return {
       totalBlendNetKg: 0,
       totalMaterialCost: 0,
+      totalRealPaidMaterialCost: 0,
+      totalBuyWeightProfitRp: 0,
       totalOverheadCost,
       totalProductionCost: totalOverheadCost,
+      totalRealPaidProductionCost: totalOverheadCost,
       hppPerNetKg: 0,
+      effectiveRealPaidHppPerKg: 0,
       weightedPower: 0,
       weightedImpact: 0,
       weightedBitter: 0,
@@ -278,6 +330,7 @@ export function calculateBlendMetrics(params: {
   }
 
   let totalMaterialCost = 0;
+  let totalRealPaidMaterialCost = 0;
   let powerSum = 0;
   let impactSum = 0;
   let bitterSum = 0;
@@ -288,6 +341,9 @@ export function calculateBlendMetrics(params: {
   const updatedIngredients = ingredients.map((item) => {
     const percentageInBlend = (item.usedNetKg / totalBlendNetKg) * 100;
     const subtotalCost = item.usedNetKg * item.realCostPerNetKg;
+    const effCostKg = item.effectiveCostPerRealKg ?? item.realCostPerNetKg;
+    const subtotalRealPaidCost = item.usedNetKg * effCostKg;
+    const embeddedWeightProfitRp = Math.round(subtotalCost - subtotalRealPaidCost);
 
     const p = clampRating5(item.powerRating || 0);
     const im = clampRating5(item.impactRating || 0);
@@ -296,6 +352,7 @@ export function calculateBlendMetrics(params: {
     const su = clampRating5(item.sugarRating ?? 3.5);
 
     totalMaterialCost += subtotalCost;
+    totalRealPaidMaterialCost += subtotalRealPaidCost;
     powerSum += item.usedNetKg * p;
     impactSum += item.usedNetKg * im;
     bitterSum += item.usedNetKg * b;
@@ -312,11 +369,17 @@ export function calculateBlendMetrics(params: {
       sugarRating: su,
       percentageInBlend: Number(percentageInBlend.toFixed(1)),
       subtotalCost: Math.round(subtotalCost),
+      subtotalRealPaidCost: Math.round(subtotalRealPaidCost),
+      embeddedWeightProfitRp,
     };
   });
 
   const totalProductionCost = Math.round(totalMaterialCost + totalOverheadCost);
+  const totalRealPaidProductionCost = Math.round(totalRealPaidMaterialCost + totalOverheadCost);
+  const totalBuyWeightProfitRp = Math.round(totalMaterialCost - totalRealPaidMaterialCost);
   const hppPerNetKg = Math.round((totalProductionCost / totalBlendNetKg) * 100) / 100;
+  const effectiveRealPaidHppPerKg =
+    Math.round((totalRealPaidProductionCost / totalBlendNetKg) * 100) / 100;
 
   const weightedPower = Number((powerSum / totalBlendNetKg).toFixed(1));
   const weightedImpact = Number((impactSum / totalBlendNetKg).toFixed(1));
@@ -329,9 +392,13 @@ export function calculateBlendMetrics(params: {
   return {
     totalBlendNetKg: Number(totalBlendNetKg.toFixed(2)),
     totalMaterialCost: Math.round(totalMaterialCost),
+    totalRealPaidMaterialCost: Math.round(totalRealPaidMaterialCost),
+    totalBuyWeightProfitRp,
     totalOverheadCost: Math.round(totalOverheadCost),
     totalProductionCost,
+    totalRealPaidProductionCost,
     hppPerNetKg,
+    effectiveRealPaidHppPerKg,
     weightedPower,
     weightedImpact,
     weightedBitter,
@@ -343,8 +410,13 @@ export function calculateBlendMetrics(params: {
 }
 
 /**
- * Menghitung spesifikasi packaging & pengiriman tembakau jadi ke pabrik
- * Netto = Bruto - Tarra, Jumlah = Netto * Harga
+ * Menghitung spesifikasi packaging, pengiriman tembakau jadi ke pabrik & Weight Profit/Loss Pabrik:
+ * - Netto Tagih Pabrik = Bruto - Potongan Tarra Pabrik
+ * - Netto Riil Tembakau = Bruto - Berat Wadah Riil
+ * - Selisih Timbangan Pabrik (factoryWeightProfitKg) = Netto Tagih Pabrik - Netto Riil Tembakau
+ *   (= Berat Wadah Riil - Potongan Tarra Pabrik)
+ *   Contoh Untung (+1 kg): Wadah Riil 3 kg, Potongan Tarra Pabrik 2 kg -> Kita untung +1 kg kemasan dibayar harga tembakau!
+ *   Contoh Rugi (-1 kg): Wadah Riil 6 kg, Potongan Tarra Pabrik 7 kg (10% + 2 dari 50 kg) -> Kita rugi -1 kg nilai tembakau!
  */
 export function calculateFactoryDelivery(params: {
   packaging: PackagingSpec;
@@ -353,8 +425,12 @@ export function calculateFactoryDelivery(params: {
   factoryTargetPricePerKg: number;
 }): {
   grossWeightShipped: number;
+  realPackagingMassTotalKg: number;
+  realTobaccoNetTotalKg: number;
   factoryDeductionKg: number;
   factoryNetBillableKg: number;
+  factoryWeightProfitKg: number;
+  factoryWeightProfitRp: number;
   totalHPPBatch: number;
   effectiveHppAfterTaraPerKg: number;
   projectedRevenue: number;
@@ -363,12 +439,34 @@ export function calculateFactoryDelivery(params: {
 } {
   const { packaging, totalProductionCost, factoryTargetPricePerKg } = params;
 
-  const { packageCount = 1, grossWeightPerPackage = 0, factoryTaraFormula } = packaging;
+  const {
+    packageCount = 1,
+    grossWeightPerPackage = 0,
+    packagingMassKg = 0,
+    netTobaccoWeightKg,
+    factoryTaraFormula,
+  } = packaging;
   const grossWeightShipped = packageCount * grossWeightPerPackage;
+  const realPackagingMassTotalKg = Number((packageCount * (packagingMassKg || 0)).toFixed(2));
+  const realTobaccoNetTotalKg = Number(
+    (
+      netTobaccoWeightKg !== undefined && netTobaccoWeightKg > 0
+        ? packageCount * netTobaccoWeightKg
+        : Math.max(0, grossWeightShipped - realPackagingMassTotalKg)
+    ).toFixed(2)
+  );
 
   const singlePackageTara = calculateTaraDeduction(grossWeightPerPackage, factoryTaraFormula);
   const factoryDeductionKg = Number((singlePackageTara.deductionKg * packageCount).toFixed(2));
   const factoryNetBillableKg = Number(Math.max(0, grossWeightShipped - factoryDeductionKg).toFixed(2));
+
+  // Selisih Timbangan Pabrik:
+  // Positif (+) jika Berat Wadah Riil > Potongan Tarra Pabrik (Untung Timbangan Kemasan)
+  // Negatif (-) jika Potongan Tarra Pabrik > Berat Wadah Riil (Rugi Timbangan Pabrik)
+  const factoryWeightProfitKg = Number((factoryNetBillableKg - realTobaccoNetTotalKg).toFixed(2));
+  const factoryWeightProfitRp = Math.round(
+    factoryWeightProfitKg * (factoryTargetPricePerKg || 0)
+  );
 
   const projectedRevenue = Math.round(factoryNetBillableKg * (factoryTargetPricePerKg || 0));
   const totalHPPBatch = Math.round(totalProductionCost);
@@ -380,8 +478,12 @@ export function calculateFactoryDelivery(params: {
 
   return {
     grossWeightShipped: Number(grossWeightShipped.toFixed(2)),
+    realPackagingMassTotalKg,
+    realTobaccoNetTotalKg,
     factoryDeductionKg,
     factoryNetBillableKg,
+    factoryWeightProfitKg,
+    factoryWeightProfitRp,
     totalHPPBatch,
     effectiveHppAfterTaraPerKg,
     projectedRevenue,

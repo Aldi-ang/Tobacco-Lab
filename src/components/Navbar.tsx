@@ -14,8 +14,14 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
+  Sparkles,
+  Cloud,
+  LogOut,
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 import { PWAInstallButton, OfflineIndicator } from './PWAInstallButton';
+import { CURRENT_APP_VERSION } from './PatchNotesModal';
 
 export type ActiveTab =
   | 'inventory'
@@ -36,9 +42,15 @@ interface NavbarProps {
   rollCount: number;
   onOpenAddModal: () => void;
   onOpenMasterModal: () => void;
+  onOpenPatchNotes: () => void;
+  hasUnreadPatch?: boolean;
   onExportData: () => void;
   onImportData: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onResetData: () => void;
+  userEmail?: string | null;
+  cloudSyncStatus?: 'offline' | 'syncing' | 'synced' | 'error';
+  onGoogleLogin?: () => void;
+  onGoogleLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -52,9 +64,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   rollCount,
   onOpenAddModal,
   onOpenMasterModal,
+  onOpenPatchNotes,
+  hasUnreadPatch = false,
   onExportData,
   onImportData,
   onResetData,
+  userEmail = null,
+  cloudSyncStatus = 'offline',
+  onGoogleLogin,
+  onGoogleLogout,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -126,46 +144,89 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       <OfflineIndicator />
-      <header className="bg-black/95 backdrop-blur-xl border-b border-zinc-800/90 text-white sticky top-0 z-30 shadow-[0_10px_30px_rgba(0,0,0,0.85)]">
+      <header className="safe-top-header bg-black/95 backdrop-blur-xl border-b border-zinc-800/90 text-white sticky top-0 z-30 shadow-[0_10px_30px_rgba(0,0,0,0.85)]">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          {/* Top Brand & Compact Ergonomic Action Bar (Zero Horizontal Clipping on Phone!) */}
-          <div className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            {/* Row 1 on Mobile / Left side on Desktop: Brand + Stock Pill (Mobile) */}
-            <div className="flex items-center justify-between gap-2 min-w-0">
+          {/* Top Brand & Compact Ergonomic Action Bar (Protected from iPhone Notch & Zero Horizontal Clipping!) */}
+          <div className="py-2 sm:py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            {/* Row 1 on Mobile / Left side on Desktop: Brand + Cloud Sync + Patch Notes + Stock Pill (Mobile) */}
+            <div className="flex items-center justify-between gap-1.5 min-w-0">
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-black flex items-center justify-center shadow-[0_0_18px_rgba(245,158,11,0.28)] border border-amber-500 shrink-0">
-                  <Leaf className="w-4 h-4 text-amber-400 stroke-[2.2]" />
-                </div>
+                <img
+                  src="/awd-logo.png"
+                  alt="AWD Master Logo"
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-black object-contain p-0.5 shadow-[0_0_18px_rgba(245,158,11,0.28)] border border-amber-500/90 shrink-0"
+                />
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-requiem font-black tracking-wider text-white text-sm sm:text-lg whitespace-nowrap">
-                      KRETEK <span className="text-amber-400">MASTER</span>
+                    <span className="font-requiem font-black tracking-wide text-white text-[13px] sm:text-lg whitespace-nowrap">
+                      AWD <span className="text-amber-400">MASTER</span>
                     </span>
-                    <span className="text-[9px] uppercase font-extrabold tracking-widest px-1.5 py-0.5 rounded bg-black text-amber-400 border border-amber-500/60 shrink-0">
-                      PRO /5
+                    <span className="hidden sm:inline-block text-[9px] uppercase font-extrabold tracking-widest px-1.5 py-0.5 rounded bg-black text-amber-400 border border-amber-500/60 shrink-0">
+                      CLOUD
                     </span>
                   </div>
                   <p className="text-[10px] text-zinc-400 hidden lg:block">
-                    HPP Racikan • Nomor Seri • Arsip Gulungan 3D • Status Barang (Terima & Reject)
+                    HPP Racikan • Nomor Seri • Arsip Gulungan 3D • Cloud Sync Google
                   </p>
                 </div>
               </div>
 
-              {/* Mobile-only Stock Pill on top-right of Row 1 */}
-              <div
-                className="sm:hidden bg-zinc-950/90 px-2.5 py-1 rounded-lg border border-zinc-800 flex items-center gap-1.5 shrink-0"
-                title="Total Sisa Stok Bersih Tembakau Mentah"
-              >
-                <Warehouse className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <div className="font-extrabold text-white font-mono text-xs whitespace-nowrap">
-                  {totalNetStockKg.toLocaleString('id-ID', { maximumFractionDigits: 1 })}{' '}
-                  <span className="text-amber-400">kg</span>
+              {/* Mobile-only Right Group on Row 1: Cloud Status + Patch Notes + Stock Pill */}
+              <div className="sm:hidden flex items-center gap-1 shrink-0">
+                {userEmail ? (
+                  <button
+                    type="button"
+                    onClick={onGoogleLogout}
+                    className="inline-flex items-center gap-1 h-7 px-1.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500/80 font-bold text-[10px] whitespace-nowrap cursor-pointer"
+                    title={`Cloud Aktif (${userEmail}) — Ketuk untuk Keluar`}
+                  >
+                    {cloudSyncStatus === 'syncing' ? (
+                      <Loader2 className="w-3 h-3 animate-spin text-amber-400 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-3 h-3 text-amber-400 shrink-0" />
+                    )}
+                    <span>Cloud</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onGoogleLogin}
+                    className="inline-flex items-center gap-1 h-7 px-1.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500 font-bold text-[10px] whitespace-nowrap cursor-pointer"
+                    title="Masuk dengan Google untuk Sinkronisasi Cloud"
+                  >
+                    <Cloud className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span>Login</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={onOpenPatchNotes}
+                  className="relative inline-flex items-center gap-1 h-7 px-1.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500/80 font-mono font-bold text-[10px] whitespace-nowrap cursor-pointer"
+                  title="Lihat Patch Notes, Fitur Baru & Perbaikan Bug"
+                >
+                  <Sparkles className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                  <span>{CURRENT_APP_VERSION}</span>
+                  {hasUnreadPatch && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                  )}
+                </button>
+
+                <div
+                  className="bg-zinc-950/90 h-7 px-1.5 rounded-lg border border-zinc-800 flex items-center gap-1 shrink-0"
+                  title="Total Sisa Stok Bersih Tembakau Mentah"
+                >
+                  <Warehouse className="w-3 h-3 text-amber-400 shrink-0" />
+                  <div className="font-extrabold text-white font-mono text-[10px] whitespace-nowrap">
+                    {totalNetStockKg.toLocaleString('id-ID', { maximumFractionDigits: 1 })}{' '}
+                    <span className="text-amber-400">kg</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Action Buttons: Format + Bahan + Backup Tools (Single aligned row on Phone & Desktop!) */}
-            <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2 text-xs">
+            {/* Action Buttons: Cloud Sync (Desktop) + Patch Notes + Format + Bahan + Backup Tools */}
+            <div className="flex items-center justify-between sm:justify-end gap-1 sm:gap-2 text-xs">
               <div
                 className="hidden sm:flex bg-zinc-950/90 px-2.5 py-1 rounded-lg border border-zinc-800 items-center gap-1.5 shrink-0"
                 title="Total Sisa Stok Bersih Tembakau Mentah"
@@ -177,14 +238,67 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                {/* Desktop Google Cloud Login / Sync Status Button */}
+                {userEmail ? (
+                  <div className="hidden sm:inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg bg-black border border-amber-500/80 text-xs shrink-0">
+                    {cloudSyncStatus === 'syncing' ? (
+                      <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    )}
+                    <span className="font-bold text-amber-400 max-w-[130px] truncate" title={userEmail}>
+                      {userEmail.split('@')[0]}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={onGoogleLogout}
+                      className="ml-1 p-1 rounded hover:bg-zinc-900 text-zinc-400 hover:text-white cursor-pointer"
+                      title={`Keluar dari Cloud (${userEmail})`}
+                      aria-label="Keluar dari Akun Google"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onGoogleLogin}
+                    className="hidden sm:inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500/80 hover:border-amber-400 font-bold text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
+                    title="Masuk dengan Google agar data tersimpan di Cloud & sinkron di semua perangkat"
+                  >
+                    <Cloud className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>Login Cloud</span>
+                  </button>
+                )}
+
                 <PWAInstallButton />
+
+                {/* Desktop & Tablet Patch Notes Button */}
+                <button
+                  type="button"
+                  onClick={onOpenPatchNotes}
+                  className="hidden sm:inline-flex group relative items-center justify-center gap-1.5 h-9 px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500/70 hover:border-amber-400 font-bold text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
+                  title="Lihat Patch Notes, Fitur Baru & Perbaikan Bug"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>Patch Notes</span>
+                  <span className="font-mono text-[10px] text-zinc-300">
+                    ({CURRENT_APP_VERSION})
+                  </span>
+                  {hasUnreadPatch && (
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                  )}
+                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-amber-500 text-amber-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
+                    Riwayat Update, Fitur Baru & Bug Fixes
+                  </span>
+                </button>
 
                 {/* Short & Simple Button Name: "Format" (replaces "Kemasan & Pabrik") */}
                 <button
                   type="button"
                   onClick={onOpenMasterModal}
-                  className="group relative inline-flex items-center justify-center gap-1.5 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-700 hover:border-amber-500 font-bold text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
+                  className="group relative inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2 sm:px-3 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-700 hover:border-amber-500 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
                   title="Format Kemasan (Tarra & Ongkos Press), Daftar Pabrik & Gulungan"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -198,7 +312,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onOpenAddModal}
-                  className="group relative btn-amber-outline inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg font-extrabold text-xs whitespace-nowrap cursor-pointer shrink-0"
+                  className="group relative btn-amber-outline inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2 sm:px-3 rounded-lg font-extrabold text-[11px] sm:text-xs whitespace-nowrap cursor-pointer shrink-0"
                   title="Tambah Stok Tembakau Mentah Baru"
                 >
                   <Plus className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
@@ -213,7 +327,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onExportData}
-                  className="h-8 w-8 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-amber-500/60 transition-all cursor-pointer shrink-0"
+                  className="h-8 w-7 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-amber-500/60 transition-all cursor-pointer shrink-0"
                   title="Backup Data JSON"
                   aria-label="Ekspor Data JSON"
                 >
@@ -231,7 +345,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="h-8 w-8 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-amber-500/60 transition-all cursor-pointer shrink-0"
+                  className="h-8 w-7 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-amber-500/60 transition-all cursor-pointer shrink-0"
                   title="Restore Data JSON"
                   aria-label="Impor Data JSON"
                 >
@@ -241,7 +355,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onResetData}
-                  className="h-8 w-8 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-zinc-400 hover:text-amber-400 border border-zinc-800 hover:border-amber-500/60 transition-all cursor-pointer shrink-0"
+                  className="h-8 w-7 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-zinc-400 hover:text-amber-400 border border-zinc-800 hover:border-amber-500/60 transition-all cursor-pointer shrink-0"
                   title="Reset Data ke Contoh Awal"
                   aria-label="Reset Data ke Contoh Awal"
                 >
@@ -322,8 +436,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      {/* Ergonomic Mobile Bottom Navigation Bar (Phone Viewport Only — Saves Top Space) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-md border-t border-zinc-800 px-1.5 py-1.5 shadow-[0_-8px_24px_rgba(0,0,0,0.9)]">
+      {/* Ergonomic Mobile Bottom Navigation Bar (Protected from iPhone Bottom Home Indicator & Rounded Corners!) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-md border-t border-zinc-800 safe-bottom-nav shadow-[0_-8px_24px_rgba(0,0,0,0.9)]">
         <div className="grid grid-cols-6 gap-1">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -349,3 +463,4 @@ export const Navbar: React.FC<NavbarProps> = ({
     </>
   );
 };
+

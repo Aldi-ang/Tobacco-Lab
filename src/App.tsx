@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { RawTobaccoList } from './components/RawTobaccoList';
@@ -15,7 +15,23 @@ import { RollArchiveView } from './components/RollArchiveView';
 import { RollDetailModal } from './components/RollDetailModal';
 import { TaraSimulator } from './components/TaraSimulator';
 import { MasterRegistryModal } from './components/MasterRegistryModal';
+import { PatchNotesModal, CURRENT_APP_VERSION } from './components/PatchNotesModal';
 import { ArchitecturalBackground } from './components/ArchitecturalBackground';
+import { CloudLoginScreen } from './components/CloudLoginScreen';
+import {
+  auth,
+  db,
+  doc,
+  setDoc,
+  onSnapshot,
+  serverTimestamp,
+  onAuthStateChanged,
+  signOutFromCloud,
+  sanitizeForFirestore,
+  handleFirestoreError,
+  OperationType,
+  User,
+} from './firebase';
 import {
   RawTobacco,
   FinishedTobaccoSerial,
@@ -41,6 +57,7 @@ const STORAGE_KEYS = {
   ROLLS: 'kretek_master_rolls_v3',
   PACKAGING: 'kretek_master_packaging_v3',
   FACTORIES: 'kretek_master_factories_v3',
+  SEEN_PATCH: 'kretek_master_seen_patch_version',
 };
 
 export default function App() {
@@ -99,9 +116,149 @@ export default function App() {
   const [masterInitialSection, setMasterInitialSection] = useState<
     'packaging' | 'factory' | 'gulungan'
   >('packaging');
+  const [isPatchNotesOpen, setIsPatchNotesOpen] = useState(false);
+  const [hasUnreadPatch, setHasUnreadPatch] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.SEEN_PATCH) !== CURRENT_APP_VERSION;
+    } catch {
+      return true;
+    }
+  });
 
   const [blendPrefilledIngredients, setBlendPrefilledIngredients] = useState<BlendIngredient[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Firebase Auth & Real-Time Cloud Sync State
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState<boolean>(false);
+  const [offlineBypass, setOfflineBypass] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && window.location.search.includes('autostart=1')) {
+      return true;
+    }
+    return false;
+  });
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'offline' | 'syncing' | 'synced' | 'error'>(
+    'offline'
+  );
+  const isApplyingRemoteRef = useRef<boolean>(false);
+  const initialCloudLoadDoneRef = useRef<boolean>(false);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
+  // Track Firebase Google Authentication state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setAuthReady(true);
+      if (!user) {
+        setCloudSyncStatus('offline');
+        initialCloudLoadDoneRef.current = false;
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Attach real-time Firestore listener when user is signed in with Google
+  useEffect(() => {
+    if (!authReady || !currentUser) return;
+
+    const workspacePath = `workspaces/${currentUser.uid}`;
+    const workspaceRef = doc(db, 'workspaces', currentUser.uid);
+    setCloudSyncStatus('syncing');
+
+    const unsubscribe = onSnapshot(
+      workspaceRef,
+      async (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          isApplyingRemoteRef.current = true;
+          if (Array.isArray(data.rawTobaccos)) setRawTobaccos(data.rawTobaccos);
+          if (Array.isArray(data.finishedBatches)) setFinishedBatches(data.finishedBatches);
+          if (Array.isArray(data.rollSamples)) setRollSamples(data.rollSamples);
+          if (Array.isArray(data.packagingList)) setPackagingList(data.packagingList);
+          if (Array.isArray(data.factoryList)) setFactoryList(data.factoryList);
+          initialCloudLoadDoneRef.current = true;
+          setCloudSyncStatus('synced');
+          setTimeout(() => {
+            isApplyingRemoteRef.current = false;
+          }, 80);
+        } else {
+          // First time signing in: initialize cloud workspace with current data
+          try {
+            await setDoc(workspaceRef, {
+              ownerId: currentUser.uid,
+              rawTobaccos: sanitizeForFirestore(rawTobaccos.slice(0, 300)),
+              finishedBatches: sanitizeForFirestore(finishedBatches.slice(0, 500)),
+              rollSamples: sanitizeForFirestore(rollSamples.slice(0, 200)),
+              packagingList: sanitizeForFirestore(packagingList.slice(0, 100)),
+              factoryList: sanitizeForFirestore(factoryList.slice(0, 100)),
+              updatedAt: serverTimestamp(),
+            });
+            initialCloudLoadDoneRef.current = true;
+            setCloudSyncStatus('synced');
+          } catch (err) {
+            setCloudSyncStatus('error');
+            handleFirestoreError(err, OperationType.CREATE, workspacePath);
+          }
+        }
+      },
+      (err) => {
+        setCloudSyncStatus('error');
+        handleFirestoreError(err, OperationType.GET, workspacePath);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [authReady, currentUser]);
+
+  // Automatically sync local state changes to Firestore Cloud when logged in
+  useEffect(() => {
+    if (
+      !authReady ||
+      !currentUser ||
+      !initialCloudLoadDoneRef.current ||
+      isApplyingRemoteRef.current
+    ) {
+      return;
+    }
+
+    const workspacePath = `workspaces/${currentUser.uid}`;
+    const workspaceRef = doc(db, 'workspaces', currentUser.uid);
+    setCloudSyncStatus('syncing');
+
+    const timer = setTimeout(async () => {
+      try {
+        await setDoc(workspaceRef, {
+          ownerId: currentUser.uid,
+          rawTobaccos: sanitizeForFirestore(rawTobaccos.slice(0, 300)),
+          finishedBatches: sanitizeForFirestore(finishedBatches.slice(0, 500)),
+          rollSamples: sanitizeForFirestore(rollSamples.slice(0, 200)),
+          packagingList: sanitizeForFirestore(packagingList.slice(0, 100)),
+          factoryList: sanitizeForFirestore(factoryList.slice(0, 100)),
+          updatedAt: serverTimestamp(),
+        });
+        setCloudSyncStatus('synced');
+      } catch (err) {
+        setCloudSyncStatus('error');
+        handleFirestoreError(err, OperationType.WRITE, workspacePath);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [
+    rawTobaccos,
+    finishedBatches,
+    rollSamples,
+    packagingList,
+    factoryList,
+    authReady,
+    currentUser,
+  ]);
 
   useEffect(() => {
     try {
@@ -143,13 +300,6 @@ export default function App() {
     }
   }, [factoryList]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3500);
-  };
-
   const handleSaveRawTobacco = (tobacco: RawTobacco) => {
     const exists = rawTobaccos.some((t) => t.id === tobacco.id);
     if (exists) {
@@ -177,6 +327,7 @@ export default function App() {
       usedNetKg: 25,
       percentageInBlend: 0,
       realCostPerNetKg: tobacco.realCostPerNetKg,
+      effectiveCostPerRealKg: tobacco.effectiveCostPerRealKg ?? tobacco.realCostPerNetKg,
       subtotalCost: 25 * tobacco.realCostPerNetKg,
       powerRating: clampRating5(tobacco.powerRating),
       impactRating: clampRating5(tobacco.impactRating),
@@ -413,18 +564,32 @@ export default function App() {
         const nextMargin =
           nextRevenue > 0 ? Number(((nextProfit / nextRevenue) * 100).toFixed(2)) : 0;
 
+        const realPkgMassKg =
+          ser.packaging.packagingMassKg ?? ser.factoryDeductionKg;
+        const nextRealTobaccoNetKg = Number(
+          Math.max(0, nextBruto - realPkgMassKg).toFixed(2)
+        );
+        const nextFactoryWeightProfitKg = Number(
+          (nextNetto - nextRealTobaccoNetKg).toFixed(2)
+        );
+        const nextFactoryWeightProfitRp = Math.round(
+          nextFactoryWeightProfitKg * nextPrice
+        );
+
         return {
           ...ser,
           compositeColorGrade: nextGrade,
-          totalBlendNetKg: nextNetto,
+          totalBlendNetKg: nextRealTobaccoNetKg,
           packaging: {
             ...ser.packaging,
             grossWeightPerPackage: nextBruto,
-            netTobaccoWeightKg: nextNetto,
-            packagingMassKg: nextTara,
+            netTobaccoWeightKg: nextRealTobaccoNetKg,
+            packagingMassKg: realPkgMassKg,
           },
           factoryDeductionKg: nextTara,
           factoryNetBillableKg: nextNetto,
+          factoryWeightProfitKg: nextFactoryWeightProfitKg,
+          factoryWeightProfitRp: nextFactoryWeightProfitRp,
           factoryTargetPricePerKg: nextPrice,
           projectedRevenue: nextRevenue,
           projectedProfit: nextProfit,
@@ -533,6 +698,20 @@ export default function App() {
     (b) => (b.factoryStatus || 'PENDING') === 'PENDING'
   ).length;
 
+  if (authReady && !currentUser && !offlineBypass) {
+    return (
+      <div className="min-h-screen bg-[#030304] text-white relative">
+        <ArchitecturalBackground />
+        <CloudLoginScreen
+          onContinueOffline={() => {
+            setOfflineBypass(true);
+            showToast('Mode Lokal Aktif — Klik "Login Cloud" di atas kapan saja untuk sinkronisasi Google.');
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#030304] text-white flex flex-col font-sans selection:bg-amber-500 selection:text-black relative">
       {/* Artistic Resident Evil 9 Requiem Architectural Background */}
@@ -556,12 +735,30 @@ export default function App() {
             setMasterInitialSection('packaging');
             setIsMasterModalOpen(true);
           }}
+          onOpenPatchNotes={() => {
+            setIsPatchNotesOpen(true);
+            setHasUnreadPatch(false);
+            try {
+              localStorage.setItem(STORAGE_KEYS.SEEN_PATCH, CURRENT_APP_VERSION);
+            } catch {
+              // ignore
+            }
+          }}
+          hasUnreadPatch={hasUnreadPatch}
           onExportData={handleExportData}
           onImportData={handleImportData}
           onResetData={handleResetData}
+          userEmail={currentUser?.email || null}
+          cloudSyncStatus={cloudSyncStatus}
+          onGoogleLogin={() => setOfflineBypass(false)}
+          onGoogleLogout={async () => {
+            await signOutFromCloud();
+            setOfflineBypass(false);
+            showToast('Berhasil keluar dari akun Google Cloud.');
+          }}
         />
 
-        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-5">
+        <main className="flex-1 max-w-7xl w-full mx-auto py-4 sm:py-5 safe-main-container">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -634,7 +831,12 @@ export default function App() {
               )}
 
               {activeTab === 'tara-simulator' && (
-                <TaraSimulator packagingList={packagingList} factoryList={factoryList} />
+                <TaraSimulator
+                  rawTobaccos={rawTobaccos}
+                  rollSamples={rollSamples}
+                  packagingList={packagingList}
+                  factoryList={factoryList}
+                />
               )}
             </motion.div>
           </AnimatePresence>
@@ -686,6 +888,11 @@ export default function App() {
           setRollSamples([...rollSamples, roll]);
           showToast(`Gulungan Sampel "${roll.rollNumber}" berhasil dibuat!`);
         }}
+      />
+
+      <PatchNotesModal
+        isOpen={isPatchNotesOpen}
+        onClose={() => setIsPatchNotesOpen(false)}
       />
 
       <AnimatePresence>

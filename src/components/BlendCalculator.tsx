@@ -38,6 +38,12 @@ import {
 } from '../utils/tobaccoMath';
 import { NumericInput } from './NumericInput';
 import { SegmentedControl } from './RatingSegmentSlider';
+import {
+  CalculationDetailModal,
+  CalculationDetailData,
+  CalcSymbolBadge,
+  buildSerialFactoryCalcDetail,
+} from './CalculationDetailModal';
 
 const DRAFT_STORAGE_KEY = 'kretek_master_save_draft_v3';
 
@@ -82,6 +88,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
           usedNetKg: 52,
           percentageInBlend: 50,
           realCostPerNetKg: rawTobaccos[0].realCostPerNetKg,
+          effectiveCostPerRealKg:
+            rawTobaccos[0].effectiveCostPerRealKg ?? rawTobaccos[0].realCostPerNetKg,
           subtotalCost: 52 * rawTobaccos[0].realCostPerNetKg,
           powerRating: clampRating5(rawTobaccos[0].powerRating),
           impactRating: clampRating5(rawTobaccos[0].impactRating),
@@ -98,6 +106,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
           usedNetKg: 51,
           percentageInBlend: 50,
           realCostPerNetKg: rawTobaccos[1].realCostPerNetKg,
+          effectiveCostPerRealKg:
+            rawTobaccos[1].effectiveCostPerRealKg ?? rawTobaccos[1].realCostPerNetKg,
           subtotalCost: 51 * rawTobaccos[1].realCostPerNetKg,
           powerRating: clampRating5(rawTobaccos[1].powerRating),
           impactRating: clampRating5(rawTobaccos[1].impactRating),
@@ -113,6 +123,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
   });
 
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
 
   // Helper to build a default package item with its own packaging type, packagingCostRp & pressCostRp
   const buildDefaultPackageItem = (
@@ -370,6 +381,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
       usedNetKg: 25,
       percentageInBlend: 0,
       realCostPerNetKg: raw.realCostPerNetKg,
+      effectiveCostPerRealKg: raw.effectiveCostPerRealKg ?? raw.realCostPerNetKg,
       subtotalCost: 25 * raw.realCostPerNetKg,
       powerRating: clampRating5(raw.powerRating),
       impactRating: clampRating5(raw.impactRating),
@@ -509,6 +521,9 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
         packaging: packagingSpec,
         factoryDeductionKg: delivery.factoryDeductionKg,
         factoryNetBillableKg: delivery.factoryNetBillableKg,
+        factoryWeightProfitKg: delivery.factoryWeightProfitKg,
+        factoryWeightProfitRp: delivery.factoryWeightProfitRp,
+        buyWeightProfitRp: Math.round(metrics.totalBuyWeightProfitRp * weightRatio),
         factoryTargetPricePerKg: pkg.targetPricePerKg,
         projectedRevenue: delivery.projectedRevenue,
         projectedProfit: delivery.projectedProfit,
@@ -957,45 +972,199 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
               </span>
             </div>
 
-            {/* Big Number: HPP Per Net KG */}
-            <div className="bg-black/95 rounded-xl p-4 border border-amber-500/50 text-center space-y-1">
-              <div className="text-[11px] text-zinc-300 font-bold uppercase">
-                MODAL RATA-RATA / KG CAMPURAN:
-              </div>
-              <div className="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-tight">
-                {formatRupiah(metrics.hppPerNetKg)}{' '}
-                <span className="text-xs font-normal text-zinc-400">/ kg</span>
-              </div>
-              <p className="text-[11px] text-zinc-400">
-                Netto {metrics.totalBlendNetKg} kg + Kemasan & Press ({draft.packageCount} Seri)
-              </p>
-            </div>
+            {/* Big Number: HPP Per Net KG & Breakdown (Specific Per-Panel Breakdown) */}
+            {(() => {
+              const openBlendHppModal = (focus: 'HPP_PER_KG' | 'TOTAL_PRODUCTION_COST') => {
+                if (focus === 'HPP_PER_KG') {
+                  setCalcDetail({
+                    title: `1. Modal Rata-Rata / KG Campuran (${formatRupiah(metrics.hppPerNetKg)}/kg)`,
+                    subtitle: `Total Modal ${formatRupiah(metrics.totalProductionCost)} ÷ Total Netto ${metrics.totalBlendNetKg} kg`,
+                    badgeText: 'PANEL HPP / KG • ASAL ANGKA MODAL RATA-RATA PER KG',
+                    coreFormula:
+                      'HPP Rata-Rata / KG = Total Modal Produksi ÷ Total Netto Campuran',
+                    steps: [
+                      {
+                        stepNumber: 1,
+                        title: 'Jumlahkan Total Berat Netto Campuran',
+                        formula: 'Total Netto = Σ Berat Netto Bahan yang Dipakai',
+                        substitution:
+                          metrics.updatedIngredients
+                            .map((ing) => `${ing.usedNetKg} kg (${ing.tobaccoName})`)
+                            .join(' + ') + ` = ${metrics.totalBlendNetKg} kg`,
+                        resultLabel: 'Total Netto',
+                        resultValue: `${metrics.totalBlendNetKg} kg`,
+                        explanation: `Total berat bersih seluruh daun tembakau yang dicampur adalah ${metrics.totalBlendNetKg} kg.`,
+                        highlight: 'white',
+                      },
+                      {
+                        stepNumber: 2,
+                        title: 'Jumlahkan Total Modal Produksi (Bahan + Kemasan & Press)',
+                        formula: 'Total Modal Produksi = Nilai Bahan + Biaya Kemasan & Press',
+                        substitution: `${formatRupiah(metrics.totalMaterialCost)} + ${formatRupiah(metrics.totalOverheadCost)} = ${formatRupiah(metrics.totalProductionCost)}`,
+                        resultLabel: 'Total Modal',
+                        resultValue: formatRupiah(metrics.totalProductionCost),
+                        explanation: `Gabungan nilai bahan baku (${formatRupiah(metrics.totalMaterialCost)}) dan biaya ${draft.packageCount} kemasan & press (${formatRupiah(metrics.totalOverheadCost)}).`,
+                        highlight: 'white',
+                      },
+                      {
+                        stepNumber: 3,
+                        title: 'Bagi Total Modal dengan Total Netto Campuran',
+                        formula: 'HPP Rata-Rata / KG = Total Modal Produksi ÷ Total Netto Campuran',
+                        substitution: `${formatRupiah(metrics.totalProductionCost)} ÷ ${metrics.totalBlendNetKg} kg = ${formatRupiah(metrics.hppPerNetKg)}/kg`,
+                        resultLabel: 'HPP / KG',
+                        resultValue: `${formatRupiah(metrics.hppPerNetKg)}/kg`,
+                        explanation: `Modal rata-rata per 1 kg campuran adalah ${formatRupiah(metrics.hppPerNetKg)}/kg (HPP kas efektif setelah Weight Profit Beli: ${formatRupiah(metrics.effectiveRealPaidHppPerKg)}/kg).`,
+                        highlight: 'amber',
+                      },
+                    ],
+                    summaryRows: [
+                      {
+                        label: 'Total Modal Produksi',
+                        value: formatRupiah(metrics.totalProductionCost),
+                        highlight: 'white',
+                      },
+                      {
+                        label: 'Total Netto Campuran',
+                        value: `${metrics.totalBlendNetKg} kg`,
+                        highlight: 'white',
+                      },
+                      {
+                        label: 'HPP Rata-Rata / KG',
+                        value: `${formatRupiah(metrics.hppPerNetKg)}/kg`,
+                        highlight: 'amber',
+                      },
+                    ],
+                    conclusion: `Angka ${formatRupiah(metrics.hppPerNetKg)}/kg berasal dari Total Modal Produksi ${formatRupiah(metrics.totalProductionCost)} dibagi Total Netto Campuran ${metrics.totalBlendNetKg} kg.`,
+                  });
+                  return;
+                }
 
-            {/* Compact Breakdown */}
-            <div className="space-y-1.5 text-xs">
-              <div className="flex items-center justify-between py-1 border-b border-zinc-900 text-zinc-300">
-                <span>Total Netto Campuran:</span>
-                <span className="font-mono font-bold text-white">{metrics.totalBlendNetKg} kg</span>
-              </div>
-              <div className="flex items-center justify-between py-1 border-b border-zinc-900 text-zinc-300">
-                <span>Modal Asal Bahan (Harga × Netto):</span>
-                <span className="font-mono font-bold text-white">
-                  {formatRupiah(metrics.totalMaterialCost)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between py-1 border-b border-zinc-900 text-zinc-300">
-                <span>Biaya Kemasan & Press ({draft.packageCount} Seri):</span>
-                <span className="font-mono font-bold text-amber-400">
-                  {formatRupiah(metrics.totalOverheadCost)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between py-1.5 border-b border-zinc-800 font-black text-white">
-                <span>Total Modal Produksi:</span>
-                <span className="font-mono text-amber-400 text-sm">
-                  {formatRupiah(metrics.totalProductionCost)}
-                </span>
-              </div>
-            </div>
+                // focus === 'TOTAL_PRODUCTION_COST'
+                const ingSteps = metrics.updatedIngredients.map((ing, i) => ({
+                  stepNumber: i + 1,
+                  title: `Bahan #${i + 1}: ${ing.tobaccoName} (${ing.origin})`,
+                  formula: 'Subtotal Bahan = Netto Dipakai × Harga Beli / KG Nota',
+                  substitution: `${ing.usedNetKg} kg (${ing.percentageInBlend}%) × ${formatRupiah(ing.realCostPerNetKg)}/kg = ${formatRupiah(ing.subtotalCost)}`,
+                  resultLabel: 'Subtotal Bahan',
+                  resultValue: formatRupiah(ing.subtotalCost),
+                  explanation:
+                    ing.embeddedWeightProfitRp && ing.embeddedWeightProfitRp !== 0
+                      ? `Mengandung Weight Profit Beli ${ing.embeddedWeightProfitRp > 0 ? '+' : ''}${formatRupiah(ing.embeddedWeightProfitRp)} (Modal kas riil: ${formatRupiah(ing.subtotalRealPaidCost || ing.subtotalCost)}).`
+                      : `Proporsi ${ing.percentageInBlend}% dari total campuran ${metrics.totalBlendNetKg} kg.`,
+                  highlight: 'white' as const,
+                }));
+
+                setCalcDetail({
+                  title: `2. Rincian Total Modal Produksi (${formatRupiah(metrics.totalProductionCost)})`,
+                  subtitle: `${ingredients.length} Jenis Bahan (${metrics.totalBlendNetKg} kg) + ${draft.packageCount} Kemasan Seri`,
+                  badgeText: 'PANEL TOTAL MODAL • ASAL ANGKA NILAI BAHAN & KEMASAN',
+                  coreFormula:
+                    'Total Modal Produksi = Σ (Netto Bahan × Harga Beli) + Σ (Harga Kemasan + Ongkos Press)',
+                  steps: [
+                    ...ingSteps,
+                    {
+                      stepNumber: ingSteps.length + 1,
+                      title: 'Tambahkan Biaya Kemasan & Ongkos Press',
+                      formula: 'Total Modal = Total Nilai Bahan + Biaya Kemasan & Press',
+                      substitution: `${formatRupiah(metrics.totalMaterialCost)} + ${formatRupiah(metrics.totalOverheadCost)} (${draft.packageCount} Seri) = ${formatRupiah(metrics.totalProductionCost)}`,
+                      resultLabel: 'Total Modal Produksi',
+                      resultValue: formatRupiah(metrics.totalProductionCost),
+                      explanation: `Total Nilai Bahan ${formatRupiah(metrics.totalMaterialCost)} ditambah biaya kemasan & press ${formatRupiah(metrics.totalOverheadCost)} = ${formatRupiah(metrics.totalProductionCost)}.`,
+                      highlight: 'amber',
+                    },
+                  ],
+                  summaryRows: [
+                    {
+                      label: 'Total Nilai Bahan',
+                      value: formatRupiah(metrics.totalMaterialCost),
+                      highlight: 'white',
+                    },
+                    {
+                      label: 'Kemasan & Press',
+                      value: formatRupiah(metrics.totalOverheadCost),
+                      highlight: 'white',
+                    },
+                    {
+                      label: 'Total Modal Produksi',
+                      value: formatRupiah(metrics.totalProductionCost),
+                      highlight: 'amber',
+                    },
+                  ],
+                  conclusion: `Total Modal Produksi sebesar ${formatRupiah(metrics.totalProductionCost)} berasal dari penjumlahan nilai ${ingredients.length} bahan (${formatRupiah(metrics.totalMaterialCost)}) ditambah biaya kemasan & press (${formatRupiah(metrics.totalOverheadCost)}).`,
+                });
+              };
+
+              return (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => openBlendHppModal('HPP_PER_KG')}
+                    className="w-full relative bg-black/95 rounded-xl p-4 border border-amber-500/50 hover:border-amber-400 transition-all text-center space-y-1 cursor-pointer group"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="w-5" />
+                      <span className="text-[11px] text-zinc-300 font-bold uppercase">
+                        MODAL RATA-RATA / KG CAMPURAN:
+                      </span>
+                      <CalcSymbolBadge />
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-tight">
+                      {formatRupiah(metrics.hppPerNetKg)}{' '}
+                      <span className="text-xs font-normal text-zinc-400">/ kg</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400">
+                      Netto {metrics.totalBlendNetKg} kg + Kemasan & Press ({draft.packageCount} Seri)
+                    </p>
+                  </button>
+
+                  {/* Compact Breakdown (Specific Total Production Cost Breakdown) */}
+                  <button
+                    type="button"
+                    onClick={() => openBlendHppModal('TOTAL_PRODUCTION_COST')}
+                    className="w-full text-left bg-black/80 hover:bg-black p-3 rounded-xl border border-zinc-800 hover:border-amber-500/60 transition-all space-y-1.5 text-xs cursor-pointer group"
+                  >
+                    <div className="flex items-center justify-between pb-1 border-b border-zinc-900">
+                      <span className="text-[10px] font-black uppercase text-amber-400">
+                        Rincian Komponen Modal Produksi
+                      </span>
+                      <CalcSymbolBadge />
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-zinc-900 text-zinc-300">
+                      <span>Total Netto Campuran:</span>
+                      <span className="font-mono font-bold text-white">{metrics.totalBlendNetKg} kg</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-zinc-900 text-zinc-300">
+                      <span>Nilai Bahan (Harga Nota × Netto):</span>
+                      <span className="font-mono font-bold text-white">
+                        {formatRupiah(metrics.totalMaterialCost)}
+                      </span>
+                    </div>
+                    {metrics.totalBuyWeightProfitRp !== 0 && (
+                      <div className="flex items-center justify-between py-1 border-b border-zinc-900 text-amber-300">
+                        <span>Weight Profit Beli Terkandung:</span>
+                        <span className="font-mono font-bold text-amber-400">
+                          {metrics.totalBuyWeightProfitRp > 0 ? '+' : ''}
+                          {formatRupiah(metrics.totalBuyWeightProfitRp)} (Kas Riil:{' '}
+                          {formatRupiah(metrics.totalRealPaidMaterialCost)})
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between py-1 border-b border-zinc-900 text-zinc-300">
+                      <span>Biaya Kemasan & Press ({draft.packageCount} Seri):</span>
+                      <span className="font-mono font-bold text-amber-400">
+                        {formatRupiah(metrics.totalOverheadCost)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1 font-black text-white">
+                      <span>Total Modal Produksi:</span>
+                      <span className="font-mono text-amber-400 text-sm">
+                        {formatRupiah(metrics.totalProductionCost)}
+                      </span>
+                    </div>
+                  </button>
+                </>
+              );
+            })()}
 
             {/* Collapsible 5 Sensory Ratings (/5) — Hidden Until Pressed */}
             <div className="space-y-2">
@@ -1197,24 +1366,121 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       (Number(pkg.packagingCostRp) || 0) + (Number(pkg.pressCostRp) || 0);
                     const pkgProdCost =
                       Math.round(metrics.totalMaterialCost * weightRatio) + pkgOverhead;
+                    const pkgTaraDeductionKg = Number(
+                      (
+                        (pkg.brutoWeightKg * (Number(pkg.taraPercent) || 0)) / 100 +
+                        (Number(pkg.taraFlatKg) || 0) +
+                        (Number(pkg.sampleDeductionKg) || 0)
+                      ).toFixed(2)
+                    );
+                    const pkgBillableNetKg = Number(
+                      Math.max(0, pkg.brutoWeightKg - pkgTaraDeductionKg).toFixed(2)
+                    );
+                    const pkgFactoryWeightProfitKg = Number(
+                      (pkgBillableNetKg - pkg.netWeightKg).toFixed(2)
+                    );
+                    const pkgFactoryWeightProfitRp = Math.round(
+                      pkgFactoryWeightProfitKg * (Number(pkg.targetPricePerKg) || 0)
+                    );
 
                     return (
                       <div
                         key={idx}
                         className="bg-black border border-zinc-800 rounded-xl p-3.5 space-y-3"
                       >
-                        <div className="flex items-center justify-between border-b border-zinc-900 pb-2">
-                          <span className="px-2.5 py-0.5 rounded bg-black text-amber-400 border border-amber-500 font-black font-mono text-xs">
-                            SERI #{idx + 1} — {pkg.serialNumber}
-                          </span>
-                          <span className="font-mono text-zinc-400 text-xs">
-                            Modal: <b className="text-amber-400">{formatRupiah(pkgProdCost)}</b>
-                          </span>
+                        <div className="flex items-center justify-between flex-wrap gap-2 border-b border-zinc-900 pb-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-0.5 rounded bg-black text-amber-400 border border-amber-500 font-black font-mono text-xs">
+                              SERI #{idx + 1} — {pkg.serialNumber}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCalcDetail(
+                                  buildSerialFactoryCalcDetail({
+                                    serialNumber: pkg.serialNumber,
+                                    packagingType: pkg.packagingType,
+                                    targetFactory: pkg.targetFactoryName,
+                                    brutoKg: pkg.brutoWeightKg,
+                                    realTobaccoNetKg: pkg.netWeightKg,
+                                    realPackagingMassKg: pkg.packagingMassKg,
+                                    factoryTaraPercent: pkg.taraPercent,
+                                    factoryTaraFlatKg: pkg.taraFlatKg,
+                                    factorySampleKg: pkg.sampleDeductionKg,
+                                    factoryDeductionKg: pkgTaraDeductionKg,
+                                    factoryBillableNetKg: pkgBillableNetKg,
+                                    materialCostRp: Math.round(
+                                      metrics.totalMaterialCost * weightRatio
+                                    ),
+                                    overheadCostRp: pkgOverhead,
+                                    totalProductionCostRp: pkgProdCost,
+                                    hppPerNetKg:
+                                      pkg.netWeightKg > 0
+                                        ? Math.round(pkgProdCost / pkg.netWeightKg)
+                                        : metrics.hppPerNetKg,
+                                    factoryPricePerKg: Number(pkg.targetPricePerKg) || 0,
+                                    focus: 'FACTORY_WEIGHT',
+                                  })
+                                )
+                              }
+                              className={`group inline-flex items-center gap-1.5 px-2 py-0.5 rounded font-mono text-[10px] font-bold border cursor-pointer transition-colors ${
+                                pkgFactoryWeightProfitKg >= 0
+                                  ? 'bg-zinc-950 text-amber-400 border-amber-500/70 hover:border-amber-400'
+                                  : 'bg-zinc-950 text-red-400 border-red-500/60 hover:border-red-400'
+                              }`}
+                            >
+                              <span>
+                                Timbangan Pabrik:{' '}
+                                {pkgFactoryWeightProfitKg >= 0 ? '+' : ''}
+                                {pkgFactoryWeightProfitKg} kg ({pkgFactoryWeightProfitRp >= 0 ? '+' : ''}
+                                {formatRupiah(pkgFactoryWeightProfitRp)})
+                              </span>
+                              <CalcSymbolBadge />
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCalcDetail(
+                                buildSerialFactoryCalcDetail({
+                                  serialNumber: pkg.serialNumber,
+                                  packagingType: pkg.packagingType,
+                                  targetFactory: pkg.targetFactoryName,
+                                  brutoKg: pkg.brutoWeightKg,
+                                  realTobaccoNetKg: pkg.netWeightKg,
+                                  realPackagingMassKg: pkg.packagingMassKg,
+                                  factoryTaraPercent: pkg.taraPercent,
+                                  factoryTaraFlatKg: pkg.taraFlatKg,
+                                  factorySampleKg: pkg.sampleDeductionKg,
+                                  factoryDeductionKg: pkgTaraDeductionKg,
+                                  factoryBillableNetKg: pkgBillableNetKg,
+                                  materialCostRp: Math.round(
+                                    metrics.totalMaterialCost * weightRatio
+                                  ),
+                                  overheadCostRp: pkgOverhead,
+                                  totalProductionCostRp: pkgProdCost,
+                                  hppPerNetKg:
+                                    pkg.netWeightKg > 0
+                                      ? Math.round(pkgProdCost / pkg.netWeightKg)
+                                      : metrics.hppPerNetKg,
+                                  factoryPricePerKg: Number(pkg.targetPricePerKg) || 0,
+                                  focus: 'FACTORY_PROFIT',
+                                })
+                              )
+                            }
+                            className="group inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 hover:border-amber-500/60 font-mono text-zinc-400 text-xs cursor-pointer transition-colors"
+                          >
+                            <span>
+                              Modal: <b className="text-amber-400">{formatRupiah(pkgProdCost)}</b> • Tagih:{' '}
+                              <b className="text-white">{pkgBillableNetKg} kg</b>
+                            </span>
+                            <CalcSymbolBadge />
+                          </button>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 items-end">
-                          <div>
-                            <label className="block text-[10px] font-bold text-amber-400 mb-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] font-bold text-amber-400 whitespace-nowrap truncate mb-1">
                               Nomor Seri *
                             </label>
                             <input
@@ -1228,9 +1494,9 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                             />
                           </div>
 
-                          <div className="sm:col-span-2">
-                            <label className="block text-[10px] font-bold text-white mb-1">
-                              Jenis Packaging
+                          <div className="sm:col-span-2 flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] font-bold text-white whitespace-nowrap truncate mb-1">
+                              Jenis Kemasan
                             </label>
                             <select
                               value={pkg.packagingId}
@@ -1247,8 +1513,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                             </select>
                           </div>
 
-                          <div>
-                            <label className="block text-[10px] font-bold text-white mb-1">
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] font-bold text-white whitespace-nowrap truncate mb-1">
                               Grade
                             </label>
                             <select
@@ -1268,8 +1534,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                             </select>
                           </div>
 
-                          <div>
-                            <label className="block text-[10px] font-bold text-white mb-1">
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] font-bold text-white whitespace-nowrap truncate mb-1">
                               Harga Kemasan
                             </label>
                             <NumericInput
@@ -1281,8 +1547,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                             />
                           </div>
 
-                          <div>
-                            <label className="block text-[10px] font-bold text-amber-400 mb-1">
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] font-bold text-amber-400 whitespace-nowrap truncate mb-1">
                               Ongkos Press
                             </label>
                             <NumericInput
@@ -1295,9 +1561,35 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 pt-2 border-t border-zinc-900 items-end">
-                          <div>
-                            <label className="block text-[10px] text-zinc-400 mb-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 pt-2 border-t border-zinc-900">
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] text-zinc-400 whitespace-nowrap truncate mb-1">
+                              Netto Isi (kg)
+                            </label>
+                            <NumericInput
+                              value={pkg.netWeightKg}
+                              onChange={(val) =>
+                                handleUpdatePackageItem(idx, { netWeightKg: val })
+                              }
+                              className="w-full h-9 px-2 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden"
+                            />
+                          </div>
+
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] text-amber-300 font-bold whitespace-nowrap truncate mb-1">
+                              Wadah Riil (kg)
+                            </label>
+                            <NumericInput
+                              value={pkg.packagingMassKg}
+                              onChange={(val) =>
+                                handleUpdatePackageItem(idx, { packagingMassKg: val })
+                              }
+                              className="w-full h-9 px-2 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-300 font-mono font-bold text-xs focus:outline-hidden"
+                            />
+                          </div>
+
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] text-zinc-400 whitespace-nowrap truncate mb-1">
                               Bruto (kg)
                             </label>
                             <NumericInput
@@ -1305,41 +1597,38 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               onChange={(val) =>
                                 handleUpdatePackageItem(idx, { brutoWeightKg: val })
                               }
-                              className="w-full h-9 px-2.5 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden"
                             />
                           </div>
 
-                          <div>
-                            <label className="block text-[10px] text-amber-400 mb-1">
-                              Tarra (kg)
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] text-amber-400 whitespace-nowrap truncate mb-1">
+                              Tarra Flat (kg)
                             </label>
                             <NumericInput
                               value={pkg.taraFlatKg}
                               onChange={(val) =>
-                                handleUpdatePackageItem(idx, {
-                                  taraFlatKg: val,
-                                  packagingMassKg: val,
-                                })
+                                handleUpdatePackageItem(idx, { taraFlatKg: val })
                               }
-                              className="w-full h-9 px-2.5 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-400 font-mono font-bold text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-400 font-mono font-bold text-xs focus:outline-hidden"
                             />
                           </div>
 
-                          <div>
-                            <label className="block text-[10px] text-zinc-400 mb-1">
-                              Netto (kg)
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] text-amber-400 whitespace-nowrap truncate mb-1">
+                              Tarra (%)
                             </label>
                             <NumericInput
-                              value={pkg.netWeightKg}
+                              value={pkg.taraPercent}
                               onChange={(val) =>
-                                handleUpdatePackageItem(idx, { netWeightKg: val })
+                                handleUpdatePackageItem(idx, { taraPercent: val })
                               }
-                              className="w-full h-9 px-2.5 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-400 font-mono font-bold text-xs focus:outline-hidden"
                             />
                           </div>
 
-                          <div>
-                            <label className="block text-[10px] text-zinc-400 mb-1">
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] text-zinc-400 whitespace-nowrap truncate mb-1">
                               Pabrik Tujuan
                             </label>
                             <select
@@ -1347,7 +1636,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               onChange={(e) =>
                                 handleUpdatePackageItem(idx, { targetFactoryId: e.target.value })
                               }
-                              className="w-full h-9 px-2.5 bg-zinc-950 border border-zinc-700 rounded-lg text-white text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2 bg-zinc-950 border border-zinc-700 rounded-lg text-white text-xs focus:outline-hidden"
                             >
                               {factoryList.map((f) => (
                                 <option key={f.id} value={f.id}>
@@ -1357,8 +1646,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                             </select>
                           </div>
 
-                          <div>
-                            <label className="block text-[10px] text-zinc-400 mb-1">
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] text-zinc-400 whitespace-nowrap truncate mb-1">
                               Gulungan
                             </label>
                             <select
@@ -1366,7 +1655,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               onChange={(e) =>
                                 handleUpdatePackageItem(idx, { rollId: e.target.value })
                               }
-                              className="w-full h-9 px-2.5 bg-zinc-950 border border-zinc-700 rounded-lg text-amber-400 font-bold text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2 bg-zinc-950 border border-zinc-700 rounded-lg text-amber-400 font-bold text-xs focus:outline-hidden"
                             >
                               {rollSamples.map((r) => (
                                 <option key={r.id} value={r.id}>
@@ -1376,8 +1665,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                             </select>
                           </div>
 
-                          <div>
-                            <label className="block text-[10px] font-bold text-amber-400 mb-1">
+                          <div className="flex flex-col">
+                            <label className="h-4 flex items-center text-[10px] font-bold text-amber-400 whitespace-nowrap truncate mb-1">
                               Harga Pabrik/KG
                             </label>
                             <NumericInput
@@ -1385,7 +1674,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               onChange={(val) =>
                                 handleUpdatePackageItem(idx, { targetPricePerKg: val })
                               }
-                              className="w-full h-9 px-2.5 bg-zinc-950 border border-amber-500 rounded-lg text-amber-400 font-mono font-bold text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2 bg-zinc-950 border border-amber-500 rounded-lg text-amber-400 font-mono font-bold text-xs focus:outline-hidden"
                             />
                           </div>
                         </div>
@@ -1414,6 +1703,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <CalculationDetailModal data={calcDetail} onClose={() => setCalcDetail(null)} />
     </div>
   );
 };

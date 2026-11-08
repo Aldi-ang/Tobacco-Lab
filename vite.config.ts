@@ -11,11 +11,11 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+        includeAssets: ['icon.svg', 'awd-logo.png', 'apple-touch-icon-awd-black.png'],
         manifest: {
           id: '/',
-          name: 'Kretek Master — Sistem Racikan & HPP Tembakau',
-          short_name: 'KretekMaster',
+          name: 'AWD Master — Sistem Racikan & HPP Tembakau',
+          short_name: 'AWD Master',
           description:
             'Sistem manajemen racikan tembakau antardaerah, kalkulator HPP akurat, nomor seri pabrik, dan arsip gulungan sampel.',
           theme_color: '#000000',
@@ -25,19 +25,19 @@ export default defineConfig(() => {
           scope: '/',
           icons: [
             {
-              src: '/pwa-192x192.png',
+              src: '/pwa-192-awd-black.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-512x512.png',
+              src: '/pwa-512-awd-black.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-maskable-512x512.png',
+              src: '/pwa-maskable-512-awd-black.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -46,10 +46,11 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         },
         devOptions: {
           enabled: true,
-          type: 'module',
+          suppressWarnings: true,
         },
       }),
     ],

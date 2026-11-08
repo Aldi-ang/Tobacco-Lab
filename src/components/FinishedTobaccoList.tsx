@@ -29,6 +29,13 @@ import {
 } from '../utils/tobaccoMath';
 import { SegmentedControl } from './RatingSegmentSlider';
 import { SpinningStatTicker } from './SpinningStatTicker';
+import {
+  CalculationDetailModal,
+  CalculationDetailData,
+  CalcSymbolBadge,
+  SerialFactoryCalcFocus,
+  buildSerialFactoryCalcDetail,
+} from './CalculationDetailModal';
 
 interface FinishedTobaccoListProps {
   finishedBatches: FinishedTobaccoSerial[];
@@ -50,6 +57,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
   const [viewMode, setViewMode] = useState<'grid-3d' | 'by-gulungan' | 'csv-sync'>('grid-3d');
   const [activeSerial, setActiveSerial] = useState<FinishedTobaccoSerial | null>(null);
   const [copiedMode, setCopiedMode] = useState<'CSV' | 'TSV' | null>(null);
+  const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
 
   const factories = ['ALL', ...Array.from(new Set(finishedBatches.map((b) => b.targetFactory)))];
 
@@ -135,6 +143,18 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
     const brutoKg =
       batch.packaging.grossWeightPerPackage * (batch.packaging.packageCount || 1);
     const nettoKg = batch.factoryNetBillableKg;
+    const realTobaccoNetKg =
+      batch.packaging.netTobaccoWeightKg ??
+      batch.totalBlendNetKg ??
+      Math.max(0, brutoKg - (batch.packaging.packagingMassKg ?? batch.factoryDeductionKg));
+    const realPkgMassKg =
+      batch.packaging.packagingMassKg ??
+      Number(Math.max(0, brutoKg - realTobaccoNetKg).toFixed(2));
+    const factoryWeightProfitKg =
+      batch.factoryWeightProfitKg ?? Number((nettoKg - realTobaccoNetKg).toFixed(2));
+    const factoryWeightProfitRp =
+      batch.factoryWeightProfitRp ??
+      Math.round(factoryWeightProfitKg * (batch.factoryTargetPricePerKg || 0));
     const status = batch.factoryStatus || 'PENDING';
     const profitRp = batch.projectedRevenue - batch.totalProductionCost;
 
@@ -147,6 +167,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
     const tickerItems = [
       {
         id: 'all-5-characters',
+        shortTab: 'Rasa /5',
         label: '5 Karakter (/5)',
         value: '',
         characterParams: [
@@ -159,6 +180,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
       },
       {
         id: 'profit-seri',
+        shortTab: 'Profit',
         label: 'Profit & Nota',
         value: `${profitRp >= 0 ? '+' : ''}${formatRupiah(profitRp)}`,
         subValue: 'Profit',
@@ -166,19 +188,21 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
         accent: 'amber' as const,
       },
       {
+        id: 'timbangan',
+        shortTab: 'Berat',
+        label: 'Netto Tagih vs Riil',
+        value: `Tagih ${nettoKg}kg • Riil ${realTobaccoNetKg}kg`,
+        subValue: `Tarra -${batch.factoryDeductionKg}kg`,
+        detailLine: `Bruto ${brutoKg}kg • Wadah ${realPkgMassKg}kg`,
+        accent: 'white' as const,
+      },
+      {
         id: 'modal-kita',
+        shortTab: 'Modal',
         label: 'Modal Produksi',
         value: `${formatRupiah(batch.hppPerNetKg)}/kg`,
         subValue: 'HPP',
         detailLine: `Total: ${formatRupiah(batch.totalProductionCost)}`,
-        accent: 'white' as const,
-      },
-      {
-        id: 'timbangan',
-        label: 'Timbangan & Tarra',
-        value: `Netto ${nettoKg} kg`,
-        subValue: `Tarra -${batch.factoryDeductionKg}kg`,
-        detailLine: `Bruto ${brutoKg}kg • ${batch.packaging.packagingType}`,
         accent: 'white' as const,
       },
     ];
@@ -190,7 +214,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.18, delay: Math.min(idx * 0.02, 0.15) }}
         onClick={() => setActiveSerial(batch)}
-        className="text-left group relative requiem-card border border-zinc-800/90 hover:border-amber-500 rounded-2xl p-3 sm:p-4 shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[284px] sm:min-h-[300px]"
+        className="text-left group relative requiem-card border border-zinc-800/90 hover:border-amber-500 rounded-2xl p-3 sm:p-4 shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[304px] sm:min-h-[318px]"
       >
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-1">
@@ -225,14 +249,14 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
             )}
           </div>
 
-          {/* Permanent 2-Row Summary Box (Full horizontal room so Rp values never get cut off!) */}
+          {/* Permanent Summary Box with Real vs Billable Net Weight & Factory Weight Profit/Loss */}
           <div className="bg-zinc-950/95 border border-zinc-800/90 rounded-xl px-2.5 py-2 space-y-1">
             <div className="flex items-center justify-between gap-1">
               <span className="text-[9px] font-bold uppercase text-zinc-400">
-                Netto Tagih
+                Riil / Tagih
               </span>
               <span className="font-mono font-black text-[11px] sm:text-xs text-white whitespace-nowrap">
-                {nettoKg} kg
+                {realTobaccoNetKg} kg / <span className="text-amber-400">{nettoKg} kg</span>
               </span>
             </div>
             <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
@@ -243,6 +267,22 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                 {formatRupiah(batch.factoryTargetPricePerKg)}
               </span>
             </div>
+            {factoryWeightProfitKg !== 0 && (
+              <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
+                <span className="text-[9px] font-black uppercase text-amber-400">
+                  Selisih Timbangan
+                </span>
+                <span
+                  className={`font-mono font-black text-[10px] sm:text-[11px] whitespace-nowrap ${
+                    factoryWeightProfitKg > 0 ? 'text-amber-300' : 'text-red-400'
+                  }`}
+                >
+                  {factoryWeightProfitKg > 0 ? '+' : ''}
+                  {factoryWeightProfitKg} kg ({factoryWeightProfitRp > 0 ? '+' : ''}
+                  {formatRupiah(factoryWeightProfitRp)})
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Moving Panel with All 5 Character Parameters (/5) & Profit Breakdown */}
@@ -589,8 +629,8 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
           </div>
         </motion.div>
       ) : viewMode === 'grid-3d' ? (
-        /* 2 Cards per Horizontal Line on Phone (grid-cols-2) */
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        /* Dynamic CSS Grid: 1 card per row on small phones (<420px), 2 per row when space permits (>=420px), 3-4 on larger screens */
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           {filtered.map((batch, idx) => render3DCard(batch, idx))}
         </div>
       ) : (
@@ -630,7 +670,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                 {items.map((batch, idx) => render3DCard(batch, idx))}
               </div>
             </div>
@@ -682,72 +722,156 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
 
               {/* Modal Body */}
               <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {/* Packaging & Tara */}
-                  <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-1.5">
-                    <div className="font-extrabold uppercase tracking-wider text-amber-400 mb-1">
-                      Timbangan & Tarra
-                    </div>
-                    <div className="flex justify-between text-zinc-300">
-                      <span>Kemasan:</span>
-                      <b className="text-white">{activeSerial.packaging.packagingType}</b>
-                    </div>
-                    <div className="flex justify-between text-zinc-300">
-                      <span>Bruto:</span>
-                      <b className="font-mono text-white">
-                        {activeSerial.packaging.grossWeightPerPackage} kg
-                      </b>
-                    </div>
-                    <div className="flex justify-between text-zinc-300">
-                      <span>Tarra:</span>
-                      <b className="font-mono text-amber-400">
-                        -{activeSerial.factoryDeductionKg} kg
-                      </b>
-                    </div>
-                    <div className="flex justify-between text-white pt-1 border-t border-zinc-900 font-black">
-                      <span>Netto:</span>
-                      <span className="font-mono text-amber-400 text-sm">
-                        {activeSerial.factoryNetBillableKg} kg
-                      </span>
-                    </div>
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-stretch">
+                  {/* Packaging & Tara + Factory Weight Profit/Loss */}
+                  {(() => {
+                    const bruto = activeSerial.packaging.grossWeightPerPackage;
+                    const realNet =
+                      activeSerial.packaging.netTobaccoWeightKg ??
+                      activeSerial.totalBlendNetKg ??
+                      Math.max(
+                        0,
+                        bruto -
+                          (activeSerial.packaging.packagingMassKg ??
+                            activeSerial.factoryDeductionKg)
+                      );
+                    const realPkg =
+                      activeSerial.packaging.packagingMassKg ??
+                      Number(Math.max(0, bruto - realNet).toFixed(2));
+                    const wpKg =
+                      activeSerial.factoryWeightProfitKg ??
+                      Number((activeSerial.factoryNetBillableKg - realNet).toFixed(2));
+                    const wpRp =
+                      activeSerial.factoryWeightProfitRp ??
+                      Math.round(wpKg * (activeSerial.factoryTargetPricePerKg || 0));
 
-                  {/* Cost, Factory Price & Profit */}
-                  <div className="bg-black p-3.5 rounded-xl border border-amber-500/40 space-y-1.5">
-                    <div className="font-extrabold uppercase tracking-wider text-amber-400 mb-1">
-                      Modal, Harga Pabrik & Profit
-                    </div>
-                    <div className="flex justify-between text-zinc-300">
-                      <span>Modal / KG:</span>
-                      <b className="font-mono text-white">{formatRupiah(activeSerial.hppPerNetKg)}</b>
-                    </div>
-                    <div className="flex justify-between text-zinc-300">
-                      <span>Harga Pabrik / KG:</span>
-                      <b className="font-mono text-amber-300">
-                        {formatRupiah(activeSerial.factoryTargetPricePerKg)}
-                      </b>
-                    </div>
-                    <div className="flex justify-between text-zinc-300">
-                      <span>Total Modal Kita:</span>
-                      <b className="font-mono text-white">
-                        {formatRupiah(activeSerial.totalProductionCost)}
-                      </b>
-                    </div>
-                    <div className="flex justify-between text-zinc-300">
-                      <span>Jumlah Pabrik:</span>
-                      <b className="font-mono text-amber-300">
-                        {formatRupiah(activeSerial.projectedRevenue)}
-                      </b>
-                    </div>
-                    <div className="flex justify-between text-white pt-1 border-t border-zinc-900 font-black">
-                      <span>PROFIT SERI:</span>
-                      <span className="font-mono text-amber-400">
-                        {formatRupiah(
-                          activeSerial.projectedRevenue - activeSerial.totalProductionCost
-                        )}
-                      </span>
-                    </div>
-                  </div>
+                    const openSeriCalcDetail = (focus: SerialFactoryCalcFocus) => {
+                      setCalcDetail(
+                        buildSerialFactoryCalcDetail({
+                          serialNumber: activeSerial.serialNumber,
+                          packagingType: activeSerial.packaging.packagingType,
+                          targetFactory: activeSerial.targetFactory,
+                          brutoKg: bruto,
+                          realTobaccoNetKg: realNet,
+                          realPackagingMassKg: realPkg,
+                          factoryTaraPercent:
+                            activeSerial.packaging.factoryTaraFormula?.percent ?? 0,
+                          factoryTaraFlatKg:
+                            activeSerial.packaging.factoryTaraFormula?.flatKg ??
+                            activeSerial.factoryDeductionKg,
+                          factorySampleKg:
+                            activeSerial.packaging.factoryTaraFormula?.sampleKg ?? 0,
+                          factoryDeductionKg: activeSerial.factoryDeductionKg,
+                          factoryBillableNetKg: activeSerial.factoryNetBillableKg,
+                          materialCostRp: activeSerial.totalMaterialCost,
+                          overheadCostRp: activeSerial.totalOverheadCost,
+                          totalProductionCostRp: activeSerial.totalProductionCost,
+                          hppPerNetKg: activeSerial.hppPerNetKg,
+                          factoryPricePerKg: activeSerial.factoryTargetPricePerKg,
+                          focus,
+                        })
+                      );
+                    };
+
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openSeriCalcDetail('FACTORY_WEIGHT')}
+                          className="text-left group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
+                        >
+                          <div className="space-y-1.5 w-full">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="font-extrabold uppercase tracking-wider text-amber-400 truncate">
+                                1. Timbangan Riil vs Potongan Pabrik
+                              </span>
+                              <CalcSymbolBadge />
+                            </div>
+                            <div className="flex justify-between text-zinc-300">
+                              <span>Kemasan:</span>
+                              <b className="text-white">{activeSerial.packaging.packagingType}</b>
+                            </div>
+                            <div className="flex justify-between text-zinc-300">
+                              <span>Bruto (Tembakau {realNet}kg + Wadah {realPkg}kg):</span>
+                              <b className="font-mono text-white">{bruto} kg</b>
+                            </div>
+                            <div className="flex justify-between text-zinc-300">
+                              <span>Potongan Tarra Pabrik:</span>
+                              <b className="font-mono text-amber-400">
+                                -{activeSerial.factoryDeductionKg} kg
+                              </b>
+                            </div>
+                            <div className="flex justify-between text-white pt-1 border-t border-zinc-900 font-black">
+                              <span>Netto Tagih Pabrik:</span>
+                              <span className="font-mono text-amber-400 text-sm">
+                                {activeSerial.factoryNetBillableKg} kg
+                              </span>
+                            </div>
+                          </div>
+                          <div className="w-full pt-1.5 border-t border-zinc-900 flex justify-between text-zinc-200 font-bold">
+                            <span>Selisih Timbangan Pabrik:</span>
+                            <span
+                              className={`font-mono font-black ${
+                                wpKg >= 0 ? 'text-amber-300' : 'text-red-400'
+                              }`}
+                            >
+                              {wpKg >= 0 ? '+' : ''}
+                              {wpKg} kg ({wpRp >= 0 ? '+' : ''}
+                              {formatRupiah(wpRp)})
+                            </span>
+                          </div>
+                        </button>
+
+                        {/* Cost, Factory Price & Profit */}
+                        <button
+                          type="button"
+                          onClick={() => openSeriCalcDetail('FACTORY_PROFIT')}
+                          className="text-left group bg-black p-3.5 rounded-xl border border-amber-500/40 hover:border-amber-400 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
+                        >
+                          <div className="space-y-1.5 w-full">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="font-extrabold uppercase tracking-wider text-amber-400 truncate">
+                                2. Modal, Harga Pabrik & Profit
+                              </span>
+                              <CalcSymbolBadge />
+                            </div>
+                            <div className="flex justify-between text-zinc-300">
+                              <span>Modal / KG:</span>
+                              <b className="font-mono text-white">
+                                {formatRupiah(activeSerial.hppPerNetKg)}
+                              </b>
+                            </div>
+                            <div className="flex justify-between text-zinc-300">
+                              <span>Harga Pabrik / KG:</span>
+                              <b className="font-mono text-amber-300">
+                                {formatRupiah(activeSerial.factoryTargetPricePerKg)}
+                              </b>
+                            </div>
+                            <div className="flex justify-between text-zinc-300">
+                              <span>Total Modal Kita:</span>
+                              <b className="font-mono text-white">
+                                {formatRupiah(activeSerial.totalProductionCost)}
+                              </b>
+                            </div>
+                            <div className="flex justify-between text-zinc-300">
+                              <span>Jumlah Nota Pabrik:</span>
+                              <b className="font-mono text-amber-300">
+                                {formatRupiah(activeSerial.projectedRevenue)}
+                              </b>
+                            </div>
+                          </div>
+                          <div className="w-full pt-1.5 border-t border-zinc-900 flex justify-between text-white font-black">
+                            <span>PROFIT SERI:</span>
+                            <span className="font-mono text-amber-400">
+                              {formatRupiah(
+                                activeSerial.projectedRevenue - activeSerial.totalProductionCost
+                              )}
+                            </span>
+                          </div>
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* 5 Sensory Ratings (/5) */}
@@ -824,6 +948,8 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <CalculationDetailModal data={calcDetail} onClose={() => setCalcDetail(null)} />
     </div>
   );
 };

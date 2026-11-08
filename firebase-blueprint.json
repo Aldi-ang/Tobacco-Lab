@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "WorkspaceState": {
+      "title": "WorkspaceState",
+      "description": "Cloud-synced AWD Master tobacco inventory, serials, rolls, packaging, and factories owned by a single authenticated Google user.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the workspace owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "rawTobaccos": {
+          "type": "array",
+          "description": "Array of raw tobacco stock items."
+        },
+        "finishedBatches": {
+          "type": "array",
+          "description": "Array of finished tobacco serial items."
+        },
+        "rollSamples": {
+          "type": "array",
+          "description": "Array of tobacco roll archive samples."
+        },
+        "packagingList": {
+          "type": "array",
+          "description": "Array of packaging format definitions."
+        },
+        "factoryList": {
+          "type": "array",
+          "description": "Array of target factory definitions."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last cloud sync."
+        }
+      },
+      "required": [
+        "ownerId",
+        "rawTobaccos",
+        "finishedBatches",
+        "rollSamples",
+        "packagingList",
+        "factoryList",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/workspaces/{userId}": {
+      "schema": {
+        "$ref": "#/entities/WorkspaceState"
+      },
+      "description": "Per-user cloud-synced workspace document keyed by the user's Firebase Auth UID."
+    }
+  }
+}

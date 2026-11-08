@@ -232,15 +232,17 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
                   <div>
-                    <label className="block text-zinc-300 mb-1">Berat Wadah (kg)</label>
+                    <label className="block text-amber-300 font-bold mb-1">
+                      Berat Wadah Riil (kg)
+                    </label>
                     <NumericInput
                       value={pkgMassKg}
                       onChange={setPkgMassKg}
-                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono focus:outline-hidden"
+                      className="w-full h-10 px-3 bg-zinc-950 border border-amber-500/60 rounded-xl text-amber-300 font-mono font-bold focus:outline-hidden"
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-300 mb-1">Tarra Flat (kg)</label>
+                    <label className="block text-zinc-300 mb-1">Potongan Tarra Flat (kg)</label>
                     <NumericInput
                       value={pkgTaraFlatKg}
                       onChange={setPkgTaraFlatKg}
@@ -248,7 +250,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-zinc-300 mb-1">Tarra % Bruto</label>
+                    <label className="block text-zinc-300 mb-1">Potongan Tarra % Bruto</label>
                     <NumericInput
                       value={pkgTaraPercent}
                       onChange={setPkgTaraPercent}
@@ -266,34 +268,61 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
 
               <div className="space-y-2">
                 <div className="font-bold text-white">Daftar Jenis Packaging Terdaftar:</div>
-                {packagingList.map((pkg) => (
-                  <div
-                    key={pkg.id}
-                    className="bg-black p-3.5 rounded-xl border border-zinc-800 flex items-center justify-between gap-3"
-                  >
-                    <div>
-                      <div className="font-black text-white text-sm">{pkg.name}</div>
-                      <div className="text-zinc-300 mt-1 flex flex-wrap gap-3 font-mono text-[11px]">
-                        <span>
-                          Tarra: <b className="text-amber-400">{formatTaraFormula(pkg.taraPercent, pkg.taraFlatKg)}</b>
-                        </span>
-                        <span>
-                          Harga Kemasan: <b className="text-white">{formatRupiah(pkg.packagingCostRp || 0)}</b>
-                        </span>
-                        <span>
-                          Ongkos Press: <b className="text-amber-400">{formatRupiah(pkg.pressCostRp || 0)}</b>
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onDeletePackaging(pkg.id)}
-                      className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-zinc-900 cursor-pointer"
+                {packagingList.map((pkg) => {
+                  const refDeduction50 = Number(
+                    ((50 * (pkg.taraPercent || 0)) / 100 + (pkg.taraFlatKg || 0)).toFixed(2)
+                  );
+                  const buyWeightDiff50 = Number(
+                    (refDeduction50 - (pkg.packagingMassKg || 0)).toFixed(2)
+                  );
+                  const factoryWeightDiff50 = Number(
+                    ((pkg.packagingMassKg || 0) - refDeduction50).toFixed(2)
+                  );
+
+                  return (
+                    <div
+                      key={pkg.id}
+                      className="bg-black p-3.5 rounded-xl border border-zinc-800 flex items-center justify-between gap-3"
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-black text-white text-sm">{pkg.name}</span>
+                          {buyWeightDiff50 !== 0 && (
+                            <span className="px-2 py-0.5 rounded bg-zinc-950 border border-amber-500/60 font-mono text-[10px] text-amber-400 font-bold">
+                              @50kg: Beli {buyWeightDiff50 > 0 ? `+${buyWeightDiff50}` : buyWeightDiff50}kg • Setor Pabrik {factoryWeightDiff50 > 0 ? `+${factoryWeightDiff50}` : factoryWeightDiff50}kg
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-zinc-300 flex flex-wrap gap-3 font-mono text-[11px]">
+                          <span>
+                            Wadah Riil: <b className="text-amber-300">{pkg.packagingMassKg} kg</b>
+                          </span>
+                          <span>
+                            Potongan Nota:{' '}
+                            <b className="text-amber-400">
+                              {formatTaraFormula(pkg.taraPercent, pkg.taraFlatKg)}
+                            </b>
+                          </span>
+                          <span>
+                            Harga Kemasan:{' '}
+                            <b className="text-white">{formatRupiah(pkg.packagingCostRp || 0)}</b>
+                          </span>
+                          <span>
+                            Ongkos Press:{' '}
+                            <b className="text-amber-400">{formatRupiah(pkg.pressCostRp || 0)}</b>
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onDeletePackaging(pkg.id)}
+                        className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-zinc-900 cursor-pointer shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}

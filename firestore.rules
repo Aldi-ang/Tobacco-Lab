@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Validation Blueprint for WorkspaceState
+    function isValidWorkspace(data) {
+      return data.keys().hasAll([
+          'ownerId',
+          'rawTobaccos',
+          'finishedBatches',
+          'rollSamples',
+          'packagingList',
+          'factoryList',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId',
+          'rawTobaccos',
+          'finishedBatches',
+          'rollSamples',
+          'packagingList',
+          'factoryList',
+          'updatedAt'
+        ])
+        && data.ownerId is string
+        && data.ownerId.size() >= 1
+        && data.ownerId.size() <= 128
+        && data.ownerId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.ownerId == request.auth.uid
+        && data.rawTobaccos is list
+        && data.rawTobaccos.size() <= 300
+        && (data.rawTobaccos.size() == 0 || data.rawTobaccos[0] is map)
+        && data.finishedBatches is list
+        && data.finishedBatches.size() <= 500
+        && (data.finishedBatches.size() == 0 || data.finishedBatches[0] is map)
+        && data.rollSamples is list
+        && data.rollSamples.size() <= 200
+        && (data.rollSamples.size() == 0 || data.rollSamples[0] is map)
+        && data.packagingList is list
+        && data.packagingList.size() <= 100
+        && (data.packagingList.size() == 0 || data.packagingList[0] is map)
+        && data.factoryList is list
+        && data.factoryList.size() <= 100
+        && (data.factoryList.size() == 0 || data.factoryList[0] is map)
+        && data.updatedAt == request.time;
+    }
+
+    match /workspaces/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow create: if isOwner(userId) && isValidId(userId) && isValidWorkspace(incoming());
+      allow update: if isOwner(userId)
+        && isValidId(userId)
+        && isValidWorkspace(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'rawTobaccos',
+          'finishedBatches',
+          'rollSamples',
+          'packagingList',
+          'factoryList',
+          'updatedAt'
+        ]);
+      allow delete: if isOwner(userId) && isValidId(userId);
+    }
+  }
+}

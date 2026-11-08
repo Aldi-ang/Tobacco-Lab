@@ -42,19 +42,27 @@ export interface RawTobacco {
   lotNumber: string; // e.g. "SERI-BELI-01"
   purchaseDate: string;
 
-  // Pembelian & Timbangan (Netto = Bruto - Tarra, Modal Asal = Price * Netto)
+  // Pembelian & Timbangan (Netto Bayar = Bruto - Tarra Nota, Netto Riil = Bruto - Berat Wadah Riil)
   grossWeightKg: number; // Berat Bruto timbangan saat beli (kg)
-  packagingMassKg?: number; // Berat kemasan kosong (kg)
-  pricePerKgPurchase: number; // Harga per kg Netto (Rp)
-  taraFormula: TaraFormula; // Formula potongan tara eksklusif per seri/penjual
+  packagingMassKg?: number; // Berat wadah/kemasan kosong sebenarnya / riil (kg), misal Karung Goni 2 kg
+  pricePerKgPurchase: number; // Harga beli per kg sesuai nota (Rp)
+  taraFormula: TaraFormula; // Formula potongan tara nota eksklusif per seri/penjual (misal 10% + 2 kg)
   additionalPurchaseCost: number; // Opsional ongkos kirim (Rp)
 
-  // Hasil Hitung Timbangan Otomatis
-  deductionKg: number; // Total Tarra (kg)
-  netWeightKg: number; // Netto = Bruto - Tarra (kg)
-  totalModalAsal?: number; // Modal Asal = Price * Netto (Rp)
-  realCostPerNetKg: number; // Modal riil per kg bersih (Rp/kg)
-  currentStockNetKg: number; // Sisa stok bersih di gudang (kg)
+  // Hasil Hitung Timbangan Nota (Paid Weight & Paid Value) vs Sebenarnya (Real Weight & Real Value)
+  deductionKg: number; // Total Potongan Tarra Nota (kg), misal 7 kg (dari 10% + 2 pada Bruto 50 kg)
+  netWeightKg: number; // Netto Bayar = Bruto - Tarra Nota (kg), misal 43 kg
+  totalModalAsal?: number; // Paid Value (Nilai Bayar) = Netto Bayar * Harga Beli (Rp), misal 43 * Harga
+  realCostPerNetKg: number; // Harga Modal Nota per kg Netto Bayar (Rp/kg)
+
+  // Perhitungan Berat Sebenarnya (Real Weight) & Weight Profit Pembelian
+  realNetWeightKg?: number; // Netto Riil = Bruto - Berat Kemasan Riil (kg), misal 50 - 2 = 48 kg
+  realStockValueRp?: number; // Real Value (Nilai Barang Sebenarnya) = Netto Riil * Harga Beli (Rp), misal 48 * Harga
+  purchaseWeightProfitKg?: number; // Selisih Berat Beli = Netto Riil - Netto Bayar (kg), misal +5 kg
+  purchaseWeightProfitRp?: number; // Weight Profit Beli (Rp) = Real Value - Paid Value, misal +5 * Harga
+  effectiveCostPerRealKg?: number; // Harga Modal Riil per KG Fisik Sebenarnya = Paid Value / Netto Riil (Rp/kg)
+
+  currentStockNetKg: number; // Sisa stok fisik di gudang (kg)
 
   // 5 Penilaian Sensoris & Fisik (Skala Maksimal /5)
   powerRating: number; // 0 - 5
@@ -72,8 +80,11 @@ export interface BlendIngredient {
   origin: string;
   usedNetKg: number;
   percentageInBlend: number; // % dari total racikan
-  realCostPerNetKg: number;
+  realCostPerNetKg: number; // Harga nota / kg
+  effectiveCostPerRealKg?: number; // Harga efektif riil / kg setelah diskon untung timbangan beli
   subtotalCost: number;
+  subtotalRealPaidCost?: number; // Modal riil yang benar-benar keluar untuk takaran ini
+  embeddedWeightProfitRp?: number; // Keuntungan timbangan beli yang terkandung dalam bahan ini
   powerRating: number; // /5
   impactRating: number; // /5
   bitterRating: number; // /5
@@ -92,13 +103,13 @@ export interface AdditionalCostItem {
 export interface PackagingSpec {
   packagingId?: string;
   packagingType: string; // e.g. "KRJ MUNTILAN"
-  packagingMassKg: number; // Berat wadah/packaging riil (kg)
+  packagingMassKg: number; // Berat wadah/packaging fisik sebenarnya (kg), misal 3 kg atau 6 kg
   packageCount: number; // 1 karena 1 nomor seri = 1 kemasan eksklusif
-  netTobaccoWeightKg: number; // Berat bersih tembakau di dalam kemasan ini (kg)
-  grossWeightPerPackage: number; // Bruto (kg)
+  netTobaccoWeightKg: number; // Berat bersih tembakau sebenarnya (Netto Riil) di dalam kemasan ini (kg)
+  grossWeightPerPackage: number; // Bruto = Netto Riil Tembakau + Berat Wadah Riil (kg)
   packagingCostRp?: number; // Harga kemasan untuk seri ini (Rp)
   pressCostRp?: number; // Ongkos packaging/press untuk seri ini (Rp)
-  factoryTaraFormula: TaraFormula; // Potongan tara eksklusif seri ini
+  factoryTaraFormula: TaraFormula; // Potongan tara nota pabrik seri ini
 }
 
 export interface FinishedTobaccoSerial {
@@ -114,7 +125,7 @@ export interface FinishedTobaccoSerial {
 
   // Komposisi Bahan
   ingredients: BlendIngredient[];
-  totalBlendNetKg: number; // Netto tembakau pada kemasan seri ini (kg)
+  totalBlendNetKg: number; // Netto tembakau fisik (riil) pada kemasan seri ini (kg)
 
   // 5 Nilai Sensoris Campuran (Skala /5)
   weightedPower: number;
@@ -132,12 +143,15 @@ export interface FinishedTobaccoSerial {
   hppPerNetKg: number; // Modal / KG campuran
   effectiveHppAfterTaraPerKg?: number;
 
-  // Spesifikasi Packaging & Setor Pabrik
+  // Spesifikasi Packaging, Setor Pabrik & Weight Profit / Loss Pabrik
   packaging: PackagingSpec;
-  factoryDeductionKg: number; // Tarra (kg) eksklusif seri ini
-  factoryNetBillableKg: number; // Netto = Bruto - Tarra (kg)
+  factoryDeductionKg: number; // Potongan Tarra Pabrik (kg) eksklusif seri ini
+  factoryNetBillableKg: number; // Netto Tagih Pabrik = Bruto - Potongan Tarra Pabrik (kg)
+  factoryWeightProfitKg?: number; // Selisih Timbangan Pabrik = Netto Tagih Pabrik - Netto Riil Tembakau (= Berat Wadah Riil - Potongan Tarra Pabrik)
+  factoryWeightProfitRp?: number; // Nilai Untung/Rugi Timbangan Pabrik (Rp) = factoryWeightProfitKg * factoryTargetPricePerKg
+  buyWeightProfitRp?: number; // Untung timbangan dari saat pembelian bahan mentah untuk seri ini (Rp)
   factoryTargetPricePerKg: number; // Harga Nota Pabrik / Repricing per KG (Rp/kg)
-  projectedRevenue: number; // Jumlah Nota Pabrik = Netto * Harga Pabrik
+  projectedRevenue: number; // Jumlah Nota Pabrik = Netto Tagih * Harga Pabrik
   projectedProfit: number;
   profitMarginPercent: number;
 
