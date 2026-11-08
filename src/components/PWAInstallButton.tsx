@@ -9,7 +9,6 @@ import {
   Copy,
   Check,
   Rocket,
-  Compass,
 } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -40,8 +39,8 @@ export function OfflineIndicator() {
   if (!isOffline) return null;
 
   return (
-    <div className="bg-black text-amber-400 border-b border-amber-500 px-4 py-1.5 text-center text-xs font-extrabold flex items-center justify-center gap-2 z-50">
-      <WifiOff className="w-3.5 h-3.5 shrink-0" />
+    <div className="bg-black text-white border-b border-zinc-800 px-4 py-1.5 text-center text-xs font-extrabold flex items-center justify-center gap-2 z-50">
+      <WifiOff className="w-3.5 h-3.5 text-amber-400 shrink-0" />
       <span>Mode Offline Aktif — Semua perhitungan & data tetap tersimpan di perangkat Anda.</span>
     </div>
   );
@@ -109,8 +108,8 @@ export const PWAInstallButton: React.FC = () => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'AWD Master — Sistem Racikan & HPP Tembakau',
-          text: 'Buka Aplikasi AWD Master di Safari / Chrome (Bypass Cookie Check):',
+          title: 'Tobacco Lab — Sistem Racikan & HPP Tembakau',
+          text: 'Buka Aplikasi Tobacco Lab di Safari / Chrome (Bypass Cookie Check):',
           url: PUBLIC_SAFARI_URL,
         });
       } catch {
@@ -128,10 +127,10 @@ export const PWAInstallButton: React.FC = () => {
       <button
         type="button"
         onClick={handleInstallClick}
-        className="inline-flex items-center gap-1 h-8 sm:h-9 px-2 sm:px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500/70 hover:border-amber-400 font-bold text-[11px] sm:text-xs transition-all cursor-pointer shrink-0"
+        className="inline-flex items-center gap-1 h-8 sm:h-9 px-2 sm:px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-bold text-[11px] sm:text-xs transition-all cursor-pointer shrink-0"
         title="Panduan Buka di Safari (iPhone), Perbarui Logo Home Screen & Install"
       >
-        <Smartphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+        <Smartphone className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
         <span className="hidden md:inline">Buka di Safari / Install</span>
         <span className="md:hidden">Safari</span>
       </button>
@@ -139,23 +138,23 @@ export const PWAInstallButton: React.FC = () => {
       {showGuideModal &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 bg-black/88 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
             onClick={() => setShowGuideModal(false)}
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="bg-zinc-950 border-2 border-amber-500 rounded-2xl max-w-lg w-full p-4 sm:p-5 text-white shadow-[0_0_40px_rgba(245,158,11,0.22)] space-y-3.5 max-h-[92vh] overflow-y-auto"
+              className="bg-zinc-950 border border-zinc-800 rounded-2xl max-w-lg w-full p-4 sm:p-5 text-white shadow-[0_20px_50px_rgba(0,0,0,0.95)] space-y-3.5 max-h-[92vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                 <div className="flex items-center gap-2.5">
                   <img
                     src="/awd-logo.png"
-                    alt="AWD Master Logo"
-                    className="w-9 h-9 rounded-xl bg-black object-contain p-0.5 border border-amber-500 shrink-0"
+                    alt="Tobacco Lab Logo"
+                    className="w-9 h-9 rounded-xl bg-black object-contain p-0.5 border border-zinc-700 shrink-0"
                   />
                   <div>
                     <h3 className="font-black text-sm sm:text-base text-white">
-                      AWD Master — Buka di Safari (iPhone), Samsung & PC
+                      Tobacco Lab — Buka di Safari (iPhone), Samsung & PC
                     </h3>
                     <p className="text-[11px] text-zinc-400">
                       Link Bypass &quot;Action required to load your app&quot; untuk Safari iOS
@@ -172,15 +171,15 @@ export const PWAInstallButton: React.FC = () => {
               </div>
 
               {/* DIRECT BYPASS LINK FOR SAFARI "ACTION REQUIRED TO LOAD YOUR APP" */}
-              <div className="bg-black border-2 border-amber-400 rounded-xl p-3.5 space-y-2 text-xs">
-                <div className="font-black text-amber-400 flex items-center gap-1.5 text-xs sm:text-sm">
-                  <Rocket className="w-4 h-4 shrink-0" />
+              <div className="bg-black border border-zinc-800 rounded-xl p-3.5 space-y-2 text-xs">
+                <div className="font-black text-white flex items-center gap-1.5 text-xs sm:text-sm">
+                  <Rocket className="w-4 h-4 text-amber-400 shrink-0" />
                   Link Bypass Langsung untuk Safari iPhone:
                 </div>
                 <p className="text-zinc-300 text-[11px] leading-relaxed">
-                  Layar <b>&quot;Action required to load your app&quot;</b> (`/__cookie_check.html`) tertahan di Safari karena Safari menolak cookie `Partitioned` milik proxy AI Studio. Gunakan link khusus dengan akhiran <code className="text-amber-300">?__storage_access_granted=1</code> di bawah ini untuk <b>melewati layar Action Required secara otomatis</b>:
+                  Layar <b>&quot;Action required to load your app&quot;</b> (`/__cookie_check.html`) tertahan di Safari karena Safari menolak cookie `Partitioned` milik proxy AI Studio. Gunakan link khusus dengan akhiran <code className="text-white">?__storage_access_granted=1</code> di bawah ini untuk <b>melewati layar Action Required secara otomatis</b>:
                 </p>
-                <div className="p-2.5 rounded-lg bg-zinc-950 border border-amber-500/60 font-mono text-[11px] text-amber-300 break-all select-all">
+                <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 font-mono text-[11px] text-zinc-200 break-all select-all">
                   {PUBLIC_SAFARI_URL}
                 </div>
                 <p className="text-zinc-400 text-[11px] leading-relaxed">
@@ -197,12 +196,12 @@ export const PWAInstallButton: React.FC = () => {
                 >
                   {copiedUrl ? (
                     <>
-                      <Check className="w-4 h-4 stroke-[2.5]" />
+                      <Check className="w-4 h-4 stroke-[2.5] text-amber-400" />
                       <span>Link Safari Tersalin!</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3.5 h-3.5" />
+                      <Copy className="w-3.5 h-3.5 text-amber-400" />
                       <span>Salin Link Safari (.run.app)</span>
                     </>
                   )}
@@ -211,17 +210,17 @@ export const PWAInstallButton: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleNativeShare}
-                  className="h-9 px-3 rounded-xl bg-black hover:bg-zinc-900 text-white border border-zinc-700 hover:border-amber-500 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="h-9 px-3 rounded-xl bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <Share className="w-3.5 h-3.5 text-amber-400" />
+                  <Share className="w-3.5 h-3.5 text-zinc-300" />
                   <span>Bagikan ke Safari / AirDrop</span>
                 </button>
               </div>
 
               <div className="space-y-2.5 text-xs">
                 <div className="bg-black border border-zinc-800 rounded-xl p-3.5 space-y-1.5">
-                  <div className="font-bold text-amber-400 flex items-center gap-1.5">
-                    <Share className="w-3.5 h-3.5" /> Install ke Layar Utama iPhone (Safari iOS):
+                  <div className="font-bold text-white flex items-center gap-1.5">
+                    <Share className="w-3.5 h-3.5 text-zinc-300" /> Install ke Layar Utama iPhone (Safari iOS):
                   </div>
                   <ol className="list-decimal list-inside text-zinc-300 space-y-1 text-[11px] sm:text-xs">
                     <li>
@@ -231,14 +230,14 @@ export const PWAInstallButton: React.FC = () => {
                       Geser ke bawah lalu pilih <b>&quot;Add to Home Screen&quot; (Tambah ke Layar Utama)</b>.
                     </li>
                     <li>
-                      Ketuk <b>Add / Tambah</b> — ikon <b>AWD Master</b> akan muncul di layar utama iPhone Anda seperti aplikasi native!
+                      Ketuk <b>Add / Tambah</b> — ikon <b>Tobacco Lab</b> akan muncul di layar utama iPhone Anda seperti aplikasi native!
                     </li>
                   </ol>
                 </div>
 
                 <div className="bg-black border border-zinc-800 rounded-xl p-3.5 space-y-1.5">
-                  <div className="font-bold text-amber-400 flex items-center gap-1.5">
-                    <PlusSquare className="w-3.5 h-3.5" /> Install di Samsung / Android & PC (Chrome / Edge):
+                  <div className="font-bold text-white flex items-center gap-1.5">
+                    <PlusSquare className="w-3.5 h-3.5 text-zinc-300" /> Install di Samsung / Android & PC (Chrome / Edge):
                   </div>
                   <ol className="list-decimal list-inside text-zinc-300 space-y-1 text-[11px] sm:text-xs">
                     <li>Ketuk ikon menu <b>⋮</b> di pojok kanan atas browser Chrome.</li>

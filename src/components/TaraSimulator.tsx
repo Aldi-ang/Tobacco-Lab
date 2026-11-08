@@ -22,6 +22,7 @@ import {
 } from '../types/tobacco';
 import { NumericInput } from './NumericInput';
 import { SegmentedControl } from './RatingSegmentSlider';
+import { AutoSlideValueTicker } from './SpinningStatTicker';
 import {
   CalculationDetailModal,
   CalculationDetailData,
@@ -314,48 +315,31 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
   };
 
   return (
-    <div className="space-y-5 pb-16 md:pb-4">
-      {/* Header & Mobile Snapped Segment Switcher */}
-      <div className="requiem-card p-4 sm:p-5 rounded-2xl border border-zinc-800/90 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <span className="p-2 rounded-xl bg-black text-amber-400 border border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)] shrink-0">
-            <Calculator className="w-5 h-5 stroke-[2.2]" />
-          </span>
-          <div>
-            <h1 className="text-base sm:text-xl font-black text-white">
-              Simulator Racikan Multi-Bahan, Tarra & Profit Pabrik
-            </h1>
-            <p className="text-xs text-zinc-400">
-              Gabungkan beberapa jenis tembakau (beda harga & tarra) menjadi 1 racikan, bagi ke keranjang/seri, dan hitung BEP & Profit Nota Pabrik.
-            </p>
-          </div>
-        </div>
-
-        {/* Mobile One-by-One Snapped Panel Switcher */}
-        <div className="lg:hidden">
-          <SegmentedControl
-            value={mobilePanel}
-            onChange={setMobilePanel}
-            className="w-full"
-            options={[
-              {
-                id: 'buy',
-                label: `1. Gabungan Bahan (${simIngredients.length})`,
-                fullLabel: '1. Kombinasi Beberapa Jenis Tembakau & Modal Gabungan',
-              },
-              {
-                id: 'factory',
-                label: '2. Setor Pabrik',
-                fullLabel: '2. Pembagian Keranjang/Seri & Potongan Tarra Pabrik',
-              },
-              {
-                id: 'result',
-                label: '3. Profit & BEP',
-                fullLabel: '3. Kesimpulan Modal Gabungan, BEP & Profit Bersih',
-              },
-            ]}
-          />
-        </div>
+    <div className="space-y-3 pb-16 md:pb-4">
+      {/* Mobile One-by-One Snapped Panel Switcher Only */}
+      <div className="lg:hidden">
+        <SegmentedControl
+          value={mobilePanel}
+          onChange={setMobilePanel}
+          className="w-full"
+          options={[
+            {
+              id: 'buy',
+              label: `1. Gabungan Bahan (${simIngredients.length})`,
+              fullLabel: '1. Kombinasi Beberapa Jenis Tembakau & Modal Gabungan',
+            },
+            {
+              id: 'factory',
+              label: '2. Setor Pabrik',
+              fullLabel: '2. Pembagian Keranjang/Seri & Potongan Tarra Pabrik',
+            },
+            {
+              id: 'result',
+              label: '3. Profit & BEP',
+              fullLabel: '3. Kesimpulan Modal Gabungan, BEP & Profit Bersih',
+            },
+          ]}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -367,13 +351,13 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-zinc-800 pb-3">
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-black text-amber-400 border border-amber-500 flex items-center justify-center font-mono font-black text-xs shrink-0">
+              <span className="w-6 h-6 rounded-lg bg-black text-zinc-300 border border-zinc-700 flex items-center justify-center font-mono font-black text-xs shrink-0">
                 1
               </span>
               <div>
                 <h2 className="font-extrabold text-white text-sm sm:text-base flex items-center gap-1.5">
                   <span>Gabungan Beberapa Jenis Tembakau</span>
-                  <span className="px-2 py-0.5 rounded bg-black border border-amber-500/70 text-amber-400 font-mono text-[10px]">
+                  <span className="px-2 py-0.5 rounded bg-black border border-zinc-800 text-amber-400 font-mono text-[10px]">
                     {simIngredients.length} Jenis
                   </span>
                 </h2>
@@ -390,7 +374,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                 onChange={(e) => {
                   if (e.target.value) handleLoadFromRoll(e.target.value);
                 }}
-                className="h-8 px-2.5 bg-black border border-zinc-700 hover:border-amber-500 rounded-lg text-[11px] text-amber-300 font-bold cursor-pointer"
+                className="h-8 px-2.5 bg-black border border-zinc-700 hover:border-zinc-700 rounded-lg text-[11px] text-zinc-200 font-bold cursor-pointer"
                 title="Muat komposisi bahan dari Arsip Gulungan yang sudah ada"
               >
                 <option value="" disabled>
@@ -434,7 +418,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
             <button
               type="button"
               onClick={handleAddBlankIngredient}
-              className="h-9 px-3 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-amber-400 border border-amber-500/60 text-xs font-extrabold inline-flex items-center gap-1 cursor-pointer shrink-0"
+              className="h-9 px-3 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 text-xs font-extrabold inline-flex items-center gap-1 cursor-pointer shrink-0"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Jenis Tembakau Lain</span>
@@ -452,11 +436,11 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               return (
                 <div
                   key={item.id}
-                  className="p-3.5 rounded-xl bg-black/95 border border-zinc-800 hover:border-amber-500/60 transition-colors space-y-2.5"
+                  className="p-3.5 rounded-xl bg-black/95 border border-zinc-800 hover:border-zinc-800 transition-colors space-y-2.5"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className="px-2 py-0.5 rounded bg-zinc-900 border border-amber-500/70 text-amber-400 font-mono font-black text-[10px] shrink-0">
+                      <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-amber-400 font-mono font-black text-[10px] shrink-0">
                         BAHAN #{idx + 1}
                       </span>
                       <input
@@ -466,12 +450,12 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                           updateIngredient(item.id, { name: e.target.value })
                         }
                         placeholder="Nama jenis tembakau..."
-                        className="h-8 flex-1 min-w-0 px-2.5 bg-zinc-950 border border-zinc-800 focus:border-amber-500 rounded-lg text-xs font-bold text-white focus:outline-hidden"
+                        className="h-8 flex-1 min-w-0 px-2.5 bg-zinc-950 border border-zinc-800 focus:border-zinc-700 rounded-lg text-xs font-bold text-white focus:outline-hidden"
                       />
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-[10px] font-mono text-amber-300 font-bold">
+                      <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-[10px] font-mono text-zinc-200 font-bold">
                         {sharePercent}% Campuran
                       </span>
                       {simIngredients.length > 1 && (
@@ -501,7 +485,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                     </div>
 
                     <div className="flex flex-col">
-                      <label className="h-4 flex items-center text-[10px] text-amber-300 font-bold whitespace-nowrap truncate mb-1">
+                      <label className="h-4 flex items-center text-[10px] text-zinc-200 font-bold whitespace-nowrap truncate mb-1">
                         Wadah Riil (KG)
                       </label>
                       <NumericInput
@@ -509,7 +493,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                         onChange={(val) =>
                           updateIngredient(item.id, { realPackagingMassKg: val })
                         }
-                        className="w-full h-8 px-2 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-300 font-mono font-bold text-xs"
+                        className="w-full h-8 px-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-200 font-mono font-bold text-xs"
                       />
                     </div>
 
@@ -536,13 +520,13 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                     </div>
 
                     <div className="col-span-2 sm:col-span-1 flex flex-col">
-                      <label className="h-4 flex items-center text-[10px] text-amber-400 font-bold whitespace-nowrap truncate mb-1">
+                      <label className="h-4 flex items-center text-[10px] text-zinc-200 font-bold whitespace-nowrap truncate mb-1">
                         Harga Beli / KG
                       </label>
                       <NumericInput
                         value={item.pricePerKg}
                         onChange={(val) => updateIngredient(item.id, { pricePerKg: val })}
-                        className="w-full h-8 px-2 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-400 font-mono font-bold text-xs"
+                        className="w-full h-8 px-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white font-mono font-bold text-xs"
                       />
                     </div>
                   </div>
@@ -564,11 +548,11 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                         })
                       )
                     }
-                    className="w-full text-left group flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-zinc-900 text-[11px] font-mono cursor-pointer hover:text-amber-300 transition-colors"
+                    className="w-full text-left group flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-zinc-900 text-[11px] font-mono cursor-pointer hover:text-zinc-200 transition-colors"
                   >
                     <span className="text-zinc-400">
                       Bayar: <b className="text-white">{item.netWeightKg}kg</b> ({formatRupiah(item.subtotalModal)}) • Riil:{' '}
-                      <b className="text-amber-300">{item.realNetWeightKg}kg</b> ({formatRupiah(item.realStockValueRp)})
+                      <b className="text-zinc-200">{item.realNetWeightKg}kg</b> ({formatRupiah(item.realStockValueRp)})
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <span
@@ -708,85 +692,43 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
             };
 
             return (
-              <div className="bg-black p-3.5 sm:p-4 rounded-xl border-2 border-amber-500/70 space-y-2.5 text-xs">
-                <div className="flex items-center justify-between text-amber-400 font-black uppercase tracking-wider text-[11px] flex-wrap gap-1">
-                  <span className="flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5" />
-                    Total Gabungan ({simIngredients.length} Jenis Tembakau)
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-zinc-400 font-normal normal-case">
-                    <CalcSymbolBadge />
-                    <span>Simbol rincian angka</span>
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 items-stretch">
-                  <button
-                    type="button"
-                    onClick={() => openStep1CalcModal('PAID_VALUE')}
-                    className="text-left group bg-zinc-950 p-3 rounded-lg border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1"
-                  >
-                    <div className="w-full">
-                      <div className="flex items-center justify-between gap-1.5">
-                        <span className="text-[10px] text-zinc-400 block uppercase font-bold truncate">
-                          1. Nilai Kita Bayar (Paid Value)
-                        </span>
-                        <CalcSymbolBadge />
-                      </div>
-                      <b className="font-mono text-white text-sm sm:text-base block mt-0.5">
-                        {formatRupiah(totalCombinedRawModalRp)}
-                      </b>
-                    </div>
-                    <span className="text-[10px] font-mono text-zinc-400 pt-1 border-t border-zinc-900 block w-full">
-                      Netto Bayar Nota: {totalCombinedNetKg} kg
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => openStep1CalcModal('REAL_VALUE')}
-                    className="text-left group bg-zinc-950 p-3 rounded-lg border border-amber-500/50 hover:border-amber-400 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1"
-                  >
-                    <div className="w-full">
-                      <div className="flex items-center justify-between gap-1.5">
-                        <span className="text-[10px] text-amber-300 block uppercase font-bold truncate">
-                          2. Nilai Barang Riil (Real Value)
-                        </span>
-                        <CalcSymbolBadge />
-                      </div>
-                      <b className="font-mono text-amber-300 text-sm sm:text-base block mt-0.5">
-                        {formatRupiah(totalCombinedRealValueRp)}
-                      </b>
-                    </div>
-                    <span className="text-[10px] font-mono text-zinc-400 pt-1 border-t border-zinc-900 block w-full">
-                      Netto Fisik Riil: {totalCombinedRealNetKg} kg ({formatRupiah(weightedBlendHppPerNetKg)}/kg)
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => openStep1CalcModal('WEIGHT_PROFIT')}
-                    className="text-left group bg-zinc-950 p-3 rounded-lg border-2 border-amber-500 hover:border-amber-300 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1"
-                  >
-                    <div className="w-full">
-                      <div className="flex items-center justify-between gap-1.5">
-                        <span className="text-[10px] text-amber-400 block uppercase font-black truncate">
-                          3. Weight Profit Beli (Stok)
-                        </span>
-                        <CalcSymbolBadge />
-                      </div>
-                      <b className="font-mono text-amber-400 text-sm sm:text-base block mt-0.5">
-                        {totalBuyWeightProfitRp >= 0 ? '+' : ''}
-                        {formatRupiah(totalBuyWeightProfitRp)}
-                      </b>
-                    </div>
-                    <span className="text-[10px] font-mono text-zinc-300 pt-1 border-t border-zinc-900 block w-full">
-                      Selisih: {totalBuyWeightProfitKg >= 0 ? '+' : ''}
-                      {totalBuyWeightProfitKg} kg tembakau ekstra
-                    </span>
-                  </button>
-                </div>
-              </div>
+              <AutoSlideValueTicker
+                slides={[
+                  {
+                    id: 'sim-paid-value',
+                    tabLabel: '1. Nilai Bayar',
+                    title: `1. Nilai Kita Bayar (${simIngredients.length} Bahan)`,
+                    mainValue: formatRupiah(totalCombinedRawModalRp),
+                    subLabel: 'Netto Bayar Nota',
+                    subValue: `${totalCombinedNetKg} kg`,
+                    formulaHint: 'Σ Netto Nota × Harga',
+                    accent: 'white',
+                    onOpenCalc: () => openStep1CalcModal('PAID_VALUE'),
+                  },
+                  {
+                    id: 'sim-real-value',
+                    tabLabel: '2. Nilai Riil',
+                    title: `2. Nilai Barang Riil (${simIngredients.length} Bahan)`,
+                    mainValue: formatRupiah(totalCombinedRealValueRp),
+                    subLabel: 'Netto Fisik Riil',
+                    subValue: `${totalCombinedRealNetKg} kg`,
+                    formulaHint: `${formatRupiah(weightedBlendHppPerNetKg)}/kg`,
+                    accent: 'white',
+                    onOpenCalc: () => openStep1CalcModal('REAL_VALUE'),
+                  },
+                  {
+                    id: 'sim-weight-profit',
+                    tabLabel: '3. Weight Profit',
+                    title: '3. Weight Profit Beli (Stok)',
+                    mainValue: `${totalBuyWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(totalBuyWeightProfitRp)}`,
+                    subLabel: 'Selisih Berat',
+                    subValue: `${totalBuyWeightProfitKg >= 0 ? '+' : ''}${totalBuyWeightProfitKg} kg`,
+                    formulaHint: 'Nilai Riil − Nilai Bayar',
+                    accent: totalBuyWeightProfitRp >= 0 ? 'amber' : 'red',
+                    onOpenCalc: () => openStep1CalcModal('WEIGHT_PROFIT'),
+                  },
+                ]}
+              />
             );
           })()}
         </div>
@@ -799,7 +741,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
         >
           <div className="flex items-center justify-between border-b border-zinc-800 pb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-lg bg-black text-amber-400 border border-amber-500 flex items-center justify-center font-mono font-black text-xs shrink-0">
+              <span className="w-6 h-6 rounded-lg bg-black text-zinc-300 border border-zinc-700 flex items-center justify-center font-mono font-black text-xs shrink-0">
                 2
               </span>
               <div>
@@ -874,7 +816,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
           <div className="bg-black/90 p-3 rounded-xl border border-zinc-800 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <Sparkles className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                 Gunakan Netto Fisik Riil Gabungan ({totalCombinedRealNetKg} kg)
               </span>
               <button
@@ -882,7 +824,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                 onClick={() => setAutoSyncWeightFromBlend((v) => !v)}
                 className={`h-7 px-2.5 rounded-lg text-[10px] font-black border cursor-pointer transition-colors ${
                   autoSyncWeightFromBlend
-                    ? 'bg-black text-amber-400 border-amber-500'
+                    ? 'bg-black text-amber-400 border-zinc-700'
                     : 'bg-zinc-900 text-zinc-400 border-zinc-700'
                 }`}
               >
@@ -904,34 +846,34 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               <div>
                 <label className="block text-[10px] text-zinc-400 mb-1">Netto Isi/Seri</label>
                 {autoSyncWeightFromBlend ? (
-                  <div className="h-9 px-2.5 flex items-center bg-zinc-950 border border-amber-500/50 rounded-lg text-amber-300 font-mono font-bold text-xs">
+                  <div className="h-9 px-2.5 flex items-center bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-200 font-mono font-bold text-xs">
                     {effectiveNetPerPack} kg
                   </div>
                 ) : (
                   <NumericInput
                     value={manualNetPerPack}
                     onChange={setManualNetPerPack}
-                    className="w-full h-9 px-2.5 bg-zinc-950 border border-amber-500 rounded-lg text-amber-400 font-mono font-bold text-xs"
+                    className="w-full h-9 px-2.5 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-mono font-bold text-xs"
                   />
                 )}
               </div>
 
               <div>
-                <label className="block text-[10px] text-amber-300 font-bold mb-1">
+                <label className="block text-[10px] text-zinc-200 font-bold mb-1">
                   Wadah Riil (kg)
                 </label>
                 <NumericInput
                   value={factoryPackagingMassKg}
                   onChange={setFactoryPackagingMassKg}
-                  className="w-full h-9 px-2.5 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-300 font-mono font-bold text-xs"
+                  className="w-full h-9 px-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-200 font-mono font-bold text-xs"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-amber-400 font-bold mb-1">
+                <label className="block text-[10px] text-zinc-200 font-bold mb-1">
                   Bruto/Seri
                 </label>
-                <div className="h-9 px-2.5 flex items-center bg-black border border-amber-500/60 rounded-lg text-amber-400 font-mono font-bold text-xs">
+                <div className="h-9 px-2.5 flex items-center bg-black border border-zinc-800 rounded-lg text-amber-400 font-mono font-bold text-xs">
                   {factoryGrossPerPack} kg
                 </div>
               </div>
@@ -960,11 +902,11 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               </div>
 
               <div>
-                <label className="block text-[10px] text-amber-400 mb-1">Sampel (kg)</label>
+                <label className="block text-[10px] text-zinc-200 mb-1">Sampel (kg)</label>
                 <NumericInput
                   value={factorySampleKg}
                   onChange={setFactorySampleKg}
-                  className="w-full h-9 px-2 bg-zinc-950 border border-amber-500/50 rounded-lg text-amber-400 font-mono text-xs"
+                  className="w-full h-9 px-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white font-mono text-xs"
                 />
               </div>
             </div>
@@ -993,13 +935,13 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
             </div>
 
             <div className="pt-1">
-              <label className="block text-xs font-black text-amber-400 mb-1">
+              <label className="block text-xs font-black text-zinc-200 mb-1">
                 Target Harga Setor Pabrik / KG (Rp)
               </label>
               <NumericInput
                 value={factoryTargetPricePerKg}
                 onChange={setFactoryTargetPricePerKg}
-                className="w-full h-10 px-3 bg-zinc-950 border-2 border-amber-500 rounded-xl text-sm font-mono text-amber-400 font-black"
+                className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-sm font-mono text-white font-black"
               />
             </div>
           </div>
@@ -1095,10 +1037,10 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                 <button
                   type="button"
                   onClick={openFactorySimCalcModal}
-                  className="w-full text-left group bg-black/95 p-3.5 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer space-y-1.5 text-xs font-mono"
+                  className="w-full text-left group bg-black/95 p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer space-y-1.5 text-xs font-mono"
                 >
                   <div className="flex items-center justify-between pb-1 border-b border-zinc-900">
-                    <span className="font-sans text-[10px] font-black uppercase text-amber-400">
+                    <span className="font-sans text-[10px] font-black uppercase text-zinc-200">
                       Ringkasan Timbangan & Potongan Setor Pabrik
                     </span>
                     <CalcSymbolBadge />
@@ -1109,11 +1051,11 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                   </div>
                   <div className="flex justify-between text-zinc-400">
                     <span>Netto Tembakau Riil Dikirim:</span>
-                    <b className="text-amber-300">{totalRealTobaccoSentKg} kg</b>
+                    <b className="text-zinc-200">{totalRealTobaccoSentKg} kg</b>
                   </div>
                   <div className="flex justify-between text-zinc-400">
                     <span>Total Potongan Tarra Pabrik:</span>
-                    <b className="text-amber-400">-{factoryTotalDeductionKg} kg</b>
+                    <b className="text-white">-{factoryTotalDeductionKg} kg</b>
                   </div>
                   <div className="flex justify-between text-zinc-200">
                     <span>Netto Diakui / Ditagih Pabrik:</span>
@@ -1121,7 +1063,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                   </div>
                   <div className="flex justify-between pt-1 border-t border-zinc-900">
                     <span className="text-amber-400 font-bold">Selisih Timbangan Pabrik:</span>
-                    <b className={factoryWeightProfitKg >= 0 ? 'text-amber-300' : 'text-red-400'}>
+                    <b className={factoryWeightProfitKg >= 0 ? 'text-zinc-200' : 'text-red-400'}>
                       {factoryWeightProfitKg >= 0 ? '+' : ''}
                       {factoryWeightProfitKg} kg ({factoryWeightProfitRp >= 0 ? '+' : ''}
                       {formatRupiah(factoryWeightProfitRp)})
@@ -1433,17 +1375,17 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
           <div
             className={`${
               mobilePanel === 'result' ? 'block' : 'hidden lg:block'
-            } requiem-card border-2 border-amber-500/70 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4`}
+            } requiem-card border border-zinc-700 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4`}
           >
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h3 className="font-extrabold text-white text-sm sm:text-base flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-amber-400" />
+                <TrendingUp className="w-5 h-5 text-zinc-300" />
                 Kesimpulan Gabungan {simIngredients.length} Jenis Tembakau ({safePackageCount} Nomor Seri)
               </h3>
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-xs font-mono text-zinc-300 flex items-center gap-1.5">
-                  <Package className="w-3.5 h-3.5 text-amber-400" />
-                  Profit Rata-rata per Seri: <b className="text-amber-400">{formatRupiah(profitPerSeri)}</b>
+                  <Package className="w-3.5 h-3.5 text-zinc-300" />
+                  Profit Rata-rata per Seri: <b className="text-white">{formatRupiah(profitPerSeri)}</b>
                 </span>
                 <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-zinc-400">
                   <CalcSymbolBadge />
@@ -1456,7 +1398,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               <button
                 type="button"
                 onClick={() => openStep3Modal('TOTAL_MODAL')}
-                className="group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full"
+                className="group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full"
               >
                 <div className="flex items-start justify-between gap-2 w-full">
                   <span className="text-[11px] text-zinc-400 font-bold">
@@ -1472,10 +1414,10 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               <button
                 type="button"
                 onClick={() => openStep3Modal('COMBINED_WEIGHT_PROFIT')}
-                className="group bg-black p-3.5 rounded-xl border border-amber-500/50 hover:border-amber-400 transition-all cursor-pointer flex flex-col justify-between h-full"
+                className="group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full"
               >
                 <div className="flex items-start justify-between gap-2 w-full">
-                  <span className="text-[11px] text-amber-300 font-bold">
+                  <span className="text-[11px] text-zinc-200 font-bold">
                     Weight Profit Beli + Pabrik
                   </span>
                   <CalcSymbolBadge />
@@ -1496,7 +1438,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               <button
                 type="button"
                 onClick={() => openStep3Modal('BEP_PER_KG')}
-                className="group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full"
+                className="group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full"
               >
                 <div className="flex items-start justify-between gap-2 w-full">
                   <span className="text-[11px] text-zinc-400 font-bold">
@@ -1504,7 +1446,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                   </span>
                   <CalcSymbolBadge />
                 </div>
-                <div className="text-base sm:text-lg font-black font-mono text-amber-300 mt-2">
+                <div className="text-base sm:text-lg font-black font-mono text-zinc-200 mt-2">
                   {formatRupiah(bepPricePerKg)}/kg
                 </div>
               </button>
@@ -1512,7 +1454,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               <button
                 type="button"
                 onClick={() => openStep3Modal('TOTAL_NOTA')}
-                className="group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full"
+                className="group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full"
               >
                 <div className="flex items-start justify-between gap-2 w-full">
                   <span className="text-[11px] text-zinc-400 font-bold">
@@ -1528,7 +1470,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               <button
                 type="button"
                 onClick={() => openStep3Modal('NET_PROFIT')}
-                className="group bg-black p-3.5 rounded-xl border-2 border-amber-500 hover:border-amber-300 text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)] transition-all cursor-pointer flex flex-col justify-between h-full"
+                className="group bg-black p-3.5 rounded-xl border border-zinc-700 hover:border-zinc-600 text-amber-400 transition-all cursor-pointer flex flex-col justify-between h-full"
               >
                 <div className="flex items-start justify-between gap-2 w-full">
                   <span className="text-[11px] font-extrabold uppercase">

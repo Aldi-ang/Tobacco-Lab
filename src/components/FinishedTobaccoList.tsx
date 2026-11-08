@@ -18,8 +18,14 @@ import {
   Check,
   Download,
   SlidersHorizontal,
+  Edit3,
 } from 'lucide-react';
-import { FinishedTobaccoSerial, TobaccoRollSample } from '../types/tobacco';
+import {
+  FinishedTobaccoSerial,
+  TobaccoRollSample,
+  PackagingMaster,
+  FactoryMaster,
+} from '../types/tobacco';
 import {
   GRADE_LABELS,
   formatRupiah,
@@ -36,18 +42,25 @@ import {
   SerialFactoryCalcFocus,
   buildSerialFactoryCalcDetail,
 } from './CalculationDetailModal';
+import { EditFinishedSerialModal } from './EditFinishedSerialModal';
 
 interface FinishedTobaccoListProps {
   finishedBatches: FinishedTobaccoSerial[];
   rollSamples: TobaccoRollSample[];
+  packagingList?: PackagingMaster[];
+  factoryList?: FactoryMaster[];
   onOpenRoll: (rollId: string) => void;
+  onUpdateSerial?: (updated: FinishedTobaccoSerial) => void;
   onDelete: (id: string) => void;
 }
 
 export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
   finishedBatches,
   rollSamples,
+  packagingList = [],
+  factoryList = [],
   onOpenRoll,
+  onUpdateSerial,
   onDelete,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -56,6 +69,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'grid-3d' | 'by-gulungan' | 'csv-sync'>('grid-3d');
   const [activeSerial, setActiveSerial] = useState<FinishedTobaccoSerial | null>(null);
+  const [editingSerial, setEditingSerial] = useState<FinishedTobaccoSerial | null>(null);
   const [copiedMode, setCopiedMode] = useState<'CSV' | 'TSV' | null>(null);
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
 
@@ -212,13 +226,14 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
         key={batch.id}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
+        whileHover={{ y: -3 }}
         transition={{ duration: 0.18, delay: Math.min(idx * 0.02, 0.15) }}
         onClick={() => setActiveSerial(batch)}
-        className="text-left group relative requiem-card border border-zinc-800/90 hover:border-amber-500 rounded-2xl p-3 sm:p-4 shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[304px] sm:min-h-[318px]"
+        className="text-left group relative requiem-card border-2 border-zinc-700/90 hover:border-amber-500/80 rounded-2xl p-3.5 sm:p-4 shadow-[0_7px_0_0_#18181b,0_14px_26px_rgba(0,0,0,0.9)] hover:shadow-[0_8px_0_0_#f59e0b,0_16px_30px_rgba(245,158,11,0.18)] transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[304px] sm:min-h-[318px]"
       >
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-1">
-            <span className="px-2 py-0.5 rounded-lg bg-black text-amber-400 border border-amber-500 font-mono font-black text-[11px] sm:text-xs tracking-wide shrink-0">
+            <span className="px-2 py-0.5 rounded-lg bg-black text-amber-400 border border-zinc-700 font-mono font-black text-[11px] sm:text-xs tracking-wide shrink-0">
               SERI {batch.serialNumber}
             </span>
             <span
@@ -229,7 +244,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
           </div>
 
           <div className="flex items-center gap-1 text-[11px] sm:text-xs text-white font-bold truncate">
-            <Building2 className="w-3 h-3 text-amber-400 shrink-0" />
+            <Building2 className="w-3 h-3 text-zinc-300 shrink-0" />
             <span className="truncate">{batch.targetFactory}</span>
           </div>
 
@@ -244,7 +259,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
             )}
             {status === 'REJECTED_STOCK' && (
               <span className="inline-flex items-center gap-0.5 text-zinc-300 font-bold text-[9px] shrink-0">
-                <RotateCcw className="w-2.5 h-2.5 text-amber-400" /> Reject
+                <RotateCcw className="w-2.5 h-2.5 text-zinc-300" /> Reject
               </span>
             )}
           </div>
@@ -263,18 +278,18 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
               <span className="text-[9px] font-bold uppercase text-zinc-400">
                 Harga Pabrik
               </span>
-              <span className="font-mono font-black text-[11px] sm:text-xs text-amber-400 whitespace-nowrap">
+              <span className="font-mono font-black text-[11px] sm:text-xs text-zinc-200 whitespace-nowrap">
                 {formatRupiah(batch.factoryTargetPricePerKg)}
               </span>
             </div>
             {factoryWeightProfitKg !== 0 && (
               <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-                <span className="text-[9px] font-black uppercase text-amber-400">
+                <span className="text-[9px] font-black uppercase text-zinc-200">
                   Selisih Timbangan
                 </span>
                 <span
                   className={`font-mono font-black text-[10px] sm:text-[11px] whitespace-nowrap ${
-                    factoryWeightProfitKg > 0 ? 'text-amber-300' : 'text-red-400'
+                    factoryWeightProfitKg > 0 ? 'text-zinc-200' : 'text-red-400'
                   }`}
                 >
                   {factoryWeightProfitKg > 0 ? '+' : ''}
@@ -289,9 +304,25 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
           <SpinningStatTicker items={tickerItems} intervalMs={3200 + (idx % 3) * 350} />
         </div>
 
-        <div className="mt-2.5 pt-2 border-t border-zinc-900 flex items-center justify-between text-[10px] text-zinc-400 group-hover:text-amber-400 transition-colors">
-          <span className="truncate max-w-[95px]">{batch.packaging.packagingType}</span>
-          <span className="font-bold shrink-0">Rincian →</span>
+        <div className="mt-2.5 pt-2 border-t border-zinc-900 flex items-center justify-between gap-2 text-[10px] text-zinc-400 group-hover:text-white transition-colors">
+          <span className="truncate max-w-[90px]">{batch.packaging.packagingType}</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {onUpdateSerial && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingSerial(batch);
+                }}
+                className="px-2 py-0.5 rounded-md bg-black hover:bg-zinc-900 text-amber-400 border border-zinc-700 hover:border-amber-500/70 font-black text-[10px] inline-flex items-center gap-1 cursor-pointer transition-colors"
+                title={`Edit Seri ${batch.serialNumber}`}
+              >
+                <Edit3 className="w-2.5 h-2.5" />
+                <span>Edit</span>
+              </button>
+            )}
+            <span className="font-bold shrink-0">Rincian →</span>
+          </div>
         </div>
       </motion.div>
     );
@@ -306,50 +337,34 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
     .filter((g) => g.items.length > 0);
 
   return (
-    <div className="space-y-4 pb-20 md:pb-4">
-      {/* Header & Locked-Position Segment Switcher */}
-      <div className="requiem-card p-3.5 sm:p-5 rounded-2xl border border-zinc-800/90 space-y-3">
-        <div>
-          <h1 className="text-base sm:text-xl font-black text-white flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-lg bg-black text-amber-400 border border-amber-500 text-xs font-mono font-black shadow-[0_0_12px_rgba(245,158,11,0.25)]">
-              SERI
-            </span>
-            <span>Tembakau Jadi & Sinkronisasi CSV</span>
-          </h1>
-          <p className="text-[11px] text-zinc-400 mt-0.5">
-            2 Kartu per baris di HP • Panel bergerak menampilkan 5 karakter (/5) & profit
-          </p>
-        </div>
-
-        <div className="pt-3 border-t border-zinc-800/90">
-          <SegmentedControl
-            value={viewMode}
-            onChange={setViewMode}
-            options={[
-              {
-                id: 'grid-3d',
-                label: 'Kartu Seri',
-                fullLabel: 'Tampilkan Semua Kartu Nomor Seri',
-                icon: <LayoutGrid className="w-3.5 h-3.5" />,
-                badge: filtered.length,
-              },
-              {
-                id: 'by-gulungan',
-                label: 'Per Gulungan',
-                fullLabel: 'Kelompokkan Nomor Seri Berdasarkan Gulungan',
-                icon: <FolderKanban className="w-3.5 h-3.5" />,
-              },
-              {
-                id: 'csv-sync',
-                label: 'Sinkron CSV',
-                fullLabel:
-                  'Sinkronisasi Data Batch (Modal Produksi & Harga Tagih) ke CSV / Google Sheets',
-                icon: <FileSpreadsheet className="w-3.5 h-3.5" />,
-              },
-            ]}
-          />
-        </div>
-      </div>
+    <div className="space-y-3 pb-20 md:pb-4">
+      {/* Slideable Button Panel Only */}
+      <SegmentedControl
+        value={viewMode}
+        onChange={setViewMode}
+        options={[
+          {
+            id: 'grid-3d',
+            label: 'Kartu Seri',
+            fullLabel: 'Tampilkan Semua Kartu Nomor Seri',
+            icon: <LayoutGrid className="w-3.5 h-3.5" />,
+            badge: filtered.length,
+          },
+          {
+            id: 'by-gulungan',
+            label: 'Per Gulungan',
+            fullLabel: 'Kelompokkan Nomor Seri Berdasarkan Gulungan',
+            icon: <FolderKanban className="w-3.5 h-3.5" />,
+          },
+          {
+            id: 'csv-sync',
+            label: 'Sinkron CSV',
+            fullLabel:
+              'Sinkronisasi Data Batch (Modal Produksi & Harga Tagih) ke CSV / Google Sheets',
+            icon: <FileSpreadsheet className="w-3.5 h-3.5" />,
+          },
+        ]}
+      />
 
       {/* Minimalist Search Bar + Collapsible Filter */}
       <div className="requiem-card p-3 rounded-xl border border-zinc-800/90 space-y-3">
@@ -361,7 +376,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Cari nomor seri (57, 58...), gulungan (GUL-...), atau pabrik..."
-              className="w-full h-9 sm:h-10 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-amber-500"
+              className="w-full h-9 sm:h-10 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700"
             />
           </div>
 
@@ -369,7 +384,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
             type="button"
             title="Tampilkan / Sembunyikan Filter Gulungan & Pabrik"
             onClick={() => setIsFilterOpen((v) => !v)}
-            className="min-h-9 sm:min-h-10 px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-900 text-amber-400 border border-zinc-800 hover:border-amber-500 text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
+            className="min-h-9 sm:min-h-10 px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-900 text-amber-400 border border-zinc-800 hover:border-zinc-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
             <span>Filter</span>
@@ -387,7 +402,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
               <select
                 value={selectedRollFilter}
                 onChange={(e) => setSelectedRollFilter(e.target.value)}
-                className="w-full h-9 px-3 bg-black border border-zinc-800 rounded-xl text-xs text-amber-400 font-bold focus:outline-hidden focus:border-amber-500"
+                className="w-full h-9 px-3 bg-black border border-zinc-800 rounded-xl text-xs text-white font-bold focus:outline-hidden focus:border-zinc-700"
                 aria-label="Filter Gulungan Sampel"
               >
                 <option value="ALL">Semua Gulungan Sampel</option>
@@ -401,7 +416,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
               <select
                 value={selectedFactory}
                 onChange={(e) => setSelectedFactory(e.target.value)}
-                className="w-full h-9 px-3 bg-black border border-zinc-800 rounded-xl text-xs text-white font-semibold focus:outline-hidden focus:border-amber-500"
+                className="w-full h-9 px-3 bg-black border border-zinc-800 rounded-xl text-xs text-white font-semibold focus:outline-hidden focus:border-zinc-700"
                 aria-label="Filter Pabrik Tujuan"
               >
                 <option value="ALL">Semua Pabrik Tujuan</option>
@@ -431,9 +446,9 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
           className="space-y-4"
         >
           {/* Action Toolbar inside CSV Sync Mode */}
-          <div className="requiem-card p-4 rounded-2xl border border-amber-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="requiem-card p-4 rounded-2xl border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <span className="text-xs font-extrabold uppercase tracking-wider text-amber-400 block">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-zinc-200 block">
                 Sinkronisasi Batch Tembakau Jadi ({filtered.length} Seri)
               </span>
               <p className="text-xs text-zinc-400">
@@ -480,21 +495,21 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                 type="button"
                 title="Unduh File CSV"
                 onClick={handleDownloadSyncCsv}
-                className="min-h-9 px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-900 text-white border border-zinc-700 hover:border-amber-500/60 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                className="min-h-9 px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-900 text-white border border-zinc-700 hover:border-zinc-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5 text-amber-400" /> .CSV
+                <Download className="w-3.5 h-3.5 text-zinc-300" /> .CSV
               </button>
             </div>
           </div>
 
           {/* Structured Synchronized Table Preview */}
-          <div className="requiem-card border border-amber-500/50 rounded-2xl overflow-hidden shadow-2xl">
+          <div className="requiem-card border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl">
             <div className="px-4 py-3 bg-black border-b border-zinc-800 flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs font-extrabold text-white">
                 Tabel Sinkronisasi Modal Produksi vs Harga Tagih
               </span>
               <span className="text-xs font-mono text-zinc-400">
-                Total Profit: <b className="text-amber-400">{formatRupiah(sumProfit)}</b>
+                Total Profit: <b className="text-white">{formatRupiah(sumProfit)}</b>
               </span>
             </div>
 
@@ -511,16 +526,16 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                     <th className="py-2.5 px-2 border-r border-zinc-800">BRUTO</th>
                     <th className="py-2.5 px-2 border-r border-zinc-800">TARA</th>
                     <th className="py-2.5 px-2 border-r border-zinc-800">NETTO</th>
-                    <th className="py-2.5 px-2 border-r border-zinc-800 text-amber-300">
+                    <th className="py-2.5 px-2 border-r border-zinc-800 text-zinc-200">
                       MODAL PRODUKSI/KG
                     </th>
-                    <th className="py-2.5 px-2 border-r border-zinc-800 text-amber-300">
+                    <th className="py-2.5 px-2 border-r border-zinc-800 text-zinc-200">
                       TOTAL MODAL PRODUKSI
                     </th>
-                    <th className="py-2.5 px-2 border-r border-zinc-800 text-amber-400">
+                    <th className="py-2.5 px-2 border-r border-zinc-800 text-white">
                       HARGA TAGIH/KG
                     </th>
-                    <th className="py-2.5 px-2 border-r border-zinc-800 text-amber-400">
+                    <th className="py-2.5 px-2 border-r border-zinc-800 text-white">
                       TOTAL TAGIHAN NOTA
                     </th>
                     <th className="py-2.5 px-2">PROFIT</th>
@@ -544,13 +559,13 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                     return (
                       <tr key={b.id} className="hover:bg-zinc-950/90 text-zinc-200">
                         <td className="py-2 px-2 border-r border-zinc-900">{idx + 1}</td>
-                        <td className="py-2 px-2 border-r border-zinc-900 font-black text-amber-400">
+                        <td className="py-2 px-2 border-r border-zinc-900 font-black text-white">
                           {b.serialNumber}
                         </td>
                         <td className="py-2 px-2 border-r border-zinc-900 text-left">
                           {b.targetFactory}
                         </td>
-                        <td className="py-2 px-2 border-r border-zinc-900 text-amber-400">
+                        <td className="py-2 px-2 border-r border-zinc-900 text-white">
                           {b.rollNumber || '-'}
                         </td>
                         <td className="py-2 px-2 border-r border-zinc-900 uppercase">
@@ -570,10 +585,10 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                         <td className="py-2 px-2 border-r border-zinc-900 text-right font-bold text-white">
                           {formatSheetRp(totalProdCost)}
                         </td>
-                        <td className="py-2 px-2 border-r border-zinc-900 text-right text-amber-400 font-bold">
+                        <td className="py-2 px-2 border-r border-zinc-900 text-right text-white font-bold">
                           {formatSheetRp(billableKg)}
                         </td>
-                        <td className="py-2 px-2 border-r border-zinc-900 text-right font-black text-amber-400">
+                        <td className="py-2 px-2 border-r border-zinc-900 text-right font-black text-white">
                           {formatSheetRp(totalBillable)}
                         </td>
                         <td className="py-2 px-2 text-right font-black text-white">
@@ -584,14 +599,14 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                   })}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-zinc-900 border-t-2 border-amber-500/50 font-black text-white text-center">
-                    <td colSpan={6} className="py-2.5 px-3 border-r border-zinc-800 text-left text-amber-400">
+                  <tr className="bg-zinc-900 border-t-2 border-zinc-800 font-black text-white text-center">
+                    <td colSpan={6} className="py-2.5 px-3 border-r border-zinc-800 text-left text-white">
                       TOTAL ({filtered.length} SERI)
                     </td>
-                    <td className="py-2.5 px-2 border-r border-zinc-800 text-amber-400">
+                    <td className="py-2.5 px-2 border-r border-zinc-800 text-white">
                       {sumBruto}
                     </td>
-                    <td className="py-2.5 px-2 border-r border-zinc-800 text-amber-400">
+                    <td className="py-2.5 px-2 border-r border-zinc-800 text-white">
                       {sumTara}
                     </td>
                     <td className="py-2.5 px-2 border-r border-zinc-800 text-white">
@@ -602,10 +617,10 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                       {formatSheetRp(sumProdCost)}
                     </td>
                     <td className="py-2.5 px-2 border-r border-zinc-800"></td>
-                    <td className="py-2.5 px-2 border-r border-zinc-800 text-right text-amber-400">
+                    <td className="py-2.5 px-2 border-r border-zinc-800 text-right text-white">
                       {formatSheetRp(sumBillable)}
                     </td>
-                    <td className="py-2.5 px-2 text-right text-amber-400">
+                    <td className="py-2.5 px-2 text-right text-white">
                       {formatSheetRp(sumProfit)}
                     </td>
                   </tr>
@@ -616,7 +631,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
 
           {/* Raw CSV Text Box */}
           <div className="requiem-card border border-zinc-800 rounded-2xl p-4 space-y-2">
-            <span className="text-xs font-extrabold text-amber-400 uppercase tracking-wider block">
+            <span className="text-xs font-extrabold text-zinc-200 uppercase tracking-wider block">
               Struktur CSV Mentah (Siap Copy-Paste ke Google Sheets)
             </span>
             <textarea
@@ -624,7 +639,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
               value={csvSyncText}
               rows={6}
               aria-label="Output CSV Sinkronisasi Batch"
-              className="w-full p-3 rounded-xl bg-black border border-zinc-800 text-[11px] font-mono text-zinc-300 focus:outline-hidden focus:border-amber-500"
+              className="w-full p-3 rounded-xl bg-black border border-zinc-800 text-[11px] font-mono text-zinc-300 focus:outline-hidden focus:border-zinc-700"
             />
           </div>
         </motion.div>
@@ -642,7 +657,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
             >
               <div className="flex items-center justify-between flex-wrap gap-2 border-b border-zinc-800 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <span className="px-2.5 py-1 rounded-lg bg-black text-amber-400 border border-amber-500 font-mono font-black text-xs">
+                  <span className="px-2.5 py-1 rounded-lg bg-black text-amber-400 border border-zinc-700 font-mono font-black text-xs">
                     {roll.rollNumber}
                   </span>
                   <div>
@@ -691,12 +706,12 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
               initial={{ scale: 0.95, y: 12 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 12 }}
-              className="bg-zinc-950 border-2 border-amber-500 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden"
+              className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden"
             >
               {/* Modal Header */}
               <div className="px-5 py-3.5 border-b border-zinc-800 bg-black flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="px-3 py-1 rounded-xl bg-black text-amber-400 border border-amber-500 font-mono font-black text-xs sm:text-sm tracking-wide">
+                  <span className="px-3 py-1 rounded-xl bg-black text-amber-400 border border-zinc-700 font-mono font-black text-xs sm:text-sm tracking-wide">
                     SERI {activeSerial.serialNumber}
                   </span>
                   <div>
@@ -704,7 +719,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                       {activeSerial.recipeName || 'Kemasan Tembakau Jadi'}
                     </h2>
                     <p className="text-[11px] text-zinc-400">
-                      Pabrik: <b className="text-amber-400">{activeSerial.targetFactory}</b> •{' '}
+                      Pabrik: <b className="text-white">{activeSerial.targetFactory}</b> •{' '}
                       {activeSerial.createdAt}
                     </p>
                   </div>
@@ -778,11 +793,11 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                         <button
                           type="button"
                           onClick={() => openSeriCalcDetail('FACTORY_WEIGHT')}
-                          className="text-left group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
+                          className="text-left group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
                         >
                           <div className="space-y-1.5 w-full">
                             <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className="font-extrabold uppercase tracking-wider text-amber-400 truncate">
+                              <span className="font-extrabold uppercase tracking-wider text-zinc-200 truncate">
                                 1. Timbangan Riil vs Potongan Pabrik
                               </span>
                               <CalcSymbolBadge />
@@ -797,7 +812,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                             </div>
                             <div className="flex justify-between text-zinc-300">
                               <span>Potongan Tarra Pabrik:</span>
-                              <b className="font-mono text-amber-400">
+                              <b className="font-mono text-white">
                                 -{activeSerial.factoryDeductionKg} kg
                               </b>
                             </div>
@@ -812,7 +827,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                             <span>Selisih Timbangan Pabrik:</span>
                             <span
                               className={`font-mono font-black ${
-                                wpKg >= 0 ? 'text-amber-300' : 'text-red-400'
+                                wpKg >= 0 ? 'text-zinc-200' : 'text-red-400'
                               }`}
                             >
                               {wpKg >= 0 ? '+' : ''}
@@ -826,11 +841,11 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                         <button
                           type="button"
                           onClick={() => openSeriCalcDetail('FACTORY_PROFIT')}
-                          className="text-left group bg-black p-3.5 rounded-xl border border-amber-500/40 hover:border-amber-400 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
+                          className="text-left group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
                         >
                           <div className="space-y-1.5 w-full">
                             <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className="font-extrabold uppercase tracking-wider text-amber-400 truncate">
+                              <span className="font-extrabold uppercase tracking-wider text-zinc-200 truncate">
                                 2. Modal, Harga Pabrik & Profit
                               </span>
                               <CalcSymbolBadge />
@@ -843,7 +858,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                             </div>
                             <div className="flex justify-between text-zinc-300">
                               <span>Harga Pabrik / KG:</span>
-                              <b className="font-mono text-amber-300">
+                              <b className="font-mono text-zinc-200">
                                 {formatRupiah(activeSerial.factoryTargetPricePerKg)}
                               </b>
                             </div>
@@ -855,14 +870,14 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                             </div>
                             <div className="flex justify-between text-zinc-300">
                               <span>Jumlah Nota Pabrik:</span>
-                              <b className="font-mono text-amber-300">
+                              <b className="font-mono text-zinc-200">
                                 {formatRupiah(activeSerial.projectedRevenue)}
                               </b>
                             </div>
                           </div>
                           <div className="w-full pt-1.5 border-t border-zinc-900 flex justify-between text-white font-black">
                             <span>PROFIT SERI:</span>
-                            <span className="font-mono text-amber-400">
+                            <span className="font-mono text-white">
                               {formatRupiah(
                                 activeSerial.projectedRevenue - activeSerial.totalProductionCost
                               )}
@@ -875,26 +890,30 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                 </div>
 
                 {/* 5 Sensory Ratings (/5) */}
-                <div className="bg-black p-3 rounded-xl border border-zinc-800 flex items-center justify-between flex-wrap gap-2">
-                  <span className="font-extrabold uppercase text-amber-400">
-                    Karakteristik (/5):
+                <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2">
+                  <span className="text-[10px] font-extrabold uppercase text-zinc-200 block">
+                    5 Parameter Karakteristik Rasa (/5)
                   </span>
-                  <div className="flex flex-wrap gap-3 font-mono text-xs">
-                    <span>
-                      Power: <b className="text-amber-400">{clampRating5(activeSerial.weightedPower)}/5</b>
-                    </span>
-                    <span>
-                      Impact: <b className="text-amber-400">{clampRating5(activeSerial.weightedImpact)}/5</b>
-                    </span>
-                    <span>
-                      Bitter: <b className="text-amber-400">{clampRating5(activeSerial.weightedBitter)}/5</b>
-                    </span>
-                    <span>
-                      Bakar: <b className="text-amber-400">{clampRating5(activeSerial.weightedBurn ?? 4.5)}/5</b>
-                    </span>
-                    <span>
-                      Sugar: <b className="text-amber-400">{clampRating5(activeSerial.weightedSugar ?? 4.0)}/5</b>
-                    </span>
+                  <div className="grid grid-cols-5 gap-1.5 text-center">
+                    {[
+                      { lbl: 'Power', val: clampRating5(activeSerial.weightedPower) },
+                      { lbl: 'Impact', val: clampRating5(activeSerial.weightedImpact) },
+                      { lbl: 'Bitter', val: clampRating5(activeSerial.weightedBitter) },
+                      { lbl: 'Bakar', val: clampRating5(activeSerial.weightedBurn ?? 4.5) },
+                      { lbl: 'Sugar', val: clampRating5(activeSerial.weightedSugar ?? 4.0) },
+                    ].map((r) => (
+                      <div
+                        key={r.lbl}
+                        className="bg-zinc-950 py-2 px-1.5 rounded-lg border border-zinc-800"
+                      >
+                        <div className="text-[9px] text-zinc-400 uppercase font-bold">
+                          {r.lbl}
+                        </div>
+                        <div className="font-mono font-black text-amber-400 text-base sm:text-lg mt-0.5">
+                          {r.val.toFixed(1)}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -914,7 +933,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                           <span className="font-bold text-white">{ing.tobaccoName}</span>
                           <span className="text-zinc-400 ml-1.5">({ing.origin})</span>
                         </div>
-                        <span className="text-amber-400 font-mono font-bold">
+                        <span className="text-white font-mono font-bold">
                           {ing.usedNetKg} kg ({ing.percentageInBlend}%)
                         </span>
                       </div>
@@ -931,23 +950,52 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                     onDelete(activeSerial.id);
                     setActiveSerial(null);
                   }}
-                  className="min-h-9 px-3 py-1.5 rounded-xl bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-amber-400 border border-zinc-800 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  className="min-h-9 px-3 py-1.5 rounded-xl bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" /> Hapus Seri
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveSerial(null)}
-                  className="btn-amber-outline min-h-9 px-4 py-1.5 rounded-xl font-black text-xs cursor-pointer"
-                >
-                  Tutup
-                </button>
+                <div className="flex items-center gap-2">
+                  {onUpdateSerial && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingSerial(activeSerial)}
+                      className="btn-amber-outline min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" /> Edit Seri
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveSerial(null)}
+                    className="min-h-9 px-4 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 font-bold text-xs cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {editingSerial && onUpdateSerial && (
+        <EditFinishedSerialModal
+          serial={editingSerial}
+          rollSamples={rollSamples}
+          packagingList={packagingList}
+          factoryList={factoryList}
+          onClose={() => setEditingSerial(null)}
+          onSave={(updated) => {
+            onUpdateSerial(updated);
+            if (activeSerial && activeSerial.id === updated.id) {
+              setActiveSerial(updated);
+            }
+            setEditingSerial(null);
+          }}
+        />
+      )}
 
       <CalculationDetailModal data={calcDetail} onClose={() => setCalcDetail(null)} />
     </div>

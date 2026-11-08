@@ -530,6 +530,69 @@ export default function App() {
     );
   };
 
+  // Synchronize all Gulungan (rollSamples) metadata & snapshots whenever any Seri Jadi is edited or moved
+  const syncRollsWithSerials = (
+    rolls: TobaccoRollSample[],
+    batches: FinishedTobaccoSerial[]
+  ): TobaccoRollSample[] => {
+    return rolls.map((roll) => {
+      const serialsInRoll = batches.filter(
+        (b) => b.rollId === roll.id || (!b.rollId && b.rollNumber === roll.rollNumber)
+      );
+      const nextSerialNumbers = serialsInRoll.map((s) => s.serialNumber);
+      const count = serialsInRoll.length;
+      if (count === 0) {
+        return {
+          ...roll,
+          serialNumbers: [],
+          serialNumber: '-',
+        };
+      }
+
+      const avg = (getter: (s: FinishedTobaccoSerial) => number) =>
+        Number(
+          (serialsInRoll.reduce((acc, s) => acc + getter(s), 0) / count).toFixed(1)
+        );
+      const avgHpp = Math.round(
+        serialsInRoll.reduce((acc, s) => acc + (s.hppPerNetKg || 0), 0) / count
+      );
+
+      return {
+        ...roll,
+        serialNumbers: nextSerialNumbers,
+        serialNumber: nextSerialNumbers.join(', '),
+        ratingsSnapshot: {
+          power: avg((s) => s.weightedPower),
+          impact: avg((s) => s.weightedImpact),
+          bitter: avg((s) => s.weightedBitter),
+          burn: avg((s) => s.weightedBurn ?? 4.5),
+          sugar: avg((s) => s.weightedSugar ?? 4.0),
+          colorGrade: serialsInRoll[0].compositeColorGrade || roll.ratingsSnapshot.colorGrade,
+          hppPerKg: avgHpp || roll.ratingsSnapshot.hppPerKg,
+        },
+      };
+    });
+  };
+
+  // Full Edit of a Seri Jadi (shared automatically with its Gulungan)
+  const handleUpdateFinishedSerial = (updated: FinishedTobaccoSerial) => {
+    const linkedRoll = rollSamples.find((r) => r.id === updated.rollId);
+    const normalizedSerial: FinishedTobaccoSerial = {
+      ...updated,
+      rollNumber: linkedRoll ? linkedRoll.rollNumber : updated.rollNumber,
+      rollRackNumber: linkedRoll ? linkedRoll.rackLocation : updated.rollRackNumber,
+    };
+
+    const nextBatches = finishedBatches.map((s) =>
+      s.id === normalizedSerial.id ? normalizedSerial : s
+    );
+    setFinishedBatches(nextBatches);
+    setRollSamples((prevRolls) => syncRollsWithSerials(prevRolls, nextBatches));
+    showToast(
+      `Seri ${normalizedSerial.serialNumber} diperbarui & otomatis tersinkron ke Gulungan ${normalizedSerial.rollNumber || ''}!`
+    );
+  };
+
   // Live Repricing of a Nomor Seri inside Arsip Gulungan (Price, Grade, Bruto, Tara)
   const handleRepriceSerial = (
     serialId: string,
@@ -540,69 +603,71 @@ export default function App() {
       taraKg?: number;
     }
   ) => {
-    setFinishedBatches((prev) =>
-      prev.map((ser) => {
-        if (ser.id !== serialId) return ser;
-        const nextBruto =
-          updates.brutoKg !== undefined
-            ? updates.brutoKg
-            : ser.packaging.grossWeightPerPackage;
-        const nextTara =
-          updates.taraKg !== undefined ? updates.taraKg : ser.factoryDeductionKg;
-        const nextNetto = Math.max(0, Number((nextBruto - nextTara).toFixed(2)));
-        const nextPrice =
-          updates.factoryTargetPricePerKg !== undefined
-            ? updates.factoryTargetPricePerKg
-            : ser.factoryTargetPricePerKg;
-        const nextGrade =
-          updates.compositeColorGrade !== undefined
-            ? updates.compositeColorGrade
-            : ser.compositeColorGrade;
+    const nextBatches = finishedBatches.map((ser) => {
+      if (ser.id !== serialId) return ser;
+      const nextBruto =
+        updates.brutoKg !== undefined
+          ? updates.brutoKg
+          : ser.packaging.grossWeightPerPackage;
+      const nextTara =
+        updates.taraKg !== undefined ? updates.taraKg : ser.factoryDeductionKg;
+      const nextNetto = Math.max(0, Number((nextBruto - nextTara).toFixed(2)));
+      const nextPrice =
+        updates.factoryTargetPricePerKg !== undefined
+          ? updates.factoryTargetPricePerKg
+          : ser.factoryTargetPricePerKg;
+      const nextGrade =
+        updates.compositeColorGrade !== undefined
+          ? updates.compositeColorGrade
+          : ser.compositeColorGrade;
 
-        const nextRevenue = Math.round(nextNetto * nextPrice);
-        const nextProfit = nextRevenue - ser.totalProductionCost;
-        const nextMargin =
-          nextRevenue > 0 ? Number(((nextProfit / nextRevenue) * 100).toFixed(2)) : 0;
+      const nextRevenue = Math.round(nextNetto * nextPrice);
+      const nextProfit = nextRevenue - ser.totalProductionCost;
+      const nextMargin =
+        nextRevenue > 0 ? Number(((nextProfit / nextRevenue) * 100).toFixed(2)) : 0;
 
-        const realPkgMassKg =
-          ser.packaging.packagingMassKg ?? ser.factoryDeductionKg;
-        const nextRealTobaccoNetKg = Number(
-          Math.max(0, nextBruto - realPkgMassKg).toFixed(2)
-        );
-        const nextFactoryWeightProfitKg = Number(
-          (nextNetto - nextRealTobaccoNetKg).toFixed(2)
-        );
-        const nextFactoryWeightProfitRp = Math.round(
-          nextFactoryWeightProfitKg * nextPrice
-        );
+      const realPkgMassKg =
+        ser.packaging.packagingMassKg ?? ser.factoryDeductionKg;
+      const nextRealTobaccoNetKg = Number(
+        Math.max(0, nextBruto - realPkgMassKg).toFixed(2)
+      );
+      const nextFactoryWeightProfitKg = Number(
+        (nextNetto - nextRealTobaccoNetKg).toFixed(2)
+      );
+      const nextFactoryWeightProfitRp = Math.round(
+        nextFactoryWeightProfitKg * nextPrice
+      );
 
-        return {
-          ...ser,
-          compositeColorGrade: nextGrade,
-          totalBlendNetKg: nextRealTobaccoNetKg,
-          packaging: {
-            ...ser.packaging,
-            grossWeightPerPackage: nextBruto,
-            netTobaccoWeightKg: nextRealTobaccoNetKg,
-            packagingMassKg: realPkgMassKg,
-          },
-          factoryDeductionKg: nextTara,
-          factoryNetBillableKg: nextNetto,
-          factoryWeightProfitKg: nextFactoryWeightProfitKg,
-          factoryWeightProfitRp: nextFactoryWeightProfitRp,
-          factoryTargetPricePerKg: nextPrice,
-          projectedRevenue: nextRevenue,
-          projectedProfit: nextProfit,
-          profitMarginPercent: nextMargin,
-        };
-      })
-    );
+      return {
+        ...ser,
+        compositeColorGrade: nextGrade,
+        totalBlendNetKg: nextRealTobaccoNetKg,
+        packaging: {
+          ...ser.packaging,
+          grossWeightPerPackage: nextBruto,
+          netTobaccoWeightKg: nextRealTobaccoNetKg,
+          packagingMassKg: realPkgMassKg,
+        },
+        factoryDeductionKg: nextTara,
+        factoryNetBillableKg: nextNetto,
+        factoryWeightProfitKg: nextFactoryWeightProfitKg,
+        factoryWeightProfitRp: nextFactoryWeightProfitRp,
+        factoryTargetPricePerKg: nextPrice,
+        projectedRevenue: nextRevenue,
+        projectedProfit: nextProfit,
+        profitMarginPercent: nextMargin,
+      };
+    });
+    setFinishedBatches(nextBatches);
+    setRollSamples((prevRolls) => syncRollsWithSerials(prevRolls, nextBatches));
   };
 
   const handleDeleteFinished = (id: string) => {
     const item = finishedBatches.find((b) => b.id === id);
     if (!item) return;
-    setFinishedBatches(finishedBatches.filter((b) => b.id !== id));
+    const nextBatches = finishedBatches.filter((b) => b.id !== id);
+    setFinishedBatches(nextBatches);
+    setRollSamples((prevRolls) => syncRollsWithSerials(prevRolls, nextBatches));
     showToast(`Nomor Seri "${item.serialNumber}" dihapus.`);
   };
 
@@ -700,7 +765,7 @@ export default function App() {
 
   if (authReady && !currentUser && !offlineBypass) {
     return (
-      <div className="min-h-screen bg-[#030304] text-white relative">
+      <div className="min-h-screen bg-[#020203] text-white relative">
         <ArchitecturalBackground />
         <CloudLoginScreen
           onContinueOffline={() => {
@@ -713,7 +778,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#030304] text-white flex flex-col font-sans selection:bg-amber-500 selection:text-black relative">
+    <div className="min-h-screen bg-[#020203] text-white flex flex-col font-sans selection:bg-amber-500 selection:text-black relative">
       {/* Artistic Resident Evil 9 Requiem Architectural Background */}
       <ArchitecturalBackground />
 
@@ -804,7 +869,10 @@ export default function App() {
                 <FinishedTobaccoList
                   finishedBatches={finishedBatches}
                   rollSamples={rollSamples}
+                  packagingList={packagingList}
+                  factoryList={factoryList}
                   onOpenRoll={handleOpenRollFromFinished}
+                  onUpdateSerial={handleUpdateFinishedSerial}
                   onDelete={handleDeleteFinished}
                 />
               )}
@@ -821,11 +889,14 @@ export default function App() {
                 <RollArchiveView
                   rollSamples={rollSamples}
                   finishedBatches={finishedBatches}
+                  packagingList={packagingList}
+                  factoryList={factoryList}
                   onSelectRoll={(roll) => setSelectedRoll(roll)}
                   onOpenNewRollModal={() => {
                     setMasterInitialSection('gulungan');
                     setIsMasterModalOpen(true);
                   }}
+                  onUpdateSerial={handleUpdateFinishedSerial}
                   onRepriceSerial={handleRepriceSerial}
                 />
               )}
@@ -901,7 +972,7 @@ export default function App() {
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-16 md:bottom-5 right-4 z-50 bg-black border-2 border-amber-500 text-white px-4 py-3 rounded-xl shadow-[0_0_25px_rgba(245,158,11,0.3)] flex items-center gap-2.5 text-xs font-extrabold"
+            className="fixed bottom-16 md:bottom-5 right-4 z-50 bg-black border border-zinc-700 text-white px-4 py-3 rounded-xl flex items-center gap-2.5 text-xs font-extrabold"
           >
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
             <span>{toastMessage}</span>

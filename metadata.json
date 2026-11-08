@@ -1,6 +1,6 @@
 {
-  "name": "Aplikasi Racikan & HPP Tembakau (Tobacco Blending & Costing)",
-  "description": "Sistem manajemen racikan tembakau antardaerah, kalkulator HPP akurat dengan potongan/tara timbangan fleksibel, tembakau jadi nomor seri pabrik, dan arsip gulungan sampel.",
+  "name": "Tobacco Lab — Sistem Racikan & HPP Tembakau",
+  "description": "Tobacco Lab — Sistem manajemen racikan tembakau antardaerah, kalkulator HPP akurat dengan potongan/tara timbangan fleksibel, tembakau jadi nomor seri pabrik, dan arsip gulungan sampel.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

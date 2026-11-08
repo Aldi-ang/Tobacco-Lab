@@ -14,11 +14,14 @@ import {
   TrendingUp,
   Calendar,
   Maximize2,
+  Edit3,
 } from 'lucide-react';
 import {
   TobaccoRollSample,
   FinishedTobaccoSerial,
   TobaccoGrade,
+  PackagingMaster,
+  FactoryMaster,
 } from '../types/tobacco';
 import {
   GRADE_LABELS,
@@ -33,12 +36,16 @@ import {
   CalculationDetailData,
   CalcSymbolBadge,
 } from './CalculationDetailModal';
+import { EditFinishedSerialModal } from './EditFinishedSerialModal';
 
 interface RollArchiveViewProps {
   rollSamples: TobaccoRollSample[];
   finishedBatches: FinishedTobaccoSerial[];
+  packagingList?: PackagingMaster[];
+  factoryList?: FactoryMaster[];
   onSelectRoll: (roll: TobaccoRollSample) => void;
   onOpenNewRollModal: () => void;
+  onUpdateSerial?: (updated: FinishedTobaccoSerial) => void;
   onRepriceSerial: (
     serialId: string,
     updates: {
@@ -53,12 +60,16 @@ interface RollArchiveViewProps {
 export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
   rollSamples,
   finishedBatches,
+  packagingList = [],
+  factoryList = [],
   onSelectRoll,
   onOpenNewRollModal,
+  onUpdateSerial,
   onRepriceSerial,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeRollId, setActiveRollId] = useState<string | null>(null);
+  const [editingSerial, setEditingSerial] = useState<FinishedTobaccoSerial | null>(null);
   // Default to showing the Seri list in full screen when opening a Gulungan, with Nota toggleable
   const [isNotaVisible, setIsNotaVisible] = useState<boolean>(false);
   const [isSerialsVisible, setIsSerialsVisible] = useState<boolean>(true);
@@ -156,11 +167,11 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
     sumFactoryNota: number,
     totalNetProfit: number
   ) => (
-    <div className="bg-black border border-amber-500/60 rounded-xl overflow-hidden flex flex-col justify-between">
+    <div className="bg-black border border-zinc-800 rounded-xl overflow-hidden flex flex-col justify-between">
       <div>
         <div className="px-4 py-3 bg-zinc-900/90 border-b border-zinc-800 flex items-center justify-between flex-wrap gap-2">
           <div>
-            <span className="text-[10px] uppercase font-black tracking-wider text-amber-400 block">
+            <span className="text-[10px] uppercase font-black tracking-wider text-zinc-200 block">
               SHEET 1 — NOTA ARSIP PERSONAL KITA (INTERNAL)
             </span>
             <h4 className="font-extrabold text-white text-xs sm:text-sm">
@@ -189,10 +200,10 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
             <button
               type="button"
               onClick={() => handleDownloadCsv(roll, activeSheetSerials, 'INTERNAL_COST')}
-              className="h-8 w-8 inline-flex items-center justify-center rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 hover:border-amber-500/50 cursor-pointer"
+              className="h-8 w-8 inline-flex items-center justify-center rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 hover:border-zinc-800 cursor-pointer"
               title="Download CSV Arsip Personal (Modal + Harga Pabrik + Profit)"
             >
-              <Download className="w-3.5 h-3.5 text-amber-400" />
+              <Download className="w-3.5 h-3.5 text-zinc-300" />
             </button>
           </div>
         </div>
@@ -202,12 +213,12 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
           <div className="flex items-center gap-4">
             <span className="font-bold text-zinc-400">TANGGAL</span>
             <span className="font-bold">{formattedDate}</span>
-            <span className="font-black text-amber-400 uppercase">
+            <span className="font-black text-zinc-200 uppercase">
               {roll.recipeName} (ARSIP PERSONAL)
             </span>
           </div>
           <span className="text-[10px] text-zinc-400">
-            Rumus: <b className="text-amber-400">PROFIT = Jumlah Pabrik − Jumlah Modal</b>
+            Rumus: <b className="text-white">PROFIT = Jumlah Pabrik − Jumlah Modal</b>
           </span>
         </div>
 
@@ -224,13 +235,13 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                 <th className="py-2.5 px-2 border-r border-zinc-800">GRADE</th>
                 <th className="py-2.5 px-2 border-r border-zinc-800">HARGA MODAL</th>
                 <th className="py-2.5 px-2 border-r border-zinc-800">JUMLAH MODAL</th>
-                <th className="py-2.5 px-2 border-r border-zinc-800 text-amber-300 w-[110px]">
+                <th className="py-2.5 px-2 border-r border-zinc-800 text-zinc-200 w-[110px]">
                   HARGA PABRIK
                 </th>
-                <th className="py-2.5 px-2 border-r border-zinc-800 text-amber-300">
+                <th className="py-2.5 px-2 border-r border-zinc-800 text-zinc-200">
                   JUMLAH PABRIK
                 </th>
-                <th className="py-2.5 px-2 text-amber-400">PROFIT</th>
+                <th className="py-2.5 px-2 text-white">PROFIT</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900 text-center">
@@ -248,7 +259,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                 return (
                   <tr key={s.id} className="h-10 hover:bg-zinc-950/80 text-zinc-200">
                     <td className="py-1.5 px-2 border-r border-zinc-900">{idx + 1}</td>
-                    <td className="py-1.5 px-2 border-r border-zinc-900 font-bold text-amber-400">
+                    <td className="py-1.5 px-2 border-r border-zinc-900 font-bold text-white">
                       {s.serialNumber}
                     </td>
                     <td className="py-1.5 px-2 border-r border-zinc-900">{bruto}</td>
@@ -275,10 +286,10 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                           onRepriceSerial(s.id, { factoryTargetPricePerKg: val })
                         }
                         aria-label={`Harga Pabrik Seri ${s.serialNumber}`}
-                        className="h-7 w-full min-w-[88px] px-1.5 bg-zinc-950 border border-amber-500/60 focus:border-amber-400 rounded-md text-right text-amber-300 font-mono font-bold text-[11px] focus:outline-hidden"
+                        className="h-7 w-full min-w-[88px] px-1.5 bg-zinc-950 border border-zinc-800 focus:border-zinc-700 rounded-md text-right text-zinc-200 font-mono font-bold text-[11px] focus:outline-hidden"
                       />
                     </td>
-                    <td className="py-1.5 px-2 border-r border-zinc-900 text-right font-bold text-amber-300">
+                    <td className="py-1.5 px-2 border-r border-zinc-900 text-right font-bold text-zinc-200">
                       {formatSheetRp(jumlahNota)}
                     </td>
                     <td
@@ -296,10 +307,10 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
               <tr className="bg-zinc-900 border-t-2 border-zinc-700 font-black text-white text-center">
                 <td className="py-2.5 px-2 border-r border-zinc-800"></td>
                 <td className="py-2.5 px-2 border-r border-zinc-800"></td>
-                <td className="py-2.5 px-2 border-r border-zinc-800 text-amber-400">
+                <td className="py-2.5 px-2 border-r border-zinc-800 text-white">
                   {sumBruto}
                 </td>
-                <td className="py-2.5 px-2 border-r border-zinc-800 text-amber-400">
+                <td className="py-2.5 px-2 border-r border-zinc-800 text-white">
                   {sumTara}
                 </td>
                 <td className="py-2.5 px-2 border-r border-zinc-800 text-white">
@@ -314,10 +325,10 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                   {formatSheetRp(sumInternalCost)}
                 </td>
                 <td className="py-2.5 px-2 border-r border-zinc-800"></td>
-                <td className="py-2.5 px-2 border-r border-zinc-800 text-right text-amber-300">
+                <td className="py-2.5 px-2 border-r border-zinc-800 text-right text-zinc-200">
                   {formatSheetRp(sumFactoryNota)}
                 </td>
-                <td className="py-2.5 px-2 text-right text-amber-400">
+                <td className="py-2.5 px-2 text-right text-white">
                   {formatSheetRp(totalNetProfit)}
                 </td>
               </tr>
@@ -338,11 +349,11 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
     sumNetto: number,
     sumFactoryNota: number
   ) => (
-    <div className="bg-black border-2 border-amber-500/60 rounded-xl overflow-hidden flex flex-col justify-between">
+    <div className="bg-black border border-zinc-700 rounded-xl overflow-hidden flex flex-col justify-between">
       <div>
         <div className="px-4 py-3 bg-zinc-900/90 border-b border-zinc-800 flex items-center justify-between flex-wrap gap-2">
           <div>
-            <span className="text-[10px] uppercase font-black tracking-wider text-amber-400 block">
+            <span className="text-[10px] uppercase font-black tracking-wider text-zinc-200 block">
               SHEET 2 — NOTA SETORAN KE PABRIK (RESMI)
             </span>
             <h4 className="font-extrabold text-white text-xs sm:text-sm">
@@ -371,10 +382,10 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
             <button
               type="button"
               onClick={() => handleDownloadCsv(roll, activeSheetSerials, 'FACTORY_NOTA')}
-              className="h-8 w-8 inline-flex items-center justify-center rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 hover:border-amber-500/50 cursor-pointer"
+              className="h-8 w-8 inline-flex items-center justify-center rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 hover:border-zinc-800 cursor-pointer"
               title="Download CSV Nota Pabrik"
             >
-              <Download className="w-3.5 h-3.5 text-amber-400" />
+              <Download className="w-3.5 h-3.5 text-zinc-300" />
             </button>
           </div>
         </div>
@@ -383,7 +394,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
         <div className="px-4 py-2 bg-zinc-950 border-b border-zinc-800 font-mono text-xs flex items-center gap-6 text-white">
           <span className="font-bold text-zinc-400">TANGGAL</span>
           <span className="font-bold">{formattedDate}</span>
-          <span className="font-black text-amber-400 uppercase">{roll.recipeName}</span>
+          <span className="font-black text-zinc-200 uppercase">{roll.recipeName}</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -397,7 +408,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                 <th className="py-2.5 px-2 border-r border-zinc-800">NETTO</th>
                 <th className="py-2.5 px-2 border-r border-zinc-800">PACKAGING</th>
                 <th className="py-2.5 px-2 border-r border-zinc-800 w-[76px]">GRADE</th>
-                <th className="py-2.5 px-2 border-r border-zinc-800 text-amber-400 w-[112px]">
+                <th className="py-2.5 px-2 border-r border-zinc-800 text-white w-[112px]">
                   HARGA (EDIT)
                 </th>
                 <th className="py-2.5 px-2">JUMLAH</th>
@@ -415,22 +426,14 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                     <td className="py-1.5 px-2 border-r border-zinc-900 align-middle">
                       {idx + 1}
                     </td>
-                    <td className="py-1.5 px-2 border-r border-zinc-900 font-bold text-amber-400 align-middle">
+                    <td className="py-1.5 px-2 border-r border-zinc-900 font-bold text-white align-middle">
                       {s.serialNumber}
                     </td>
-                    <td className="py-1 px-1.5 border-r border-zinc-900 align-middle">
-                      <NumericInput
-                        value={bruto}
-                        onChange={(val) => onRepriceSerial(s.id, { brutoKg: val })}
-                        className="h-7 w-full min-w-[54px] px-1.5 bg-zinc-950 border border-zinc-700 focus:border-amber-500 rounded-md text-center text-white font-mono text-[11px] focus:outline-hidden"
-                      />
+                    <td className="py-1.5 px-2 border-r border-zinc-900 align-middle">
+                      {bruto}
                     </td>
-                    <td className="py-1 px-1.5 border-r border-zinc-900 align-middle">
-                      <NumericInput
-                        value={tara}
-                        onChange={(val) => onRepriceSerial(s.id, { taraKg: val })}
-                        className="h-7 w-full min-w-[48px] px-1.5 bg-zinc-950 border border-zinc-700 focus:border-amber-500 rounded-md text-center text-amber-400 font-mono text-[11px] focus:outline-hidden"
-                      />
+                    <td className="py-1.5 px-2 border-r border-zinc-900 align-middle">
+                      {tara}
                     </td>
                     <td className="py-1.5 px-2 border-r border-zinc-900 font-black text-white align-middle">
                       {netto}
@@ -438,23 +441,8 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                     <td className="py-1.5 px-2 border-r border-zinc-900 uppercase whitespace-nowrap align-middle">
                       {s.packaging.packagingType}
                     </td>
-                    <td className="py-1 px-1.5 border-r border-zinc-900 align-middle">
-                      <select
-                        value={s.compositeColorGrade}
-                        onChange={(e) =>
-                          onRepriceSerial(s.id, {
-                            compositeColorGrade: e.target.value as TobaccoGrade,
-                          })
-                        }
-                        aria-label={`Grade Seri ${s.serialNumber}`}
-                        className="h-7 w-full min-w-[58px] px-1.5 bg-zinc-950 border border-zinc-700 focus:border-amber-500 rounded-md text-amber-400 font-bold text-[11px] text-center focus:outline-hidden"
-                      >
-                        {(Object.keys(GRADE_LABELS) as TobaccoGrade[]).map((g) => (
-                          <option key={g} value={g}>
-                            {g}
-                          </option>
-                        ))}
-                      </select>
+                    <td className="py-1.5 px-2 border-r border-zinc-900 font-bold text-white align-middle">
+                      {s.compositeColorGrade}
                     </td>
                     <td className="py-1 px-1.5 border-r border-zinc-900 align-middle">
                       <NumericInput
@@ -463,10 +451,10 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                           onRepriceSerial(s.id, { factoryTargetPricePerKg: val })
                         }
                         aria-label={`Harga Pabrik Seri ${s.serialNumber}`}
-                        className="h-7 w-full min-w-[92px] px-2 bg-zinc-950 border border-amber-500/70 focus:border-amber-400 rounded-md text-right text-amber-400 font-mono font-bold text-[11px] focus:outline-hidden"
+                        className="h-7 w-full min-w-[92px] px-2 bg-zinc-950 border border-zinc-800 focus:border-zinc-700 rounded-md text-right text-white font-mono font-bold text-[11px] focus:outline-hidden"
                       />
                     </td>
-                    <td className="py-1.5 px-2 text-right font-black text-amber-400 align-middle">
+                    <td className="py-1.5 px-2 text-right font-black text-white align-middle">
                       {formatSheetRp(jumlahNota)}
                     </td>
                   </tr>
@@ -474,13 +462,13 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
               })}
             </tbody>
             <tfoot>
-              <tr className="bg-zinc-900 border-t-2 border-amber-500/50 font-black text-white text-center">
+              <tr className="bg-zinc-900 border-t-2 border-zinc-800 font-black text-white text-center">
                 <td className="py-2.5 px-2 border-r border-zinc-800"></td>
                 <td className="py-2.5 px-2 border-r border-zinc-800"></td>
-                <td className="py-2.5 px-2 border-r border-zinc-800 text-amber-400">
+                <td className="py-2.5 px-2 border-r border-zinc-800 text-white">
                   {sumBruto}
                 </td>
-                <td className="py-2.5 px-2 border-r border-zinc-800 text-amber-400">
+                <td className="py-2.5 px-2 border-r border-zinc-800 text-white">
                   {sumTara}
                 </td>
                 <td className="py-2.5 px-2 border-r border-zinc-800 text-white">
@@ -488,10 +476,10 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                 </td>
                 <td className="py-2.5 px-2 border-r border-zinc-800"></td>
                 <td className="py-2.5 px-2 border-r border-zinc-800"></td>
-                <td className="py-2.5 px-2 border-r border-zinc-800 text-[10px] text-amber-400">
+                <td className="py-2.5 px-2 border-r border-zinc-800 text-[10px] text-zinc-200">
                   TOTAL NOTA
                 </td>
-                <td className="py-2.5 px-2 text-right text-amber-400">
+                <td className="py-2.5 px-2 text-right text-white">
                   {formatSheetRp(sumFactoryNota)}
                 </td>
               </tr>
@@ -503,44 +491,29 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
   );
 
   return (
-    <div className="space-y-5 pb-16 md:pb-4">
-      {/* Compact Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 requiem-card p-4 sm:p-5 rounded-2xl border border-zinc-800/90">
-        <div>
-          <h1 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-lg bg-black text-amber-400 border border-amber-500 text-xs font-mono font-black shadow-[0_0_12px_rgba(245,158,11,0.2)]">
-              GULUNGAN
-            </span>
-            <span>Arsip Gulungan (Animasi Layar Penuh)</span>
-          </h1>
-          <p className="text-xs text-zinc-400 mt-1">
-            Tekan kartu Gulungan untuk membuka <b>Gulungan Kertas Layar Penuh</b> berisi seluruh Nomor Seri, <b>Nota Sheet</b>, dan <b>Komposisi & Evaluasi</b>.
-          </p>
+    <div className="space-y-3 pb-16 md:pb-4">
+      {/* Search Bar + New Gulungan Action Button Inline */}
+      <div className="requiem-card p-2.5 sm:p-3 rounded-xl border border-zinc-800/90 flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Cari nama gulungan, kode (GUL-...), tanggal, nomor seri, atau pabrik..."
+            className="w-full h-9 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700"
+          />
         </div>
 
         <button
           type="button"
           title="Buat Arsip Gulungan Sampel Baru"
           onClick={onOpenNewRollModal}
-          className="btn-amber-outline min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+          className="btn-amber-outline h-9 px-3 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
           <span>Gulungan Baru</span>
         </button>
-      </div>
-
-      {/* Minimalist Search Bar */}
-      <div className="requiem-card p-3.5 rounded-xl border border-zinc-800/90">
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Cari nama gulungan, kode (GUL-...), tanggal, nomor seri, atau pabrik..."
-            className="w-full h-10 pl-10 pr-4 bg-black border border-zinc-800 rounded-xl text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-hidden focus:border-amber-500"
-          />
-        </div>
       </div>
 
       {/* Grid of 1-Card 3D Gulungan Items (Shows Name, Date, and 3D Antique Scroll) */}
@@ -590,31 +563,38 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                 transition={{ duration: 0.2, delay: Math.min(idx * 0.04, 0.2) }}
                 whileHover={{ y: -3 }}
                 onClick={() => handleOpenRollCard(roll)}
-                className="text-left group relative requiem-card border-2 border-zinc-800/90 hover:border-amber-500 rounded-2xl p-4 shadow-[0_7px_0_0_#09090b,0_12px_20px_rgba(0,0,0,0.85)] hover:shadow-[0_9px_0_0_#f59e0b,0_16px_28px_rgba(245,158,11,0.2)] transition-all duration-200 cursor-pointer flex flex-col justify-between gap-3"
+                className="text-left group relative requiem-card border-2 border-zinc-800/90 hover:border-zinc-700 rounded-2xl p-4 shadow-[0_7px_0_0_#09090b,0_12px_20px_rgba(0,0,0,0.85)] hover:shadow-[0_9px_0_0_#f59e0b,0_16px_28px_rgba(245,158,11,0.2)] transition-all duration-200 cursor-pointer flex flex-col justify-between gap-3"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="px-2.5 py-0.5 rounded-lg bg-black text-amber-400 border border-amber-500 font-mono font-black text-xs shadow-[0_0_12px_rgba(245,158,11,0.2)]">
+                    <span className="px-2.5 py-0.5 rounded-lg bg-black text-amber-400 border border-zinc-700 font-mono font-black text-xs">
                       {roll.rollNumber}
                     </span>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-300 font-bold">
-                      <Calendar className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span className="inline-flex items-center gap-1 text-[11px] font-mono text-zinc-200 font-bold">
+                      <Calendar className="w-3 h-3 text-zinc-300 shrink-0" />
                       {formattedDate}
                     </span>
                   </div>
 
                   {/* Gulungan Name & Factory */}
                   <div>
-                    <h2 className="font-black text-white text-base sm:text-lg truncate group-hover:text-amber-400 transition-colors">
+                    <h2 className="font-black text-white text-base sm:text-lg truncate group-hover:text-white transition-colors">
                       {roll.recipeName}
                     </h2>
                     <div className="flex items-center justify-between text-xs text-zinc-400 mt-0.5">
                       <span className="flex items-center gap-1.5 truncate">
-                        <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <Building2 className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                         <b className="text-zinc-200 truncate">{roll.targetFactory}</b>
                       </span>
                       <span className="text-[11px] font-mono text-zinc-300 shrink-0">
                         {activeSheetSerials.length} Keranjang
+                      </span>
+                    </div>
+                    <div className="text-[10px] font-mono text-zinc-400 truncate mt-1">
+                      Seri:{' '}
+                      <span className="text-amber-400 font-bold">
+                        {allSerialsInRoll.map((s) => s.serialNumber).join(', ') ||
+                          roll.serialNumber}
                       </span>
                     </div>
                   </div>
@@ -631,19 +611,19 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                   </div>
                   <div>
                     <div className="text-[9px] text-zinc-400 uppercase font-bold">Nota Pabrik</div>
-                    <div className="font-mono font-bold text-amber-300 text-[11px]">
+                    <div className="font-mono font-bold text-zinc-200 text-[11px]">
                       {Math.round(sumFactoryNota / 1000000)}jt
                     </div>
                   </div>
                   <div>
-                    <div className="text-[9px] text-amber-400 uppercase font-black">PROFIT</div>
+                    <div className="text-[9px] text-zinc-200 uppercase font-black">PROFIT</div>
                     <div className="font-mono font-black text-amber-400 text-[11px]">
                       +{Math.round(totalNetProfit / 1000000)}jt
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-zinc-400 group-hover:text-amber-400 transition-colors">
+                <div className="flex items-center justify-between text-[11px] text-zinc-400 group-hover:text-white transition-colors">
                   <span>Buka gulungan layar penuh</span>
                   <span className="font-bold inline-flex items-center gap-1">
                     <Maximize2 className="w-3 h-3" /> Layar Penuh →
@@ -994,7 +974,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                 {/* Summary KPI Strip: Modal Kita, Nota Pabrik, Selisih Timbangan & PROFIT (Specific Per-Panel Breakdown) */}
                 <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200">
                       Ringkasan Kalkulasi Gulungan ({activeSheetSerials.length} Seri Aktif)
                     </span>
                     <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-zinc-400">
@@ -1007,7 +987,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                     <button
                       type="button"
                       onClick={() => openRollCalcModal('NETTO')}
-                      className="text-left group bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full"
+                      className="text-left group bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full"
                     >
                       <div className="flex items-start justify-between gap-1.5 w-full">
                         <span className="text-[10px] text-zinc-400 uppercase font-bold block truncate">
@@ -1023,7 +1003,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                     <button
                       type="button"
                       onClick={() => openRollCalcModal('MODAL')}
-                      className="text-left group bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full"
+                      className="text-left group bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full"
                     >
                       <div className="flex items-start justify-between gap-1.5 w-full">
                         <span className="text-[10px] text-zinc-400 uppercase font-bold block truncate">
@@ -1039,15 +1019,15 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                     <button
                       type="button"
                       onClick={() => openRollCalcModal('NOTA')}
-                      className="text-left group bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full"
+                      className="text-left group bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full"
                     >
                       <div className="flex items-start justify-between gap-1.5 w-full">
-                        <span className="text-[10px] text-amber-300 uppercase font-bold block truncate">
+                        <span className="text-[10px] text-zinc-200 uppercase font-bold block truncate">
                           Total Harga Pabrik (Nota)
                         </span>
                         <CalcSymbolBadge />
                       </div>
-                      <span className="font-mono font-black text-amber-300 text-sm sm:text-base block mt-1">
+                      <span className="font-mono font-black text-zinc-200 text-sm sm:text-base block mt-1">
                         {formatRupiah(sumFactoryNota)}
                       </span>
                     </button>
@@ -1055,17 +1035,17 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                     <button
                       type="button"
                       onClick={() => openRollCalcModal('WEIGHT_PROFIT')}
-                      className="text-left group bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full"
+                      className="text-left group bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full"
                     >
                       <div className="flex items-start justify-between gap-1.5 w-full">
-                        <span className="text-[10px] text-amber-400 uppercase font-bold block truncate">
+                        <span className="text-[10px] text-zinc-200 uppercase font-bold block truncate">
                           Selisih Timbangan Pabrik
                         </span>
                         <CalcSymbolBadge />
                       </div>
                       <span
                         className={`font-mono font-black text-xs sm:text-sm block mt-1 ${
-                          sumFactoryWeightProfitKg >= 0 ? 'text-amber-300' : 'text-red-400'
+                          sumFactoryWeightProfitKg >= 0 ? 'text-zinc-200' : 'text-red-400'
                         }`}
                       >
                         {sumFactoryWeightProfitKg >= 0 ? '+' : ''}
@@ -1077,10 +1057,10 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                     <button
                       type="button"
                       onClick={() => openRollCalcModal('PROFIT')}
-                      className="col-span-2 sm:col-span-1 text-left group bg-zinc-950 p-2.5 rounded-lg border-2 border-amber-500 hover:border-amber-300 transition-all cursor-pointer flex flex-col justify-between h-full"
+                      className="col-span-2 sm:col-span-1 text-left group bg-zinc-950 p-2.5 rounded-lg border border-zinc-700 hover:border-zinc-600 transition-all cursor-pointer flex flex-col justify-between h-full"
                     >
                       <div className="flex items-start justify-between gap-1.5 w-full">
-                        <span className="text-[10px] text-amber-400 uppercase font-black flex items-center gap-1 truncate">
+                        <span className="text-[10px] text-zinc-200 uppercase font-black flex items-center gap-1 truncate">
                           <TrendingUp className="w-3 h-3 shrink-0" /> PROFIT GULUNGAN
                         </span>
                         <CalcSymbolBadge />
@@ -1101,11 +1081,11 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                       onClick={() => setIsSerialsVisible((v) => !v)}
                       className={`min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer border ${
                         isSerialsVisible
-                          ? 'bg-black text-amber-400 border-2 border-amber-400 shadow-[0_0_16px_rgba(245,158,11,0.28)]'
+                          ? 'bg-black text-amber-400 border border-zinc-700'
                           : 'bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white border-zinc-700'
                       }`}
                     >
-                      <Package className="w-4 h-4 text-amber-400 shrink-0" />
+                      <Package className="w-4 h-4 text-zinc-300 shrink-0" />
                       <span>
                         {isSerialsVisible
                           ? `Sembunyikan Seri (${allSerialsInRoll.length})`
@@ -1119,7 +1099,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                       onClick={() => setIsNotaVisible((v) => !v)}
                       className={`min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer transition-colors ${
                         isNotaVisible
-                          ? 'bg-black text-amber-400 border-2 border-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.3)]'
+                          ? 'bg-black text-amber-400 border border-zinc-700'
                           : 'btn-amber-outline'
                       }`}
                     >
@@ -1140,7 +1120,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
 
                   {!isNotaVisible && (
                     <span className="text-[11px] text-zinc-400">
-                      Klik <b className="text-amber-400">Buka Nota Sheet</b> untuk menyalin Nota Personal / Pabrik ke Google Sheets
+                      Klik <b className="text-white">Buka Nota Sheet</b> untuk menyalin Nota Personal / Pabrik ke Google Sheets
                     </span>
                   )}
                 </div>
@@ -1150,12 +1130,12 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                   <div className="bg-black p-3.5 sm:p-4 rounded-xl border border-zinc-800 space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-                        <Package className="w-4 h-4 text-amber-400" />
+                        <Package className="w-4 h-4 text-zinc-300" />
                         Daftar Nomor Seri di Dalam Gulungan ({allSerialsInRoll.length} Keranjang)
                       </h3>
                       <span className="text-[11px] text-zinc-400">
-                        Anda dapat langsung mengubah <b className="text-amber-400">Grade</b> &{' '}
-                        <b className="text-amber-400">Harga Pabrik/KG</b> pada tiap kartu Seri di bawah
+                        Anda dapat langsung mengubah <b className="text-white">Grade</b> &{' '}
+                        <b className="text-white">Harga Pabrik/KG</b> pada tiap kartu Seri di bawah
                       </span>
                     </div>
 
@@ -1184,30 +1164,31 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                         return (
                           <div
                             key={ser.id}
-                            className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-amber-500/60 transition-colors text-xs space-y-2.5 flex flex-col justify-between"
+                            className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-zinc-800 transition-colors text-xs space-y-2.5 flex flex-col justify-between"
                           >
                             <div className="space-y-2">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="px-2.5 py-0.5 rounded-md bg-black border border-amber-500 font-mono font-black text-amber-400 text-xs">
+                                <span className="px-2.5 py-0.5 rounded-md bg-black border border-zinc-700 font-mono font-black text-amber-400 text-xs">
                                   SERI {ser.serialNumber}
                                 </span>
 
-                                <select
-                                  value={ser.compositeColorGrade}
-                                  onChange={(e) =>
-                                    onRepriceSerial(ser.id, {
-                                      compositeColorGrade: e.target.value as TobaccoGrade,
-                                    })
-                                  }
-                                  aria-label={`Ubah Grade Seri ${ser.serialNumber}`}
-                                  className="h-7 px-2 rounded bg-black border border-zinc-700 focus:border-amber-500 text-amber-400 font-bold text-[11px]"
-                                >
-                                  {(Object.keys(GRADE_LABELS) as TobaccoGrade[]).map((g) => (
-                                    <option key={g} value={g}>
-                                      Grade {g}
-                                    </option>
-                                  ))}
-                                </select>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="h-7 px-2 rounded bg-black border border-zinc-800 text-zinc-200 font-bold text-[11px] inline-flex items-center">
+                                    Grade {ser.compositeColorGrade}
+                                  </span>
+
+                                  {onUpdateSerial && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingSerial(ser)}
+                                      className="h-7 px-2 rounded bg-black hover:bg-zinc-900 border border-zinc-700 hover:border-amber-500/70 text-amber-400 font-bold text-[10px] inline-flex items-center gap-1 cursor-pointer transition-colors"
+                                      title={`Edit Lengkap Seri ${ser.serialNumber}`}
+                                    >
+                                      <Edit3 className="w-3 h-3" />
+                                      <span>Edit</span>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
 
                               <div className="bg-black/80 p-2 rounded-lg border border-zinc-900 space-y-1 font-mono text-[11px]">
@@ -1219,7 +1200,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                                   <span>Tagih / Riil:</span>
                                   <b className="text-white">
                                     {netto}kg ({bruto}−{tara}) /{' '}
-                                    <span className="text-amber-300">{realNet}kg</span>
+                                    <span className="text-zinc-200">{realNet}kg</span>
                                   </b>
                                 </div>
                                 {wpKg !== 0 && (
@@ -1240,7 +1221,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
 
                               {/* Editable Factory Price per KG */}
                               <div>
-                                <label className="block text-[10px] text-amber-300 font-bold uppercase mb-1">
+                                <label className="block text-[10px] text-zinc-200 font-bold uppercase mb-1">
                                   Harga Pabrik / KG (Rp)
                                 </label>
                                 <NumericInput
@@ -1248,7 +1229,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                                   onChange={(val) =>
                                     onRepriceSerial(ser.id, { factoryTargetPricePerKg: val })
                                   }
-                                  className="w-full h-8 px-2.5 bg-black border border-amber-500/70 focus:border-amber-400 rounded-lg text-right font-mono font-bold text-amber-300 text-xs"
+                                  className="w-full h-8 px-2.5 bg-black border border-zinc-800 focus:border-zinc-700 rounded-lg text-right font-mono font-bold text-zinc-200 text-xs"
                                 />
                               </div>
                             </div>
@@ -1256,7 +1237,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                             <div className="pt-2 border-t border-zinc-900 space-y-1 font-mono text-[11px]">
                               <div className="flex items-center justify-between">
                                 <span className="text-zinc-400">Jumlah Pabrik:</span>
-                                <b className="text-amber-300">{formatRupiah(nota)}</b>
+                                <b className="text-zinc-200">{formatRupiah(nota)}</b>
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-zinc-400">Profit Seri:</span>
@@ -1304,7 +1285,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                             onClick={() => setSheetViewMode(btn.id)}
                             className={`min-h-8 px-3 py-1.5 rounded-lg text-xs font-extrabold cursor-pointer transition-colors ${
                               active
-                                ? 'bg-black text-amber-400 border border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                                ? 'bg-black text-amber-400 border border-zinc-700'
                                 : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
                             }`}
                           >
@@ -1368,6 +1349,20 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
             );
           })()}
         </FullScreenScrollModal>
+      )}
+
+      {editingSerial && onUpdateSerial && (
+        <EditFinishedSerialModal
+          serial={editingSerial}
+          rollSamples={rollSamples}
+          packagingList={packagingList}
+          factoryList={factoryList}
+          onClose={() => setEditingSerial(null)}
+          onSave={(updated) => {
+            onUpdateSerial(updated);
+            setEditingSerial(null);
+          }}
+        />
       )}
 
       <CalculationDetailModal data={calcDetail} onClose={() => setCalcDetail(null)} />

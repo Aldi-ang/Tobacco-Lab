@@ -14,8 +14,8 @@ export default defineConfig(() => {
         includeAssets: ['icon.svg', 'awd-logo.png', 'apple-touch-icon-awd-black.png'],
         manifest: {
           id: '/',
-          name: 'AWD Master — Sistem Racikan & HPP Tembakau',
-          short_name: 'AWD Master',
+          name: 'Tobacco Lab — Sistem Racikan & HPP Tembakau',
+          short_name: 'Tobacco Lab',
           description:
             'Sistem manajemen racikan tembakau antardaerah, kalkulator HPP akurat, nomor seri pabrik, dan arsip gulungan sampel.',
           theme_color: '#000000',

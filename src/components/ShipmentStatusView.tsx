@@ -127,59 +127,41 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
       : null);
 
   return (
-    <div className="space-y-4 pb-20 md:pb-4">
-      {/* Header & Bordered Segment Switcher */}
-      <div className="requiem-card p-3.5 sm:p-5 rounded-2xl border border-zinc-800/90 space-y-3">
-        <div>
-          <h1 className="text-base sm:text-xl font-black text-white flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-lg bg-black text-amber-400 border border-amber-500 text-xs font-mono font-black shadow-[0_0_12px_rgba(245,158,11,0.2)]">
-              STATUS BARANG
-            </span>
-            <span>Verifikasi Kiriman per Gulungan (Layar Penuh)</span>
-          </h1>
-          <p className="text-[11px] text-zinc-400 mt-1">
-            Tekan kartu <b>Gulungan 3D</b> untuk membuka animasi gulungan kertas layar penuh dan memilih{' '}
-            <b className="text-amber-400">Terima Cair</b> atau <b className="text-white">Reject</b> pada tiap Nomor Seri.
-          </p>
-        </div>
-
-        {/* Distinct Spacing & Locked Border between Header and Segment Bar */}
-        <div className="pt-3 border-t border-zinc-800/90">
-          <SegmentedControl
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              {
-                id: 'PENDING',
-                label: 'Menunggu QC',
-                fullLabel: 'Gulungan dengan Seri Menunggu Keputusan QC Pabrik',
-                icon: <Clock className="w-3.5 h-3.5" />,
-                badge: pendingList.length,
-              },
-              {
-                id: 'ACCEPTED_CAIR',
-                label: 'Terima Cair',
-                fullLabel: 'Gulungan dengan Seri yang Diterima Pabrik & Uang Cair',
-                icon: <DollarSign className="w-3.5 h-3.5" />,
-                badge: acceptedList.length,
-              },
-              {
-                id: 'REJECTED_STOCK',
-                label: 'Reject',
-                fullLabel: 'Gulungan dengan Seri yang Direject (Masuk Stok Tembakau Jadi)',
-                icon: <RotateCcw className="w-3.5 h-3.5" />,
-                badge: rejectedList.length,
-              },
-              {
-                id: 'ALL',
-                label: 'Semua',
-                fullLabel: 'Semua Gulungan & Status Nomor Seri',
-                badge: finishedBatches.length,
-              },
-            ]}
-          />
-        </div>
-      </div>
+    <div className="space-y-3 pb-20 md:pb-4">
+      {/* Slideable Button Panel Only */}
+      <SegmentedControl
+        value={statusFilter}
+        onChange={setStatusFilter}
+        options={[
+          {
+            id: 'PENDING',
+            label: 'Menunggu QC',
+            fullLabel: 'Gulungan dengan Seri Menunggu Keputusan QC Pabrik',
+            icon: <Clock className="w-3.5 h-3.5" />,
+            badge: pendingList.length,
+          },
+          {
+            id: 'ACCEPTED_CAIR',
+            label: 'Terima Cair',
+            fullLabel: 'Gulungan dengan Seri yang Diterima Pabrik & Uang Cair',
+            icon: <DollarSign className="w-3.5 h-3.5" />,
+            badge: acceptedList.length,
+          },
+          {
+            id: 'REJECTED_STOCK',
+            label: 'Reject',
+            fullLabel: 'Gulungan dengan Seri yang Direject (Masuk Stok Tembakau Jadi)',
+            icon: <RotateCcw className="w-3.5 h-3.5" />,
+            badge: rejectedList.length,
+          },
+          {
+            id: 'ALL',
+            label: 'Semua',
+            fullLabel: 'Semua Gulungan & Status Nomor Seri',
+            badge: finishedBatches.length,
+          },
+        ]}
+      />
 
       {/* Minimalist Search Input */}
       <div className="requiem-card p-3 rounded-xl border border-zinc-800/90">
@@ -190,7 +172,7 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Cari Nama Gulungan, Kode (GUL-...), Nomor Seri (57, 58...), atau Pabrik..."
-            className="w-full h-9 sm:h-10 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-amber-500"
+            className="w-full h-9 sm:h-10 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700"
           />
         </div>
       </div>
@@ -232,12 +214,12 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                   setModalShowAllInRoll(false);
                   setActiveFullScreenRollId(roll.id);
                 }}
-                className="requiem-card rounded-2xl border-2 border-zinc-800/90 hover:border-amber-500 transition-all duration-200 overflow-hidden cursor-pointer p-3.5 sm:p-5 space-y-3 bg-gradient-to-b from-zinc-950/90 to-black shadow-[0_7px_0_0_#09090b,0_12px_20px_rgba(0,0,0,0.85)] hover:shadow-[0_9px_0_0_#f59e0b,0_16px_28px_rgba(245,158,11,0.2)]"
+                className="requiem-card rounded-2xl border-2 border-zinc-800/90 hover:border-zinc-700 transition-all duration-200 overflow-hidden cursor-pointer p-3.5 sm:p-5 space-y-3 bg-gradient-to-b from-zinc-950/90 to-black shadow-[0_7px_0_0_#09090b,0_12px_20px_rgba(0,0,0,0.85)] hover:shadow-[0_9px_0_0_#f59e0b,0_16px_28px_rgba(245,158,11,0.2)]"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2.5 py-0.5 rounded-lg bg-black text-amber-400 border border-amber-500 font-mono font-black text-xs">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-black text-amber-400 border border-zinc-700 font-mono font-black text-xs">
                         {roll.rollNumber}
                       </span>
                       <h2 className="font-black text-white text-sm sm:text-lg">
@@ -247,11 +229,11 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
 
                     <div className="flex items-center gap-3 flex-wrap text-xs text-zinc-300">
                       <span className="inline-flex items-center gap-1">
-                        <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <Building2 className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                         Pabrik: <b className="text-white">{roll.targetFactory}</b>
                       </span>
-                      <span className="inline-flex items-center gap-1 text-amber-300 font-mono text-[11px]">
-                        <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="inline-flex items-center gap-1 text-zinc-200 font-mono text-[11px]">
+                        <Calendar className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                         {formattedDate}
                       </span>
                     </div>
@@ -261,10 +243,10 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                   <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5 text-[10px] font-mono">
                       <span className="px-2 py-1 rounded-lg bg-black border border-zinc-800 text-zinc-300">
-                        Pending: <b className="text-amber-400">{pendingCount}</b>
+                        Pending: <b className="text-white">{pendingCount}</b>
                       </span>
                       <span className="px-2 py-1 rounded-lg bg-black border border-zinc-800 text-zinc-300">
-                        Cair: <b className="text-amber-400">{acceptedCount}</b>
+                        Cair: <b className="text-white">{acceptedCount}</b>
                       </span>
                       <span className="px-2 py-1 rounded-lg bg-black border border-zinc-800 text-zinc-300">
                         Reject: <b className="text-white">{rejectedCount}</b>
@@ -291,7 +273,7 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
 
                 <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-1">
                   <span>
-                    <b className="text-amber-400">{serials.length} Nomor Seri</b> (
+                    <b className="text-white">{serials.length} Nomor Seri</b> (
                     {totalNettoInView} kg Netto • {formatRupiah(totalValueInView)})
                   </span>
                   <span className="text-amber-400 font-bold">
@@ -345,17 +327,17 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-black p-3.5 sm:p-4 rounded-xl border border-zinc-800">
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-mono">
                     <span className="px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-300">
-                      Menunggu QC: <b className="text-amber-400">{activeGroup.pendingCount} Seri</b>
+                      Menunggu QC: <b className="text-white">{activeGroup.pendingCount} Seri</b>
                     </span>
                     <span className="px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-300">
                       Terima Cair:{' '}
-                      <b className="text-amber-400">{activeGroup.acceptedCount} Seri</b>
+                      <b className="text-white">{activeGroup.acceptedCount} Seri</b>
                     </span>
                     <span className="px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-300">
                       Reject (Ke Stok Jadi):{' '}
                       <b className="text-white">{activeGroup.rejectedCount} Seri</b>
                     </span>
-                    <span className="px-3 py-1.5 rounded-lg bg-zinc-950 border border-amber-500/60 text-amber-300 font-bold">
+                    <span className="px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-200 font-bold">
                       Total Ditampilkan: {displayedSerials.length} Seri ({sumNetto} kg •{' '}
                       {formatRupiah(sumNota)})
                     </span>
@@ -396,16 +378,16 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                         key={ser.id}
                         className={`bg-black rounded-xl p-3.5 flex flex-col justify-between gap-3 border-2 transition-all ${
                           status === 'ACCEPTED_CAIR'
-                            ? 'border-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.18)]'
+                            ? 'border-zinc-700'
                             : status === 'REJECTED_STOCK'
                               ? 'border-zinc-500 bg-zinc-950/90'
-                              : 'border-zinc-800 hover:border-amber-500/60'
+                              : 'border-zinc-800 hover:border-zinc-800'
                         }`}
                       >
                         <div className="space-y-2.5">
                           {/* Top Row: Nomor Seri Badge, Status Badge & Grade */}
                           <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                            <span className="px-2.5 py-1 rounded-lg bg-zinc-950 text-amber-400 border border-amber-500 font-mono font-black text-xs sm:text-sm">
+                            <span className="px-2.5 py-1 rounded-lg bg-zinc-950 text-white border border-zinc-700 font-mono font-black text-xs sm:text-sm">
                               SERI {ser.serialNumber}
                             </span>
 
@@ -418,7 +400,7 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                               <span
                                 className={`px-2 py-0.5 rounded text-[10px] font-mono font-black border ${
                                   status === 'ACCEPTED_CAIR'
-                                    ? 'bg-black text-amber-400 border-amber-400'
+                                    ? 'bg-black text-amber-400 border-zinc-700'
                                     : status === 'REJECTED_STOCK'
                                       ? 'bg-zinc-900 text-white border-zinc-500'
                                       : 'bg-zinc-950 text-zinc-400 border-zinc-700'
@@ -444,11 +426,11 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                                 Bruto / Tarra
                               </span>
                               <span className="text-zinc-200">
-                                {bruto} kg / <b className="text-amber-400">-{tara} kg</b>
+                                {bruto} kg / <b className="text-white">-{tara} kg</b>
                               </span>
                             </div>
                             <div className="flex items-center justify-between pt-1 border-t border-zinc-900">
-                              <span className="text-[10px] uppercase font-bold text-amber-300">
+                              <span className="text-[10px] uppercase font-bold text-zinc-200">
                                 Netto Tagih
                               </span>
                               <b className="text-white text-sm">{netto} kg</b>
@@ -463,13 +445,13 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                             </div>
                             <div className="flex items-center justify-between text-zinc-300">
                               <span>Harga Pabrik/KG:</span>
-                              <b className="text-amber-300">
+                              <b className="text-zinc-200">
                                 {formatRupiah(ser.factoryTargetPricePerKg)}
                               </b>
                             </div>
                             <div className="flex items-center justify-between pt-1 border-t border-zinc-900">
                               <span className="text-zinc-400">Total Nota:</span>
-                              <b className="text-amber-400 text-xs">{formatRupiah(totalNota)}</b>
+                              <b className="text-white text-xs">{formatRupiah(totalNota)}</b>
                             </div>
                             <div className="flex items-center justify-between">
                               <span className="text-zinc-400">Profit Seri:</span>
@@ -488,11 +470,11 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                           <div className="grid grid-cols-5 gap-1 bg-zinc-950 p-1.5 rounded-lg border border-zinc-900 text-center font-mono text-[10px]">
                             <div>
                               <span className="text-[8px] text-zinc-500 block font-bold">PWR</span>
-                              <b className="text-amber-400">{ser.weightedPower}</b>
+                              <b className="text-white">{ser.weightedPower}</b>
                             </div>
                             <div>
                               <span className="text-[8px] text-zinc-500 block font-bold">IMP</span>
-                              <b className="text-amber-400">{ser.weightedImpact}</b>
+                              <b className="text-white">{ser.weightedImpact}</b>
                             </div>
                             <div>
                               <span className="text-[8px] text-zinc-500 block font-bold">BIT</span>
@@ -500,11 +482,11 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                             </div>
                             <div>
                               <span className="text-[8px] text-zinc-500 block font-bold">BKR</span>
-                              <b className="text-amber-400">{ser.weightedBurn ?? 4.5}</b>
+                              <b className="text-white">{ser.weightedBurn ?? 4.5}</b>
                             </div>
                             <div>
                               <span className="text-[8px] text-zinc-500 block font-bold">SGR</span>
-                              <b className="text-amber-300">{ser.weightedSugar ?? 4.0}</b>
+                              <b className="text-zinc-200">{ser.weightedSugar ?? 4.0}</b>
                             </div>
                           </div>
                         </div>
@@ -524,8 +506,8 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                               }
                               className={`min-h-9 px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
                                 status === 'ACCEPTED_CAIR'
-                                  ? 'bg-black text-amber-400 border-2 border-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.35)]'
-                                  : 'bg-zinc-950 text-zinc-300 hover:text-amber-400 border border-zinc-800 hover:border-amber-500/70'
+                                  ? 'bg-black text-amber-400 border border-zinc-700'
+                                  : 'bg-zinc-950 text-zinc-300 hover:text-white border border-zinc-800 hover:border-zinc-800'
                               }`}
                             >
                               <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -544,8 +526,8 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                               }
                               className={`min-h-9 px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
                                 status === 'REJECTED_STOCK'
-                                  ? 'bg-black text-white border-2 border-amber-500 shadow-[0_0_14px_rgba(245,158,11,0.3)]'
-                                  : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 hover:border-amber-500/70'
+                                  ? 'bg-black text-white border border-zinc-700'
+                                  : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-800'
                               }`}
                             >
                               <XCircle className="w-4 h-4 shrink-0" />
@@ -559,7 +541,7 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                               onClick={() =>
                                 onUpdateSerialStatus(ser.id, 'PENDING', activeGroup.roll)
                               }
-                              className="w-full h-7 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-amber-300 border border-zinc-800 text-[10px] font-bold cursor-pointer"
+                              className="w-full h-7 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800 text-[10px] font-bold cursor-pointer"
                             >
                               Kembalikan ke Menunggu QC (Pending)
                             </button>

@@ -85,11 +85,11 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       title="Ketuk untuk menukar (swap) tampilan statistik"
-      className="relative bg-black/95 border border-zinc-800 hover:border-amber-500/70 rounded-xl p-2.5 overflow-hidden transition-colors cursor-pointer select-none min-h-[108px] flex flex-col justify-between shadow-inner"
+      className="relative bg-black/95 border border-zinc-800 hover:border-zinc-600 rounded-xl p-2.5 overflow-hidden transition-colors cursor-pointer select-none min-h-[108px] flex flex-col justify-between shadow-inner"
     >
       {/* Top Header: Active Metric Label + Interactive Swap Button */}
       <div className="flex items-center justify-between gap-1.5 pb-1.5 border-b border-zinc-900">
-        <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400 truncate">
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-300 truncate">
           {current.label}
         </span>
 
@@ -99,7 +99,7 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
             onClick={handlePrevMetric}
             title="Statistik Sebelumnya"
             aria-label="Statistik Sebelumnya"
-            className="h-5 w-5 rounded bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-amber-400 border border-zinc-800 flex items-center justify-center cursor-pointer"
+            className="h-5 w-5 rounded bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 flex items-center justify-center cursor-pointer"
           >
             <ChevronLeft className="w-3 h-3" />
           </button>
@@ -108,7 +108,7 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
             type="button"
             onClick={handleNextMetric}
             title="Tukar Statistik (Swap)"
-            className="inline-flex items-center gap-1 h-5 px-1.5 rounded bg-zinc-950 hover:bg-zinc-900 text-[9px] font-mono font-bold text-amber-400 border border-amber-500/50 cursor-pointer"
+            className="inline-flex items-center gap-1 h-5 px-1.5 rounded bg-zinc-950 hover:bg-zinc-900 text-[9px] font-mono font-bold text-white border border-zinc-700 cursor-pointer"
           >
             <ArrowLeftRight className="w-2.5 h-2.5 text-amber-400" />
             <span>
@@ -121,7 +121,7 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
             onClick={handleNextMetric}
             title="Statistik Berikutnya"
             aria-label="Statistik Berikutnya"
-            className="h-5 w-5 rounded bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-amber-400 border border-zinc-800 flex items-center justify-center cursor-pointer"
+            className="h-5 w-5 rounded bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 flex items-center justify-center cursor-pointer"
           >
             <ChevronRight className="w-3 h-3" />
           </button>
@@ -151,7 +151,7 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
                     <span className="text-[8px] sm:text-[9px] font-bold uppercase text-zinc-400 leading-none">
                       {param.shortLabel}
                     </span>
-                    <span className="font-mono font-black text-[11px] sm:text-xs text-amber-400 leading-tight mt-0.5">
+                    <span className="font-mono font-black text-sm sm:text-base text-amber-400 leading-tight mt-0.5">
                       {param.value.toFixed(1)}
                     </span>
                   </div>
@@ -167,7 +167,7 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
                     {current.value}
                   </span>
                   {current.subValue && (
-                    <span className="font-mono text-[10px] font-bold text-amber-300 bg-zinc-950 px-1.5 py-0.5 rounded border border-zinc-800 whitespace-nowrap shrink-0">
+                    <span className="font-mono text-[10px] font-bold text-zinc-200 bg-zinc-950 px-1.5 py-0.5 rounded border border-zinc-800 whitespace-nowrap shrink-0">
                       {current.subValue}
                     </span>
                   )}
@@ -197,11 +197,195 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
               onClick={(e) => handleSelectMetric(e, idx)}
               className={`py-0.5 px-1 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-tight transition-all cursor-pointer truncate ${
                 isActive
-                  ? 'bg-black text-amber-400 border border-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.25)]'
+                  ? 'bg-black text-amber-400 border border-amber-500/80'
                   : 'bg-zinc-950/90 text-zinc-400 hover:text-white border border-zinc-800/70'
               }`}
             >
               {tabText}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export interface AutoSlideValueSlide {
+  id: string;
+  tabLabel: string;
+  title: string;
+  mainValue: string;
+  subLabel: string;
+  subValue: string;
+  formulaHint?: string;
+  accent?: 'white' | 'amber' | 'red';
+  onOpenCalc?: () => void;
+}
+
+interface AutoSlideValueTickerProps {
+  slides: AutoSlideValueSlide[];
+  intervalMs?: number;
+}
+
+/**
+ * Auto-sliding single-panel KPI banner for Nilai Bayar vs Nilai Riil & Weight Profit.
+ * Shows one metric at a time in large, readable numbers with auto-rotation,
+ * quick-select tabs, and click-to-inspect calculation modal support.
+ */
+export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
+  slides,
+  intervalMs = 3800,
+}) => {
+  const [index, setIndex] = useState(0);
+  const [direction, setDirection] = useState<1 | -1>(1);
+  const [isPaused, setIsPaused] = useState(false);
+
+  useEffect(() => {
+    if (slides.length <= 1 || isPaused) return;
+    const timer = setInterval(() => {
+      setDirection(1);
+      setIndex((prev) => (prev + 1) % slides.length);
+    }, intervalMs);
+    return () => clearInterval(timer);
+  }, [slides.length, intervalMs, isPaused]);
+
+  if (slides.length === 0) return null;
+  const safeIndex = index % slides.length;
+  const current = slides[safeIndex];
+
+  const mainValueColor =
+    current.accent === 'amber'
+      ? 'text-amber-400'
+      : current.accent === 'red'
+      ? 'text-red-400'
+      : 'text-white';
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDirection(1);
+    setIndex((prev) => (prev + 1) % slides.length);
+  };
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDirection(-1);
+    setIndex((prev) => (prev - 1 + slides.length) % slides.length);
+  };
+
+  return (
+    <div
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      className="requiem-card p-3 sm:p-3.5 rounded-xl border border-zinc-700/90 bg-black/95 space-y-2.5 select-none shadow-[0_4px_0_0_#18181b,0_10px_20px_rgba(0,0,0,0.85)]"
+    >
+      {/* Top Bar: Current Slide Title + Calc FX Button & Arrows */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+          <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-zinc-200 truncate">
+            {current.title}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {current.onOpenCalc && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                current.onOpenCalc?.();
+              }}
+              title="Lihat rincian rumus & asal angka"
+              className="h-6 px-2 rounded-md bg-zinc-950 hover:bg-zinc-900 text-amber-400 border border-amber-500/60 font-serif italic font-black text-xs inline-flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <span>fx</span>
+              <span className="font-sans not-italic text-[10px] font-bold text-zinc-200 hidden sm:inline">
+                Rincian
+              </span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handlePrev}
+            aria-label="Slide Sebelumnya"
+            className="h-6 w-6 rounded-md bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 flex items-center justify-center cursor-pointer"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+
+          <span className="text-[10px] font-mono font-bold text-zinc-400 px-1">
+            {safeIndex + 1}/{slides.length}
+          </span>
+
+          <button
+            type="button"
+            onClick={handleNext}
+            aria-label="Slide Berikutnya"
+            className="h-6 w-6 rounded-md bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 flex items-center justify-center cursor-pointer"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Main Large Number Display (Clickable to open calculation modal) */}
+      <div
+        onClick={() => current.onOpenCalc?.()}
+        className="relative overflow-hidden bg-zinc-950/95 border border-zinc-800 hover:border-zinc-600 rounded-xl px-3.5 py-2.5 cursor-pointer transition-colors"
+      >
+        <AnimatePresence mode="wait" custom={direction}>
+          <motion.div
+            key={current.id}
+            custom={direction}
+            initial={{ opacity: 0, x: direction * 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: direction * -24 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5"
+          >
+            <div className="flex items-baseline gap-2.5 flex-wrap">
+              <span
+                className={`font-mono font-black text-xl sm:text-2xl tracking-tight ${mainValueColor}`}
+              >
+                {current.mainValue}
+              </span>
+              {current.formulaHint && (
+                <span className="text-[10px] sm:text-[11px] font-mono text-zinc-400">
+                  ({current.formulaHint})
+                </span>
+              )}
+            </div>
+
+            <div className="inline-flex items-center gap-1.5 bg-black px-2.5 py-1 rounded-lg border border-zinc-800 self-start sm:self-auto">
+              <span className="text-[11px] font-mono text-zinc-400">{current.subLabel}:</span>
+              <b className="text-xs sm:text-sm font-mono font-black text-white">
+                {current.subValue}
+              </b>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* 3 Quick-Select Slide Tabs */}
+      <div className="grid grid-cols-3 gap-1.5">
+        {slides.map((s, idx) => {
+          const isActive = idx === safeIndex;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => {
+                setDirection(idx >= safeIndex ? 1 : -1);
+                setIndex(idx);
+              }}
+              className={`py-1 px-2 rounded-lg text-[10px] sm:text-[11px] font-black uppercase tracking-tight transition-all cursor-pointer truncate ${
+                isActive
+                  ? 'bg-black text-amber-400 border border-amber-500/80 shadow-xs'
+                  : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+              }`}
+            >
+              {s.tabLabel}
             </button>
           );
         })}

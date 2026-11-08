@@ -153,15 +153,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center gap-2 min-w-0">
                 <img
                   src="/awd-logo.png"
-                  alt="AWD Master Logo"
-                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-black object-contain p-0.5 shadow-[0_0_18px_rgba(245,158,11,0.28)] border border-amber-500/90 shrink-0"
+                  alt="Tobacco Lab Logo"
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-black object-contain p-0.5 border border-zinc-700 shrink-0"
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="font-requiem font-black tracking-wide text-white text-[13px] sm:text-lg whitespace-nowrap">
-                      AWD <span className="text-amber-400">MASTER</span>
+                      TOBACCO <span className="text-amber-400">LAB</span>
                     </span>
-                    <span className="hidden sm:inline-block text-[9px] uppercase font-extrabold tracking-widest px-1.5 py-0.5 rounded bg-black text-amber-400 border border-amber-500/60 shrink-0">
+                    <span className="hidden sm:inline-block text-[9px] uppercase font-extrabold tracking-widest px-1.5 py-0.5 rounded bg-zinc-950 text-zinc-300 border border-zinc-800 shrink-0">
                       CLOUD
                     </span>
                   </div>
@@ -177,11 +177,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     type="button"
                     onClick={onGoogleLogout}
-                    className="inline-flex items-center gap-1 h-7 px-1.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500/80 font-bold text-[10px] whitespace-nowrap cursor-pointer"
+                    className="inline-flex items-center gap-1 h-7 px-1.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 font-bold text-[10px] whitespace-nowrap cursor-pointer"
                     title={`Cloud Aktif (${userEmail}) — Ketuk untuk Keluar`}
                   >
                     {cloudSyncStatus === 'syncing' ? (
-                      <Loader2 className="w-3 h-3 animate-spin text-amber-400 shrink-0" />
+                      <Loader2 className="w-3 h-3 animate-spin text-white shrink-0" />
                     ) : (
                       <CheckCircle2 className="w-3 h-3 text-amber-400 shrink-0" />
                     )}
@@ -191,10 +191,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     type="button"
                     onClick={onGoogleLogin}
-                    className="inline-flex items-center gap-1 h-7 px-1.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500 font-bold text-[10px] whitespace-nowrap cursor-pointer"
+                    className="inline-flex items-center gap-1 h-7 px-1.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 font-bold text-[10px] whitespace-nowrap cursor-pointer"
                     title="Masuk dengan Google untuk Sinkronisasi Cloud"
                   >
-                    <Cloud className="w-3 h-3 text-amber-400 shrink-0" />
+                    <Cloud className="w-3 h-3 text-zinc-300 shrink-0" />
                     <span>Login</span>
                   </button>
                 )}
@@ -202,10 +202,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onOpenPatchNotes}
-                  className="relative inline-flex items-center gap-1 h-7 px-1.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500/80 font-mono font-bold text-[10px] whitespace-nowrap cursor-pointer"
+                  className="relative inline-flex items-center gap-1 h-7 px-1.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 font-mono font-bold text-[10px] whitespace-nowrap cursor-pointer"
                   title="Lihat Patch Notes, Fitur Baru & Perbaikan Bug"
                 >
-                  <Sparkles className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                  <Sparkles className="w-2.5 h-2.5 text-zinc-300 shrink-0" />
                   <span>{CURRENT_APP_VERSION}</span>
                   {hasUnreadPatch && (
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
@@ -216,10 +216,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="bg-zinc-950/90 h-7 px-1.5 rounded-lg border border-zinc-800 flex items-center gap-1 shrink-0"
                   title="Total Sisa Stok Bersih Tembakau Mentah"
                 >
-                  <Warehouse className="w-3 h-3 text-amber-400 shrink-0" />
+                  <Warehouse className="w-3 h-3 text-zinc-400 shrink-0" />
                   <div className="font-extrabold text-white font-mono text-[10px] whitespace-nowrap">
                     {totalNetStockKg.toLocaleString('id-ID', { maximumFractionDigits: 1 })}{' '}
-                    <span className="text-amber-400">kg</span>
+                    <span className="text-zinc-400">kg</span>
                   </div>
                 </div>
               </div>
@@ -231,23 +231,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="hidden sm:flex bg-zinc-950/90 px-2.5 py-1 rounded-lg border border-zinc-800 items-center gap-1.5 shrink-0"
                 title="Total Sisa Stok Bersih Tembakau Mentah"
               >
-                <Warehouse className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <Warehouse className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                 <div className="font-extrabold text-white font-mono text-xs whitespace-nowrap">
                   {totalNetStockKg.toLocaleString('id-ID', { maximumFractionDigits: 1 })}{' '}
-                  <span className="text-amber-400">kg</span>
+                  <span className="text-zinc-400">kg</span>
                 </div>
               </div>
 
               <div className="flex items-center gap-1 sm:gap-1.5">
                 {/* Desktop Google Cloud Login / Sync Status Button */}
                 {userEmail ? (
-                  <div className="hidden sm:inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg bg-black border border-amber-500/80 text-xs shrink-0">
+                  <div className="hidden sm:inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg bg-black border border-zinc-800 text-xs shrink-0">
                     {cloudSyncStatus === 'syncing' ? (
-                      <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
+                      <Loader2 className="w-3.5 h-3.5 text-white animate-spin shrink-0" />
                     ) : (
                       <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     )}
-                    <span className="font-bold text-amber-400 max-w-[130px] truncate" title={userEmail}>
+                    <span className="font-bold text-white max-w-[130px] truncate" title={userEmail}>
                       {userEmail.split('@')[0]}
                     </span>
                     <button
@@ -264,10 +264,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     type="button"
                     onClick={onGoogleLogin}
-                    className="hidden sm:inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500/80 hover:border-amber-400 font-bold text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
+                    className="hidden sm:inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-bold text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
                     title="Masuk dengan Google agar data tersimpan di Cloud & sinkron di semua perangkat"
                   >
-                    <Cloud className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <Cloud className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                     <span>Login Cloud</span>
                   </button>
                 )}
@@ -278,18 +278,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onOpenPatchNotes}
-                  className="hidden sm:inline-flex group relative items-center justify-center gap-1.5 h-9 px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500/70 hover:border-amber-400 font-bold text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
+                  className="hidden sm:inline-flex group relative items-center justify-center gap-1.5 h-9 px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-bold text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
                   title="Lihat Patch Notes, Fitur Baru & Perbaikan Bug"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <Sparkles className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                   <span>Patch Notes</span>
-                  <span className="font-mono text-[10px] text-zinc-300">
+                  <span className="font-mono text-[10px] text-zinc-400">
                     ({CURRENT_APP_VERSION})
                   </span>
                   {hasUnreadPatch && (
                     <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
                   )}
-                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-amber-500 text-amber-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
+                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                     Riwayat Update, Fitur Baru & Bug Fixes
                   </span>
                 </button>
@@ -298,26 +298,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onOpenMasterModal}
-                  className="group relative inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2 sm:px-3 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-700 hover:border-amber-500 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
+                  className="group relative inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2 sm:px-3 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
                   title="Format Kemasan (Tarra & Ongkos Press), Daftar Pabrik & Gulungan"
                 >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                   <span>Format</span>
-                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-amber-500 text-amber-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
+                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                     Atur Format Kemasan, Pabrik & Gulungan
                   </span>
                 </button>
 
-                {/* "+ Bahan" Button — Padded and Sized so its Right Border is Never Clipped */}
+                {/* "+ Bahan" Button — Primary CTA with Selective 5% Amber Outline */}
                 <button
                   type="button"
                   onClick={onOpenAddModal}
                   className="group relative btn-amber-outline inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2 sm:px-3 rounded-lg font-extrabold text-[11px] sm:text-xs whitespace-nowrap cursor-pointer shrink-0"
                   title="Tambah Stok Tembakau Mentah Baru"
                 >
-                  <Plus className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5] text-amber-400 shrink-0" />
                   <span>Bahan</span>
-                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-amber-500 text-amber-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
+                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                     Tambah Stok Tembakau Mentah
                   </span>
                 </button>
@@ -327,7 +327,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onExportData}
-                  className="h-8 w-7 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-amber-500/60 transition-all cursor-pointer shrink-0"
+                  className="h-8 w-7 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer shrink-0"
                   title="Backup Data JSON"
                   aria-label="Ekspor Data JSON"
                 >
@@ -345,7 +345,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="h-8 w-7 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-amber-500/60 transition-all cursor-pointer shrink-0"
+                  className="h-8 w-7 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer shrink-0"
                   title="Restore Data JSON"
                   aria-label="Impor Data JSON"
                 >
@@ -355,7 +355,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onResetData}
-                  className="h-8 w-7 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-zinc-400 hover:text-amber-400 border border-zinc-800 hover:border-amber-500/60 transition-all cursor-pointer shrink-0"
+                  className="h-8 w-7 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer shrink-0"
                   title="Reset Data ke Contoh Awal"
                   aria-label="Reset Data ke Contoh Awal"
                 >
@@ -375,7 +375,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={handlePrevTab}
-                className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500/70 hover:border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.18)] transition-all cursor-pointer"
+                className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer"
                 title="Segmen Sebelumnya"
                 aria-label="Segmen Sebelumnya"
               >
@@ -394,17 +394,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onClick={() => setActiveTab(tab.id)}
                       className={`group relative w-full h-9 px-2.5 text-xs font-extrabold rounded-lg flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors duration-150 cursor-pointer ${
                         isActive
-                          ? 'bg-black text-amber-400 border border-amber-500 shadow-[0_0_16px_rgba(245,158,11,0.25)]'
+                          ? 'bg-black text-white border border-amber-500/80 shadow-[0_0_12px_rgba(245,158,11,0.12)]'
                           : 'text-zinc-400 hover:text-white border border-transparent hover:border-zinc-800'
                       }`}
                     >
                       <span className="relative z-10 flex items-center justify-center gap-1.5 min-w-0">
-                        {tab.icon}
+                        <span className={isActive ? 'text-amber-400' : ''}>{tab.icon}</span>
                         <span className="truncate">{tab.shortLabel}</span>
                         {tab.countText !== undefined && (
                           <span
                             className={`text-[10px] font-mono font-bold shrink-0 ${
-                              isActive ? 'text-amber-300' : 'text-zinc-500'
+                              isActive ? 'text-amber-400' : 'text-zinc-500'
                             }`}
                           >
                             ({tab.countText})
@@ -413,7 +413,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </span>
 
                       {/* Full Name Tooltip on Hover */}
-                      <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-9 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-amber-500 text-amber-300 text-[10px] font-bold whitespace-nowrap shadow-2xl">
+                      <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-9 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-2xl">
                         {tab.fullLabel}
                       </span>
                     </button>
@@ -425,7 +425,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={handleNextTab}
-                className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-amber-500/70 hover:border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.18)] transition-all cursor-pointer"
+                className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer"
                 title="Segmen Berikutnya"
                 aria-label="Segmen Berikutnya"
               >
@@ -449,11 +449,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setActiveTab(tab.id)}
                 className={`relative flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl text-[9px] font-bold transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-black text-amber-400 border border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
+                    ? 'bg-black text-white border border-amber-500/80 shadow-[0_0_8px_rgba(245,158,11,0.14)]'
                     : 'text-zinc-400 hover:text-white border border-transparent'
                 }`}
               >
-                {tab.icon}
+                <span className={isActive ? 'text-amber-400' : ''}>{tab.icon}</span>
                 <span className="mt-0.5 truncate max-w-full">{tab.shortLabel}</span>
               </button>
             );
@@ -463,4 +463,3 @@ export const Navbar: React.FC<NavbarProps> = ({
     </>
   );
 };
-

@@ -85,11 +85,11 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-zinc-950 border-2 border-amber-500/80 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden">
+      <div className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden">
         {/* Header (Shows Gulungan Name, Code, and Date) */}
         <div className="px-4 sm:px-5 py-3.5 border-b border-zinc-800 bg-black flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-2 rounded-xl bg-black text-amber-400 border border-amber-500 shrink-0">
+            <div className="p-2 rounded-xl bg-black text-amber-400 border border-zinc-700 shrink-0">
               <Flame className="w-4 h-4 stroke-[2.2]" />
             </div>
             <div className="min-w-0">
@@ -98,11 +98,11 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
               </h2>
               <p className="text-[11px] text-zinc-400 flex items-center gap-2 flex-wrap">
                 <span>
-                  Pabrik: <b className="text-amber-400">{roll.targetFactory}</b>
+                  Pabrik: <b className="text-white">{roll.targetFactory}</b>
                 </span>
                 <span>•</span>
                 <span className="inline-flex items-center gap-1 font-mono text-zinc-300">
-                  <Calendar className="w-3 h-3 text-amber-400" />
+                  <Calendar className="w-3 h-3 text-zinc-300" />
                   {formattedRollDate}
                 </span>
                 <span>•</span>
@@ -125,7 +125,7 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
           {/* SECTION 1: KOMPOSISI DAUN & MULTI-GRADE SERI BREAKDOWN */}
           <div className="space-y-3 bg-black/90 p-4 rounded-xl border border-zinc-800">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-zinc-800">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
                 <Layers className="w-4 h-4" />
                 1. Rincian Komposisi Campuran Daun & Multi-Grade Seri
               </h3>
@@ -202,7 +202,7 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
             className="space-y-4 bg-black/90 p-4 rounded-xl border border-zinc-800"
           >
             <div className="pb-2.5 border-b border-zinc-800 flex items-center justify-between">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
                 <Flame className="w-4 h-4" />
                 2. Evaluasi Kualitas & Catatan Grader Pabrik (Skala /5)
               </h3>
@@ -217,7 +217,7 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
                   type="text"
                   value={testerName}
                   onChange={(e) => setTesterName(e.target.value)}
-                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-amber-500"
+                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-zinc-700"
                 />
               </div>
 
@@ -229,7 +229,7 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
                   type="date"
                   value={testDate}
                   onChange={(e) => setTestDate(e.target.value)}
-                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-amber-500"
+                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-zinc-700"
                 />
               </div>
             </div>
@@ -288,7 +288,7 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
                 <select
                   value={factoryVerdict}
                   onChange={(e) => setFactoryVerdict(e.target.value as any)}
-                  className="w-full h-10 px-3 bg-zinc-950 border border-amber-500/60 rounded-xl text-amber-400 text-xs font-bold"
+                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs font-bold"
                 >
                   <option value="Diterima Penuh">Diterima Penuh</option>
                   <option value="Diterima Bersyarat">Diterima Bersyarat</option>
@@ -306,7 +306,7 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
                 rows={2}
                 value={tastingNotes}
                 onChange={(e) => setTastingNotes(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-amber-500"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-zinc-700"
               />
             </div>
 

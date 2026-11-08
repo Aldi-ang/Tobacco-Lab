@@ -546,30 +546,48 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
   );
 
   return (
-    <div className="space-y-5 pb-16 md:pb-4">
-      {/* Compact Header & Non-Overflowing Short-Label Action Buttons (Fixes Screenshot 3) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 requiem-card p-4 sm:p-5 rounded-2xl border border-zinc-800/90">
-        <div>
-          <h1 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-lg bg-black text-amber-400 border border-amber-500 text-xs font-mono font-black shadow-[0_0_12px_rgba(245,158,11,0.25)]">
-              HPP
-            </span>
-            <span>Kalkulator Racikan & Nomor Seri</span>
-          </h1>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Modal Rata-Rata / KG = (Bahan + Kemasan/Press) ÷ Netto • Skala Karakter /5
-          </p>
+    <div className="space-y-3 pb-16 md:pb-4">
+      {/* Slideable Stepper + Save Action Bar */}
+      <div className="flex items-center gap-2">
+        <div className="flex-1 lg:hidden min-w-0">
+          <SegmentedControl
+            value={mobilePanel}
+            onChange={setMobilePanel}
+            className="w-full"
+            options={[
+              {
+                id: 'ingredients',
+                label: '1. Komposisi',
+                fullLabel: '1. Komposisi Bahan Baku Campuran',
+                icon: <Layers className="w-3.5 h-3.5" />,
+                badge: ingredients.length,
+              },
+              {
+                id: 'packaging',
+                label: '2. Kemas & Press',
+                fullLabel: '2. Biaya Kemasan & Ongkos Press per Seri',
+                icon: <Package className="w-3.5 h-3.5" />,
+                badge: draft.packageCount,
+              },
+              {
+                id: 'summary',
+                label: '3. Hasil HPP',
+                fullLabel: '3. Ringkasan HPP & Karakteristik (/5)',
+                icon: <Scale className="w-3.5 h-3.5" />,
+              },
+            ]}
+          />
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-1.5 ml-auto shrink-0">
           {ingredients.length > 0 && (
             <button
               type="button"
               title="Kosongkan Bahan Campuran"
               onClick={() => setIngredients([])}
-              className="min-h-9 px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-900 text-white text-xs font-bold border border-zinc-800 hover:border-amber-500/50 flex items-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer"
+              className="h-9 px-3 rounded-xl bg-black hover:bg-zinc-900 text-white text-xs font-bold border border-zinc-800 flex items-center gap-1 whitespace-nowrap transition-colors cursor-pointer"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <RotateCcw className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
               <span>Reset</span>
             </button>
           )}
@@ -579,43 +597,12 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
             title="Simpan Tembakau Jadi (Tetapkan Nomor Seri Kemasan)"
             disabled={ingredients.length === 0 || metrics.totalBlendNetKg <= 0}
             onClick={handleOpenSaveModal}
-            className="btn-amber-outline min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 whitespace-nowrap cursor-pointer disabled:opacity-50"
+            className="btn-amber-outline h-9 px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 whitespace-nowrap cursor-pointer disabled:opacity-50"
           >
             <Save className="w-3.5 h-3.5 stroke-[2.2] shrink-0" />
             <span>Simpan Seri</span>
           </button>
         </div>
-      </div>
-
-      {/* Mobile One-by-One Snapped Stepper (< lg) */}
-      <div className="lg:hidden flex justify-center">
-        <SegmentedControl
-          value={mobilePanel}
-          onChange={setMobilePanel}
-          className="w-full"
-          options={[
-            {
-              id: 'ingredients',
-              label: '1. Komposisi',
-              fullLabel: '1. Komposisi Bahan Baku Campuran',
-              icon: <Layers className="w-3.5 h-3.5" />,
-              badge: ingredients.length,
-            },
-            {
-              id: 'packaging',
-              label: '2. Kemas & Press',
-              fullLabel: '2. Biaya Kemasan & Ongkos Press per Seri',
-              icon: <Package className="w-3.5 h-3.5" />,
-              badge: draft.packageCount,
-            },
-            {
-              id: 'summary',
-              label: '3. Hasil HPP',
-              fullLabel: '3. Ringkasan HPP & Karakteristik (/5)',
-              icon: <Scale className="w-3.5 h-3.5" />,
-            },
-          ]}
-        />
       </div>
 
       {/* Main Grid: Desktop shows 2 columns; Mobile shows 1 snapped panel at a time */}
@@ -631,7 +618,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <h2 className="font-extrabold text-white text-sm sm:text-base flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-amber-400 shrink-0" />
+                  <Layers className="w-4 h-4 text-zinc-300 shrink-0" />
                   <span>1. Komposisi Bahan ({ingredients.length} Jenis)</span>
                 </h2>
               </div>
@@ -645,7 +632,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                     }
                   }}
                   defaultValue=""
-                  className="h-9 px-3 bg-black border border-amber-500/70 rounded-xl text-xs font-bold text-amber-400 focus:outline-hidden focus:border-amber-400 cursor-pointer max-w-[230px] sm:max-w-xs truncate"
+                  className="h-9 px-3 bg-black border border-zinc-800 rounded-xl text-xs font-bold text-white focus:outline-hidden focus:border-zinc-700 cursor-pointer max-w-[230px] sm:max-w-xs truncate"
                   aria-label="Tambah Bahan Tembakau"
                 >
                   <option value="" disabled>
@@ -682,14 +669,14 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                   return (
                     <div
                       key={item.tobaccoId}
-                      className="bg-black/90 p-3.5 rounded-xl border border-zinc-800 hover:border-amber-500/50 transition-all space-y-2.5"
+                      className="bg-black/90 p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-800 transition-all space-y-2.5"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap min-w-0">
                           <span className="font-extrabold text-white text-xs sm:text-sm truncate">
                             {item.tobaccoName}
                           </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded font-black bg-black text-amber-400 border border-amber-500 shrink-0">
+                          <span className="text-[10px] px-2 py-0.5 rounded font-black bg-black text-zinc-200 border border-zinc-700 shrink-0">
                             Grade {item.colorGrade}
                           </span>
                           <span className="text-[11px] font-mono text-zinc-400 shrink-0">
@@ -706,14 +693,14 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                             }
                             className="h-7 px-2 inline-flex items-center gap-1 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border border-zinc-800 text-[10px] font-bold cursor-pointer"
                           >
-                            <Info className="w-3 h-3 text-amber-400" />
+                            <Info className="w-3 h-3 text-zinc-300" />
                             <span>Info</span>
                           </button>
 
                           <button
                             type="button"
                             onClick={() => handleRemoveIngredient(index)}
-                            className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-zinc-900 border border-transparent hover:border-zinc-800 transition-colors cursor-pointer"
+                            className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-900 border border-transparent hover:border-zinc-800 transition-colors cursor-pointer"
                             title="Hapus bahan dari campuran"
                             aria-label={`Hapus ${item.tobaccoName}`}
                           >
@@ -734,24 +721,24 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                             <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 text-[11px] text-zinc-300 space-y-1">
                               <div className="flex flex-wrap gap-3 font-mono">
                                 <span>
-                                  Power: <b className="text-amber-400">{clampRating5(item.powerRating)}/5</b>
+                                  Power: <b className="text-white">{clampRating5(item.powerRating)}/5</b>
                                 </span>
                                 <span>
-                                  Impact: <b className="text-amber-400">{clampRating5(item.impactRating)}/5</b>
+                                  Impact: <b className="text-white">{clampRating5(item.impactRating)}/5</b>
                                 </span>
                                 <span>
-                                  Bitter: <b className="text-amber-400">{clampRating5(item.bitterRating)}/5</b>
+                                  Bitter: <b className="text-white">{clampRating5(item.bitterRating)}/5</b>
                                 </span>
                                 <span>
-                                  Bakar: <b className="text-amber-400">{clampRating5(item.burnRating ?? 4.5)}/5</b>
+                                  Bakar: <b className="text-white">{clampRating5(item.burnRating ?? 4.5)}/5</b>
                                 </span>
                                 <span>
-                                  Sugar: <b className="text-amber-400">{clampRating5(item.sugarRating ?? 4.0)}/5</b>
+                                  Sugar: <b className="text-white">{clampRating5(item.sugarRating ?? 4.0)}/5</b>
                                 </span>
                               </div>
                               {(item.characterNotes || rawData?.characterNotes) && (
                                 <p className="text-zinc-400 flex items-center gap-1 pt-1">
-                                  <FileText className="w-3 h-3 text-amber-400 shrink-0" />
+                                  <FileText className="w-3 h-3 text-zinc-300 shrink-0" />
                                   <span>{item.characterNotes || rawData?.characterNotes}</span>
                                 </p>
                               )}
@@ -771,7 +758,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               value={item.usedNetKg}
                               onChange={(val) => handleWeightChange(index, val)}
                               aria-label={`Takaran Bersih ${item.tobaccoName}`}
-                              className="w-full h-8 pr-7 pl-2.5 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden focus:border-amber-500"
+                              className="w-full h-8 pr-7 pl-2.5 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden focus:border-zinc-700"
                             />
                             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 text-[10px] pointer-events-none">
                               kg
@@ -793,8 +780,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       </div>
 
                       {isStockWarning && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-amber-400 bg-zinc-950 p-2 rounded-lg border border-amber-500/40">
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <div className="flex items-center gap-1.5 text-[11px] text-zinc-200 bg-zinc-950 p-2 rounded-lg border border-zinc-800">
+                          <AlertTriangle className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                           <span>
                             Melebihi sisa stok bersih ({rawData?.currentStockNetKg} kg).
                           </span>
@@ -816,12 +803,12 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="font-extrabold text-white text-sm sm:text-base flex items-center gap-2">
-                  <Package className="w-4 h-4 text-amber-400 shrink-0" />
+                  <Package className="w-4 h-4 text-zinc-300 shrink-0" />
                   <span>2. Biaya Tambahan Produksi (Kemasan & Press)</span>
                 </h3>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
                   Total Kemasan & Press ({draft.packageCount} Seri):{' '}
-                  <b className="text-amber-400 font-mono">{formatRupiah(metrics.totalOverheadCost)}</b>
+                  <b className="text-white font-mono">{formatRupiah(metrics.totalOverheadCost)}</b>
                 </p>
               </div>
 
@@ -835,7 +822,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                     value={draft.packageCount}
                     onChange={handlePackageCountChange}
                     aria-label="Jumlah Seri Kemasan"
-                    className="w-14 h-7 px-1.5 bg-zinc-950 border border-amber-500/70 rounded-lg text-amber-400 font-mono font-black text-xs text-center focus:outline-hidden"
+                    className="w-14 h-7 px-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-300 font-mono font-black text-xs text-center focus:outline-hidden"
                   />
                 </div>
 
@@ -874,7 +861,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       >
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded bg-black text-amber-400 border border-amber-500 font-mono font-black text-[11px]">
+                            <span className="px-2 py-0.5 rounded bg-black text-amber-400 border border-zinc-700 font-mono font-black text-[11px]">
                               SERI #{idx + 1}
                             </span>
                             <input
@@ -884,12 +871,12 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                                 handleUpdatePackageItem(idx, { serialNumber: e.target.value })
                               }
                               placeholder="No. Seri"
-                              className="w-24 h-7 px-2 bg-zinc-950 border border-zinc-700 rounded-md text-amber-400 font-mono font-bold text-xs focus:outline-hidden focus:border-amber-500"
+                              className="w-24 h-7 px-2 bg-zinc-950 border border-zinc-700 rounded-md text-zinc-300 font-mono font-bold text-xs focus:outline-hidden focus:border-zinc-700"
                             />
                           </div>
 
                           <div className="text-[11px] font-mono text-zinc-400">
-                            Subtotal: <b className="text-amber-400">{formatRupiah(totalSeriOverhead)}</b>
+                            Subtotal: <b className="text-white">{formatRupiah(totalSeriOverhead)}</b>
                           </div>
                         </div>
 
@@ -904,7 +891,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                                 handleUpdatePackageItem(idx, { packagingId: e.target.value })
                               }
                               aria-label={`Pilih Packaging Seri ${pkg.serialNumber}`}
-                              className="w-full h-8 px-2 bg-zinc-950 border border-amber-500/60 rounded-lg text-white font-bold text-xs focus:outline-hidden"
+                              className="w-full h-8 px-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white font-bold text-xs focus:outline-hidden"
                             >
                               {packagingList.map((p) => (
                                 <option key={p.id} value={p.id}>
@@ -929,7 +916,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                           </div>
 
                           <div>
-                            <label className="block text-[10px] font-bold text-amber-400 mb-1">
+                            <label className="block text-[10px] font-bold text-zinc-200 mb-1">
                               Ongkos Press (Rp)
                             </label>
                             <NumericInput
@@ -938,7 +925,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                                 handleUpdatePackageItem(idx, { pressCostRp: val })
                               }
                               aria-label={`Ongkos Press Seri ${pkg.serialNumber}`}
-                              className="w-full h-8 px-2 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-400 font-mono font-bold text-xs focus:outline-hidden"
+                              className="w-full h-8 px-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden"
                             />
                           </div>
                         </div>
@@ -957,17 +944,17 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
             mobilePanel === 'summary' ? 'block' : 'hidden lg:block'
           } lg:col-span-5 space-y-5`}
         >
-          <div className="requiem-card border-2 border-amber-500/80 rounded-2xl p-4 sm:p-5 shadow-[0_0_25px_rgba(245,158,11,0.12)] space-y-4">
+          <div className="requiem-card border border-zinc-700 rounded-2xl p-4 sm:p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div>
-                <span className="text-[10px] uppercase tracking-widest font-black text-amber-400">
+                <span className="text-[10px] uppercase tracking-widest font-black text-zinc-200">
                   KALKULATOR HPP REAL-TIME
                 </span>
                 <h3 className="text-sm sm:text-base font-extrabold text-white">
                   Modal Rata-Rata & Karakter (/5)
                 </h3>
               </div>
-              <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-black text-amber-400 border border-amber-500">
+              <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-black text-amber-400 border border-zinc-700">
                 Grade {metrics.compositeColorGrade}
               </span>
             </div>
@@ -1099,7 +1086,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                   <button
                     type="button"
                     onClick={() => openBlendHppModal('HPP_PER_KG')}
-                    className="w-full relative bg-black/95 rounded-xl p-4 border border-amber-500/50 hover:border-amber-400 transition-all text-center space-y-1 cursor-pointer group"
+                    className="w-full relative bg-black/95 rounded-xl p-4 border border-zinc-800 hover:border-zinc-700 transition-all text-center space-y-1 cursor-pointer group"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="w-5" />
@@ -1121,10 +1108,10 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                   <button
                     type="button"
                     onClick={() => openBlendHppModal('TOTAL_PRODUCTION_COST')}
-                    className="w-full text-left bg-black/80 hover:bg-black p-3 rounded-xl border border-zinc-800 hover:border-amber-500/60 transition-all space-y-1.5 text-xs cursor-pointer group"
+                    className="w-full text-left bg-black/80 hover:bg-black p-3 rounded-xl border border-zinc-800 hover:border-zinc-800 transition-all space-y-1.5 text-xs cursor-pointer group"
                   >
                     <div className="flex items-center justify-between pb-1 border-b border-zinc-900">
-                      <span className="text-[10px] font-black uppercase text-amber-400">
+                      <span className="text-[10px] font-black uppercase text-zinc-200">
                         Rincian Komponen Modal Produksi
                       </span>
                       <CalcSymbolBadge />
@@ -1140,9 +1127,9 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       </span>
                     </div>
                     {metrics.totalBuyWeightProfitRp !== 0 && (
-                      <div className="flex items-center justify-between py-1 border-b border-zinc-900 text-amber-300">
+                      <div className="flex items-center justify-between py-1 border-b border-zinc-900 text-zinc-200">
                         <span>Weight Profit Beli Terkandung:</span>
-                        <span className="font-mono font-bold text-amber-400">
+                        <span className="font-mono font-bold text-white">
                           {metrics.totalBuyWeightProfitRp > 0 ? '+' : ''}
                           {formatRupiah(metrics.totalBuyWeightProfitRp)} (Kas Riil:{' '}
                           {formatRupiah(metrics.totalRealPaidMaterialCost)})
@@ -1151,7 +1138,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                     )}
                     <div className="flex items-center justify-between py-1 border-b border-zinc-900 text-zinc-300">
                       <span>Biaya Kemasan & Press ({draft.packageCount} Seri):</span>
-                      <span className="font-mono font-bold text-amber-400">
+                      <span className="font-mono font-bold text-white">
                         {formatRupiah(metrics.totalOverheadCost)}
                       </span>
                     </div>
@@ -1171,7 +1158,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
               <button
                 type="button"
                 onClick={() => setIsSensoryExpanded((v) => !v)}
-                className="w-full min-h-9 px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-900 border border-zinc-800 hover:border-amber-500/50 flex items-center justify-between text-xs font-bold text-amber-400 cursor-pointer"
+                className="w-full min-h-9 px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-800 flex items-center justify-between text-xs font-bold text-amber-400 cursor-pointer"
               >
                 <span className="flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
@@ -1250,12 +1237,12 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
               initial={{ scale: 0.96, y: 12 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.96, y: 12 }}
-              className="bg-zinc-950 border-2 border-amber-500/70 rounded-2xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl text-white overflow-hidden"
+              className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl text-white overflow-hidden"
             >
               {/* Header */}
               <div className="px-4 sm:px-5 py-3.5 border-b border-zinc-800 bg-black flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-black text-amber-400 border border-amber-500">
+                  <div className="p-2 rounded-xl bg-black text-amber-400 border border-zinc-700">
                     <PackageCheck className="w-4 h-4 stroke-[2.2]" />
                   </div>
                   <div>
@@ -1263,7 +1250,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       <h2 className="text-sm sm:text-base font-extrabold text-white">
                         Simpan Tembakau Jadi (Nomor Seri)
                       </h2>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-900 text-amber-400 border border-amber-500/40 font-bold">
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-900 text-zinc-200 border border-zinc-800 font-bold">
                         Draft Aktif
                       </span>
                     </div>
@@ -1276,7 +1263,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                     onClick={handleResetDraft}
                     className="min-h-8 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold flex items-center gap-1 cursor-pointer"
                   >
-                    <RotateCcw className="w-3.5 h-3.5 text-amber-400" /> Reset
+                    <RotateCcw className="w-3.5 h-3.5 text-zinc-300" /> Reset
                   </button>
                   <button
                     type="button"
@@ -1294,9 +1281,9 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                 className="overflow-y-auto p-4 sm:p-5 space-y-4 flex-1 text-xs"
               >
                 {/* Top Info Banner: Average Cost / KG vs Total Mixture */}
-                <div className="bg-black border border-amber-500/40 rounded-xl p-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                <div className="bg-black border border-zinc-800 rounded-xl p-3.5 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                   <div>
-                    <div className="text-[10px] text-amber-400 font-extrabold uppercase">
+                    <div className="text-[10px] text-zinc-200 font-extrabold uppercase">
                       Modal Rata-Rata / KG (Average Cost/KG)
                     </div>
                     <div className="text-lg font-mono font-black text-amber-400 mt-0.5">
@@ -1317,14 +1304,14 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                 {/* Row 1: Jumlah Packaging Dihasilkan & Optional Keterangan Campuran */}
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 bg-black p-3.5 rounded-xl border border-zinc-800 items-end">
                   <div className="sm:col-span-3">
-                    <label className="block text-xs font-extrabold text-amber-400 mb-1">
+                    <label className="block text-xs font-extrabold text-zinc-200 mb-1">
                       Jumlah Seri *
                     </label>
                     <NumericInput
                       allowDecimals={false}
                       value={draft.packageCount}
                       onChange={handlePackageCountChange}
-                      className="w-full h-9 px-3 bg-zinc-950 border border-amber-500 rounded-lg text-amber-400 font-mono font-black text-sm focus:outline-hidden"
+                      className="w-full h-9 px-3 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-mono font-black text-sm focus:outline-hidden"
                     />
                   </div>
 
@@ -1337,7 +1324,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       value={draft.recipeName}
                       onChange={(e) => setDraft({ ...draft, recipeName: e.target.value })}
                       placeholder="Contoh: CELLO MUNTILAN (Opsional)"
-                      className="w-full h-9 px-3 bg-zinc-950 border border-zinc-700 rounded-lg text-white text-xs focus:outline-hidden focus:border-amber-500"
+                      className="w-full h-9 px-3 bg-zinc-950 border border-zinc-700 rounded-lg text-white text-xs focus:outline-hidden focus:border-zinc-700"
                     />
                   </div>
 
@@ -1390,7 +1377,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       >
                         <div className="flex items-center justify-between flex-wrap gap-2 border-b border-zinc-900 pb-2">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-2.5 py-0.5 rounded bg-black text-amber-400 border border-amber-500 font-black font-mono text-xs">
+                            <span className="px-2.5 py-0.5 rounded bg-black text-amber-400 border border-zinc-700 font-black font-mono text-xs">
                               SERI #{idx + 1} — {pkg.serialNumber}
                             </span>
                             <button
@@ -1425,7 +1412,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               }
                               className={`group inline-flex items-center gap-1.5 px-2 py-0.5 rounded font-mono text-[10px] font-bold border cursor-pointer transition-colors ${
                                 pkgFactoryWeightProfitKg >= 0
-                                  ? 'bg-zinc-950 text-amber-400 border-amber-500/70 hover:border-amber-400'
+                                  ? 'bg-zinc-950 text-white border-zinc-800 hover:border-zinc-700'
                                   : 'bg-zinc-950 text-red-400 border-red-500/60 hover:border-red-400'
                               }`}
                             >
@@ -1468,10 +1455,10 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                                 })
                               )
                             }
-                            className="group inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 hover:border-amber-500/60 font-mono text-zinc-400 text-xs cursor-pointer transition-colors"
+                            className="group inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 hover:border-zinc-800 font-mono text-zinc-400 text-xs cursor-pointer transition-colors"
                           >
                             <span>
-                              Modal: <b className="text-amber-400">{formatRupiah(pkgProdCost)}</b> • Tagih:{' '}
+                              Modal: <b className="text-white">{formatRupiah(pkgProdCost)}</b> • Tagih:{' '}
                               <b className="text-white">{pkgBillableNetKg} kg</b>
                             </span>
                             <CalcSymbolBadge />
@@ -1480,7 +1467,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
 
                         <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
                           <div className="flex flex-col">
-                            <label className="h-4 flex items-center text-[10px] font-bold text-amber-400 whitespace-nowrap truncate mb-1">
+                            <label className="h-4 flex items-center text-[10px] font-bold text-zinc-200 whitespace-nowrap truncate mb-1">
                               Nomor Seri *
                             </label>
                             <input
@@ -1490,7 +1477,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               onChange={(e) =>
                                 handleUpdatePackageItem(idx, { serialNumber: e.target.value })
                               }
-                              className="w-full h-9 px-2.5 bg-zinc-950 border border-amber-500/60 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden"
                             />
                           </div>
 
@@ -1524,7 +1511,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                                   grade: e.target.value as TobaccoGrade,
                                 })
                               }
-                              className="w-full h-9 px-2.5 bg-zinc-950 border border-zinc-700 rounded-lg text-amber-400 font-black text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2.5 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-black text-xs focus:outline-hidden"
                             >
                               {(Object.keys(GRADE_LABELS) as TobaccoGrade[]).map((g) => (
                                 <option key={g} value={g}>
@@ -1548,7 +1535,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                           </div>
 
                           <div className="flex flex-col">
-                            <label className="h-4 flex items-center text-[10px] font-bold text-amber-400 whitespace-nowrap truncate mb-1">
+                            <label className="h-4 flex items-center text-[10px] font-bold text-zinc-200 whitespace-nowrap truncate mb-1">
                               Ongkos Press
                             </label>
                             <NumericInput
@@ -1556,7 +1543,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               onChange={(val) =>
                                 handleUpdatePackageItem(idx, { pressCostRp: val })
                               }
-                              className="w-full h-9 px-2.5 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-400 font-mono text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2.5 bg-zinc-950 border border-zinc-800 rounded-lg text-white font-mono text-xs focus:outline-hidden"
                             />
                           </div>
                         </div>
@@ -1576,7 +1563,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                           </div>
 
                           <div className="flex flex-col">
-                            <label className="h-4 flex items-center text-[10px] text-amber-300 font-bold whitespace-nowrap truncate mb-1">
+                            <label className="h-4 flex items-center text-[10px] text-zinc-200 font-bold whitespace-nowrap truncate mb-1">
                               Wadah Riil (kg)
                             </label>
                             <NumericInput
@@ -1584,7 +1571,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               onChange={(val) =>
                                 handleUpdatePackageItem(idx, { packagingMassKg: val })
                               }
-                              className="w-full h-9 px-2 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-300 font-mono font-bold text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-200 font-mono font-bold text-xs focus:outline-hidden"
                             />
                           </div>
 
@@ -1602,7 +1589,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                           </div>
 
                           <div className="flex flex-col">
-                            <label className="h-4 flex items-center text-[10px] text-amber-400 whitespace-nowrap truncate mb-1">
+                            <label className="h-4 flex items-center text-[10px] text-zinc-200 whitespace-nowrap truncate mb-1">
                               Tarra Flat (kg)
                             </label>
                             <NumericInput
@@ -1610,12 +1597,12 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               onChange={(val) =>
                                 handleUpdatePackageItem(idx, { taraFlatKg: val })
                               }
-                              className="w-full h-9 px-2 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-400 font-mono font-bold text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden"
                             />
                           </div>
 
                           <div className="flex flex-col">
-                            <label className="h-4 flex items-center text-[10px] text-amber-400 whitespace-nowrap truncate mb-1">
+                            <label className="h-4 flex items-center text-[10px] text-zinc-200 whitespace-nowrap truncate mb-1">
                               Tarra (%)
                             </label>
                             <NumericInput
@@ -1623,7 +1610,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               onChange={(val) =>
                                 handleUpdatePackageItem(idx, { taraPercent: val })
                               }
-                              className="w-full h-9 px-2 bg-zinc-950 border border-amber-500/60 rounded-lg text-amber-400 font-mono font-bold text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden"
                             />
                           </div>
 
@@ -1655,7 +1642,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               onChange={(e) =>
                                 handleUpdatePackageItem(idx, { rollId: e.target.value })
                               }
-                              className="w-full h-9 px-2 bg-zinc-950 border border-zinc-700 rounded-lg text-amber-400 font-bold text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-bold text-xs focus:outline-hidden"
                             >
                               {rollSamples.map((r) => (
                                 <option key={r.id} value={r.id}>
@@ -1666,7 +1653,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                           </div>
 
                           <div className="flex flex-col">
-                            <label className="h-4 flex items-center text-[10px] font-bold text-amber-400 whitespace-nowrap truncate mb-1">
+                            <label className="h-4 flex items-center text-[10px] font-bold text-zinc-200 whitespace-nowrap truncate mb-1">
                               Harga Pabrik/KG
                             </label>
                             <NumericInput
@@ -1674,7 +1661,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               onChange={(val) =>
                                 handleUpdatePackageItem(idx, { targetPricePerKg: val })
                               }
-                              className="w-full h-9 px-2 bg-zinc-950 border border-amber-500 rounded-lg text-amber-400 font-mono font-bold text-xs focus:outline-hidden"
+                              className="w-full h-9 px-2 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-mono font-bold text-xs focus:outline-hidden"
                             />
                           </div>
                         </div>

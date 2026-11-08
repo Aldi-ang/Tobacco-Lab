@@ -22,17 +22,17 @@ export const GRADE_SCORES: Record<TobaccoGrade, number> = {
 export const GRADE_LABELS: Record<TobaccoGrade, { name: string; color: string; desc: string }> = {
   'A+': {
     name: 'Grade A+ (Srintil Emas)',
-    color: 'bg-amber-500/20 text-amber-300 border-amber-500/50',
+    color: 'bg-black text-amber-400 border-amber-500/70',
     desc: 'Kuning keemasan berminyak/getah tebal, aroma wangi kuat',
   },
   'A': {
     name: 'Grade A (Kuning Terang)',
-    color: 'bg-amber-500/15 text-amber-200 border-amber-500/40',
+    color: 'bg-zinc-950 text-white border-zinc-800',
     desc: 'Warna kuning cerah keemasan, mutu super',
   },
   'B+': {
     name: 'Grade B+ (Cokelat Kuning)',
-    color: 'bg-zinc-900 text-amber-300 border-amber-500/30',
+    color: 'bg-zinc-900 text-zinc-200 border-zinc-800',
     desc: 'Cokelat kemerahan matang, body mantap',
   },
   'B': {
@@ -52,7 +52,7 @@ export const GRADE_LABELS: Record<TobaccoGrade, { name: string; color: string; d
   },
   'D+': {
     name: 'Grade D+ (Daun Tengah/Atas)',
-    color: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+    color: 'bg-zinc-950 text-zinc-200 border-zinc-800',
     desc: 'Daun tengah/atas matang, body kuat',
   },
   'D': {
@@ -62,7 +62,7 @@ export const GRADE_LABELS: Record<TobaccoGrade, { name: string; color: string; d
   },
   'E': {
     name: 'Grade E (Spesial / Super)',
-    color: 'bg-black text-amber-400 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.2)]',
+    color: 'bg-black text-amber-400 border-zinc-700',
     desc: 'Grade E kualitas tinggi sesuai klasifikasi nota pabrik',
   },
 };

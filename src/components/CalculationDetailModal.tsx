@@ -42,7 +42,7 @@ export const CalcSymbolBadge: React.FC<{
   <span
     title="Tekan panel untuk melihat rincian rumus angka ini"
     aria-hidden="true"
-    className={`inline-flex items-center justify-center w-5 h-5 rounded-md bg-zinc-900/95 group-hover:bg-amber-500/20 border border-amber-500/50 group-hover:border-amber-400 text-amber-400 font-mono font-black text-[10px] leading-none shrink-0 transition-all shadow-[0_0_8px_rgba(245,158,11,0.14)] group-hover:scale-105 ${className}`}
+    className={`inline-flex items-center justify-center w-5 h-5 rounded-md bg-zinc-900/95 group-hover:bg-zinc-950 border border-zinc-800 group-hover:border-zinc-700 text-zinc-300 font-mono font-black text-[10px] leading-none shrink-0 transition-all group-hover:scale-105 ${className}`}
   >
     {symbol}
   </span>
@@ -60,18 +60,18 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-zinc-950 border-2 border-amber-500 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-[0_0_40px_rgba(245,158,11,0.25)] text-white overflow-hidden"
+        className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col text-white overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-4 sm:px-5 py-3.5 border-b border-zinc-800 bg-black flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-xl bg-black text-amber-400 border border-amber-500 shrink-0">
+            <div className="p-2 rounded-xl bg-black text-amber-400 border border-zinc-700 shrink-0">
               <Calculator className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2 py-0.5 rounded bg-black text-amber-400 border border-amber-500/70 font-mono font-black text-[10px] uppercase tracking-wider">
+                <span className="px-2 py-0.5 rounded bg-black text-zinc-200 border border-zinc-800 font-mono font-black text-[10px] uppercase tracking-wider">
                   {data.badgeText || 'ASAL ANGKA & RUMUS SPESIFIK'}
                 </span>
               </div>
@@ -95,8 +95,8 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
         {/* Body */}
         <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 text-xs">
           {/* Core Formula Box */}
-          <div className="bg-black border border-amber-500/60 rounded-xl p-3.5 space-y-1.5">
-            <div className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+          <div className="bg-black border border-zinc-800 rounded-xl p-3.5 space-y-1.5">
+            <div className="text-[10px] font-black uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 shrink-0" />
               <span>Rumus Spesifik Panel Ini</span>
             </div>
@@ -114,13 +114,13 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
             {data.steps.map((step) => {
               const borderClass =
                 step.highlight === 'amber'
-                  ? 'border-amber-500/70 bg-black'
+                  ? 'border-zinc-800 bg-black'
                   : step.highlight === 'red'
                   ? 'border-red-500/70 bg-black'
                   : 'border-zinc-800 bg-black/95';
               const valueColor =
                 step.highlight === 'amber'
-                  ? 'text-amber-400 border-amber-500/60'
+                  ? 'text-amber-400 border-zinc-800'
                   : step.highlight === 'red'
                   ? 'text-red-400 border-red-500/60'
                   : 'text-white border-zinc-700';
@@ -132,7 +132,7 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
                 >
                   <div className="flex items-start justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded bg-zinc-950 text-amber-400 border border-amber-500 font-mono font-black text-[10px] shrink-0">
+                      <span className="px-2 py-0.5 rounded bg-zinc-950 text-white border border-zinc-700 font-mono font-black text-[10px] shrink-0">
                         LANGKAH {step.stepNumber}
                       </span>
                       <h3 className="font-extrabold text-white text-xs sm:text-sm">
@@ -160,8 +160,8 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
                       </span>
                     </div>
 
-                    <div className="bg-zinc-950 px-3 py-2 rounded-lg border border-amber-500/30">
-                      <span className="text-[10px] text-amber-400 uppercase font-bold block mb-0.5">
+                    <div className="bg-zinc-950 px-3 py-2 rounded-lg border border-zinc-800">
+                      <span className="text-[10px] text-zinc-200 uppercase font-bold block mb-0.5">
                         Angka Dimasukkan:
                       </span>
                       <span className="font-mono font-bold text-white text-[11px] block">
@@ -171,7 +171,7 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
                   </div>
 
                   <p className="text-[11px] text-zinc-400 flex items-start gap-1.5 pt-0.5">
-                    <ArrowRight className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                    <ArrowRight className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" />
                     <span>{step.explanation}</span>
                   </p>
                 </div>
@@ -182,7 +182,7 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
           {/* Summary Comparison Table if provided */}
           {data.summaryRows && data.summaryRows.length > 0 && (
             <div className="bg-black border border-zinc-800 rounded-xl p-3.5 space-y-2">
-              <div className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+              <div className="text-[10px] font-black uppercase tracking-wider text-zinc-200">
                 Ringkasan Angka pada Panel Ini
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -191,7 +191,7 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
                     key={idx}
                     className={`p-2.5 rounded-lg border bg-zinc-950 flex flex-col justify-between ${
                       row.highlight === 'amber'
-                        ? 'border-amber-500'
+                        ? 'border-zinc-700'
                         : row.highlight === 'red'
                         ? 'border-red-500/70'
                         : 'border-zinc-800'
@@ -218,10 +218,10 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
           )}
 
           {/* Final Conclusion */}
-          <div className="bg-zinc-950 border-2 border-amber-500/70 rounded-xl p-3.5 flex items-start gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="bg-zinc-950 border border-zinc-700 rounded-xl p-3.5 flex items-start gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-zinc-300 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block">
+              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200 block">
                 Kesimpulan Asal Angka
               </span>
               <p className="text-xs text-white leading-relaxed">{data.conclusion}</p>

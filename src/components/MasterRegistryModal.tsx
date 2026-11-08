@@ -131,7 +131,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-zinc-950 border-2 border-amber-500/70 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden">
+      <div className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden">
         {/* Header */}
         <div className="px-5 py-4 border-b border-zinc-800 bg-black flex items-center justify-between">
           <div>
@@ -191,7 +191,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                 onSubmit={handleCreatePackaging}
                 className="bg-black p-4 rounded-xl border border-zinc-800 space-y-3"
               >
-                <div className="font-extrabold text-amber-400 uppercase tracking-wider">
+                <div className="font-extrabold text-zinc-200 uppercase tracking-wider">
                   + Tambah Jenis Packaging Baru (Tarra, Harga Kemasan & Ongkos Press)
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
@@ -205,40 +205,40 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                       value={pkgName}
                       onChange={(e) => setPkgName(e.target.value)}
                       placeholder="Contoh: KRJ MUNTILAN"
-                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-bold focus:outline-hidden focus:border-amber-500"
+                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-bold focus:outline-hidden focus:border-zinc-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-amber-400 font-bold mb-1">
+                    <label className="block text-zinc-200 font-bold mb-1">
                       Harga Kemasan / Wadah (Rp) *
                     </label>
                     <NumericInput
                       value={pkgCostRp}
                       onChange={setPkgCostRp}
-                      className="w-full h-10 px-3 bg-zinc-950 border border-amber-500/50 rounded-xl text-white font-mono font-bold focus:outline-hidden"
+                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white font-mono font-bold focus:outline-hidden"
                     />
                   </div>
                   <div>
-                    <label className="block text-amber-400 font-bold mb-1">
+                    <label className="block text-zinc-200 font-bold mb-1">
                       Ongkos Packaging / Press (Rp) *
                     </label>
                     <NumericInput
                       value={pkgPressCostRp}
                       onChange={setPkgPressCostRp}
-                      className="w-full h-10 px-3 bg-zinc-950 border border-amber-500/50 rounded-xl text-amber-400 font-mono font-bold focus:outline-hidden"
+                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white font-mono font-bold focus:outline-hidden"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
                   <div>
-                    <label className="block text-amber-300 font-bold mb-1">
+                    <label className="block text-zinc-200 font-bold mb-1">
                       Berat Wadah Riil (kg)
                     </label>
                     <NumericInput
                       value={pkgMassKg}
                       onChange={setPkgMassKg}
-                      className="w-full h-10 px-3 bg-zinc-950 border border-amber-500/60 rounded-xl text-amber-300 font-mono font-bold focus:outline-hidden"
+                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-800 rounded-xl text-zinc-200 font-mono font-bold focus:outline-hidden"
                     />
                   </div>
                   <div>
@@ -288,18 +288,18 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-black text-white text-sm">{pkg.name}</span>
                           {buyWeightDiff50 !== 0 && (
-                            <span className="px-2 py-0.5 rounded bg-zinc-950 border border-amber-500/60 font-mono text-[10px] text-amber-400 font-bold">
+                            <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 font-mono text-[10px] text-zinc-200 font-bold">
                               @50kg: Beli {buyWeightDiff50 > 0 ? `+${buyWeightDiff50}` : buyWeightDiff50}kg • Setor Pabrik {factoryWeightDiff50 > 0 ? `+${factoryWeightDiff50}` : factoryWeightDiff50}kg
                             </span>
                           )}
                         </div>
                         <div className="text-zinc-300 flex flex-wrap gap-3 font-mono text-[11px]">
                           <span>
-                            Wadah Riil: <b className="text-amber-300">{pkg.packagingMassKg} kg</b>
+                            Wadah Riil: <b className="text-zinc-200">{pkg.packagingMassKg} kg</b>
                           </span>
                           <span>
                             Potongan Nota:{' '}
-                            <b className="text-amber-400">
+                            <b className="text-white">
                               {formatTaraFormula(pkg.taraPercent, pkg.taraFlatKg)}
                             </b>
                           </span>
@@ -309,14 +309,14 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                           </span>
                           <span>
                             Ongkos Press:{' '}
-                            <b className="text-amber-400">{formatRupiah(pkg.pressCostRp || 0)}</b>
+                            <b className="text-white">{formatRupiah(pkg.pressCostRp || 0)}</b>
                           </span>
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => onDeletePackaging(pkg.id)}
-                        className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-zinc-900 cursor-pointer shrink-0"
+                        className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-900 cursor-pointer shrink-0"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -333,7 +333,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                 onSubmit={handleCreateFactory}
                 className="bg-black p-4 rounded-xl border border-zinc-800 space-y-3"
               >
-                <div className="font-extrabold text-amber-400 uppercase tracking-wider">
+                <div className="font-extrabold text-zinc-200 uppercase tracking-wider">
                   + Daftarkan Pabrik Tujuan Baru
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
@@ -390,13 +390,13 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                     <div>
                       <div className="font-bold text-white text-sm">{fac.name}</div>
                       <div className="text-zinc-400 mt-0.5">
-                        Potongan Sampel: <b className="text-amber-400 font-mono">{fac.sampleDeductionKg} kg</b>
+                        Potongan Sampel: <b className="text-white font-mono">{fac.sampleDeductionKg} kg</b>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => onDeleteFactory(fac.id)}
-                      className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-zinc-900 cursor-pointer"
+                      className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-900 cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -412,7 +412,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                 onSubmit={handleCreateGulungan}
                 className="bg-black p-4 rounded-xl border border-zinc-800 space-y-3"
               >
-                <div className="font-extrabold text-amber-400 uppercase tracking-wider">
+                <div className="font-extrabold text-zinc-200 uppercase tracking-wider">
                   + Buat Gulungan Sampel Baru
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
@@ -423,7 +423,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                       required
                       value={rollNumber}
                       onChange={(e) => setRollNumber(e.target.value)}
-                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-amber-400 font-mono font-bold focus:outline-hidden"
+                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold focus:outline-hidden"
                     />
                   </div>
                   <div>
@@ -487,7 +487,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-amber-400">{r.rollNumber}</span>
+                        <span className="font-mono font-bold text-white">{r.rollNumber}</span>
                         <span className="font-bold text-white">{r.recipeName}</span>
                       </div>
                       <div className="text-zinc-400 mt-0.5">

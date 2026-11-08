@@ -25,21 +25,21 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
   };
 
   return (
-    <div className="min-h-screen bg-[#030304] text-white flex flex-col items-center justify-center p-4 safe-fullscreen-modal relative overflow-hidden">
-      <div className="w-full max-w-md requiem-card border-2 border-amber-500/80 rounded-2xl p-5 sm:p-6 shadow-[0_0_45px_rgba(245,158,11,0.22)] space-y-5 relative z-10">
+    <div className="min-h-screen bg-[#020203] text-white flex flex-col items-center justify-center p-4 safe-fullscreen-modal relative overflow-hidden">
+      <div className="w-full max-w-md requiem-card border border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-[0_24px_60px_rgba(0,0,0,0.95)] space-y-5 relative z-10">
         {/* Brand Header with Black-Background White-Leaf Logo */}
         <div className="flex flex-col items-center text-center space-y-3">
           <img
             src="/awd-logo.png"
-            alt="AWD Master Logo"
-            className="w-20 h-20 rounded-2xl bg-black object-contain p-1.5 border-2 border-amber-500 shadow-[0_0_25px_rgba(245,158,11,0.35)]"
+            alt="Tobacco Lab Logo"
+            className="w-20 h-20 rounded-2xl bg-black object-contain p-1.5 border border-zinc-700"
           />
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black border border-amber-500/60 text-amber-400 text-[10px] font-mono font-black uppercase tracking-widest mb-1.5">
-              <Cloud className="w-3 h-3" /> Cloud Database Sync
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black border border-zinc-800 text-zinc-300 text-[10px] font-mono font-black uppercase tracking-widest mb-1.5">
+              <Cloud className="w-3 h-3 text-amber-400" /> Cloud Database Sync
             </div>
             <h1 className="font-requiem font-black text-2xl sm:text-3xl tracking-wider text-white">
-              AWD <span className="text-amber-400">MASTER</span>
+              TOBACCO <span className="text-amber-400">LAB</span>
             </h1>
             <p className="text-xs text-zinc-400 mt-1">
               Sistem Racikan Tembakau • HPP • Arsip Gulungan • Status Barang
@@ -50,13 +50,13 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
         {/* Cloud Features Box */}
         <div className="bg-black/90 border border-zinc-800 rounded-xl p-3.5 space-y-2 text-xs">
           <div className="flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <ShieldCheck className="w-4 h-4 text-white shrink-0 mt-0.5" />
             <p className="text-zinc-300 leading-relaxed">
               <b className="text-white">Akses Data dengan Login Google:</b> Seluruh data stok bahan, nomor seri jadi, arsip gulungan, dan status barang tersimpan aman di Cloud dan hanya dapat diakses oleh akun Google Anda.
             </p>
           </div>
           <div className="flex items-start gap-2.5">
-            <Smartphone className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <Smartphone className="w-4 h-4 text-white shrink-0 mt-0.5" />
             <p className="text-zinc-300 leading-relaxed">
               <b className="text-white">Sinkronisasi Real-Time Semua Perangkat:</b> Buka dengan akun Google yang sama di <b>iPhone, Samsung, maupun PC</b> untuk melihat dan mengubah data yang sama secara otomatis.
             </p>
@@ -64,7 +64,7 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
         </div>
 
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-black border border-amber-500 text-amber-300 text-xs flex items-start gap-2">
+          <div className="p-3 rounded-xl bg-black border border-zinc-700 text-zinc-200 text-xs flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
@@ -80,12 +80,12 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
           >
             {isSigningIn ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
                 <span>Menghubungkan ke Akun Google...</span>
               </>
             ) : (
               <>
-                <Cloud className="w-4 h-4 stroke-[2.4]" />
+                <Cloud className="w-4 h-4 stroke-[2.4] text-amber-400" />
                 <span>Masuk dengan Google (Sinkronisasi Cloud)</span>
               </>
             )}

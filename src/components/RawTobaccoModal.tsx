@@ -211,11 +211,11 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-zinc-950 border-2 border-amber-500/70 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden">
+      <div className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden">
         {/* Modal Header */}
         <div className="px-5 py-4 border-b border-zinc-800 bg-black flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-black text-amber-400 border border-amber-500">
+            <div className="p-2 rounded-xl bg-black text-amber-400 border border-zinc-700">
               <Sparkles className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div>
@@ -241,7 +241,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
         <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-6 flex-1 text-sm">
           {/* Section 1: Data Identitas Bahan & Penjual (Symmetrical Grid) */}
           <div>
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-amber-400 mb-3">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-200 mb-3">
               1. Identitas Tembakau & Penjual (Tara Khusus Penjual/Seri)
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -255,7 +255,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Contoh: Tembakau Muntilan Super"
-                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-amber-500 text-xs sm:text-sm"
+                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700 text-xs sm:text-sm"
                 />
               </div>
 
@@ -266,7 +266,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 <select
                   value={origin}
                   onChange={(e) => setOrigin(e.target.value)}
-                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white focus:outline-hidden focus:border-amber-500 text-xs sm:text-sm"
+                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white focus:outline-hidden focus:border-zinc-700 text-xs sm:text-sm"
                 >
                   <option value="Temanggung">Temanggung (Sumbing/Sindoro)</option>
                   <option value="Muntilan">Muntilan / Magelang</option>
@@ -281,7 +281,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
 
               <div className="flex flex-col">
                 <label className="h-5 flex items-center gap-1 text-xs font-bold text-white whitespace-nowrap truncate mb-1">
-                  <UserCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <UserCheck className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                   <span>Nama Penjual / Pengepul</span>
                 </label>
                 <input
@@ -289,7 +289,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                   value={sellerName}
                   onChange={(e) => setSellerName(e.target.value)}
                   placeholder="Misal: H. Daryono (Tara Khusus)"
-                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-amber-500"
+                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-zinc-700"
                 />
               </div>
 
@@ -301,7 +301,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                   type="text"
                   value={lotNumber}
                   onChange={(e) => setLotNumber(e.target.value)}
-                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-amber-400 font-mono font-bold text-xs focus:outline-hidden focus:border-amber-500"
+                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white font-mono font-bold text-xs focus:outline-hidden focus:border-zinc-700"
                 />
               </div>
 
@@ -313,7 +313,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                   type="date"
                   value={purchaseDate}
                   onChange={(e) => setPurchaseDate(e.target.value)}
-                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-amber-500"
+                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-zinc-700"
                 />
               </div>
             </div>
@@ -322,7 +322,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
           {/* Section 2: Pembelian, Jenis Packaging, Berat Wadah Riil & Perbandingan Paid Value vs Real Value */}
           <div className="bg-black p-4 rounded-xl border border-zinc-800 space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-amber-400">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-200">
                 2. Perhitungan Timbangan Nota (Paid Value) vs Berat Sebenarnya (Real Value & Weight Profit)
               </h3>
               <span className="text-[11px] text-zinc-400 font-mono">
@@ -339,7 +339,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 <select
                   value={packagingType}
                   onChange={(e) => handleSelectPackaging(e.target.value)}
-                  className="w-full h-10 px-3 bg-zinc-950 border border-amber-500/60 rounded-xl text-white text-xs font-bold focus:outline-hidden focus:border-amber-400"
+                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs font-bold focus:outline-hidden focus:border-zinc-700"
                 >
                   {packagingList.map((pkg) => (
                     <option key={pkg.id} value={pkg.name}>
@@ -361,9 +361,9 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                   required
                   value={pricePerKgPurchase}
                   onChange={setPricePerKgPurchase}
-                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold text-sm focus:outline-hidden focus:border-amber-500"
+                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold text-sm focus:outline-hidden focus:border-zinc-700"
                 />
-                <p className="h-4 flex items-center text-[10px] text-amber-400 font-mono truncate mt-1">
+                <p className="h-4 flex items-center text-[10px] text-zinc-200 font-mono truncate mt-1">
                   Harga per KG: {formatRupiah(pricePerKgPurchase)}
                 </p>
               </div>
@@ -380,7 +380,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                     required
                     value={grossWeightKg}
                     onChange={setGrossWeightKg}
-                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold text-sm focus:outline-hidden focus:border-amber-500"
+                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold text-sm focus:outline-hidden focus:border-zinc-700"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs pointer-events-none">
                     kg
@@ -392,33 +392,33 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
               </div>
 
               <div className="flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-amber-300 whitespace-nowrap truncate mb-1">
+                <label className="h-5 flex items-center text-xs font-bold text-zinc-200 whitespace-nowrap truncate mb-1">
                   Wadah Riil (KG) *
                 </label>
                 <div className="relative">
                   <NumericInput
                     value={packagingMassKg}
                     onChange={setPackagingMassKg}
-                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-amber-400 rounded-xl text-amber-300 font-mono font-bold text-sm focus:outline-hidden focus:border-amber-300"
+                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-zinc-700 rounded-xl text-zinc-200 font-mono font-bold text-sm focus:outline-hidden focus:border-white/70"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs pointer-events-none">
                     kg
                   </span>
                 </div>
-                <p className="h-4 flex items-center text-[10px] text-amber-300/80 truncate mt-1">
+                <p className="h-4 flex items-center text-[10px] text-zinc-200 truncate mt-1">
                   Berat wadah asli (mis. 2kg)
                 </p>
               </div>
 
               <div className="flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-amber-400 whitespace-nowrap truncate mb-1">
+                <label className="h-5 flex items-center text-xs font-bold text-zinc-200 whitespace-nowrap truncate mb-1">
                   Tarra Flat Nota (KG) *
                 </label>
                 <div className="relative">
                   <NumericInput
                     value={flatKgTara}
                     onChange={setFlatKgTara}
-                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-amber-500/60 rounded-xl text-amber-400 font-mono font-bold text-sm focus:outline-hidden focus:border-amber-400"
+                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-zinc-800 rounded-xl text-white font-mono font-bold text-sm focus:outline-hidden focus:border-zinc-700"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs pointer-events-none">
                     kg
@@ -437,7 +437,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                   <NumericInput
                     value={percentTara}
                     onChange={setPercentTara}
-                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold text-sm focus:outline-hidden focus:border-amber-500"
+                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold text-sm focus:outline-hidden focus:border-zinc-700"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs pointer-events-none">
                     %
@@ -450,10 +450,10 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
             </div>
 
             {/* Dual Comparison Card: Paid Value (Nota) vs Real Value (Sebenarnya) + Weight Profit (Specific Per-Panel Breakdown) */}
-            <div className="bg-zinc-950 border-2 border-amber-500/60 rounded-xl p-4 space-y-3.5">
+            <div className="bg-zinc-950 border border-zinc-700 rounded-xl p-4 space-y-3.5">
               <div className="flex items-center justify-between text-xs font-bold text-amber-400 flex-wrap gap-2">
                 <span className="flex items-center gap-1.5">
-                  <Info className="w-4 h-4 text-amber-400 shrink-0" />
+                  <Info className="w-4 h-4 text-zinc-300 shrink-0" />
                   <span>Perbandingan Nilai Bayar (Nota) vs Nilai Barang Riil (Real Value)</span>
                 </span>
                 <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-zinc-400">
@@ -467,7 +467,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleOpenStepByStep('PAID_VALUE')}
-                  className="text-left group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
+                  className="text-left group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
                 >
                   <div className="space-y-1.5 w-full">
                     <div className="flex items-center justify-between gap-2">
@@ -478,7 +478,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                     </div>
                     <div className="flex justify-between items-center text-xs gap-2">
                       <span className="text-zinc-400">Potongan Nota:</span>
-                      <b className="font-mono text-amber-400">
+                      <b className="font-mono text-white">
                         -{calculation.deductionKg} kg ({formatTaraFormula(percentTara, flatKgTara)})
                       </b>
                     </div>
@@ -499,18 +499,18 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleOpenStepByStep('REAL_VALUE')}
-                  className="text-left group bg-black p-3.5 rounded-xl border border-amber-500/50 hover:border-amber-400 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
+                  className="text-left group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
                 >
                   <div className="space-y-1.5 w-full">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-amber-300 uppercase font-extrabold truncate">
+                      <span className="text-[10px] text-zinc-200 uppercase font-extrabold truncate">
                         2. Berat & Nilai Riil (Real Value)
                       </span>
                       <CalcSymbolBadge />
                     </div>
                     <div className="flex justify-between items-center text-xs gap-2">
                       <span className="text-zinc-400">Potongan Wadah Riil:</span>
-                      <b className="font-mono text-amber-300">-{calculation.realPackagingMassKg} kg</b>
+                      <b className="font-mono text-zinc-200">-{calculation.realPackagingMassKg} kg</b>
                     </div>
                     <div className="flex justify-between items-center text-xs gap-2">
                       <span className="text-zinc-400">Netto Riil Sebenarnya:</span>
@@ -518,10 +518,10 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                     </div>
                   </div>
                   <div className="w-full pt-2 border-t border-zinc-900 flex justify-between items-center text-xs">
-                    <span className="text-amber-300 font-bold">
+                    <span className="text-zinc-200 font-bold">
                       Nilai Riil ({calculation.realNetWeightKg}×Harga):
                     </span>
-                    <b className="font-mono text-amber-300 text-sm">
+                    <b className="font-mono text-zinc-200 text-sm">
                       {formatRupiah(calculation.realStockValueRp)}
                     </b>
                   </div>
@@ -531,11 +531,11 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleOpenStepByStep('WEIGHT_PROFIT')}
-                  className="text-left group bg-black p-3.5 rounded-xl border-2 border-amber-500 hover:border-amber-300 shadow-[0_0_18px_rgba(245,158,11,0.18)] transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
+                  className="text-left group bg-black p-3.5 rounded-xl border border-zinc-700 hover:border-zinc-600 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
                 >
                   <div className="space-y-1.5 w-full">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-amber-400 uppercase font-black truncate">
+                      <span className="text-[10px] text-zinc-200 uppercase font-black truncate">
                         3. Weight Profit (Untung Timbangan)
                       </span>
                       <CalcSymbolBadge />
@@ -577,7 +577,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
           {/* Section 3: 5 Parameter Penilaian Sensoris (/5) & Grade */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-amber-400">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-200">
                 3. Penilaian Karakteristik Tembakau (Skala Maksimal /5)
               </h3>
               <span className="text-[11px] text-zinc-400">
@@ -633,8 +633,8 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                       onClick={() => setColorGrade(grade)}
                       className={`h-10 rounded-xl border text-center transition-all cursor-pointer ${
                         isSelected
-                          ? 'bg-black text-amber-400 border-amber-500 font-black shadow-[0_0_15px_rgba(245,158,11,0.3)]'
-                          : 'bg-black border-zinc-800 text-white hover:border-amber-500/40'
+                          ? 'bg-black text-amber-400 border-zinc-700 font-black'
+                          : 'bg-black border-zinc-800 text-white hover:border-zinc-800'
                       }`}
                     >
                       <div className="flex items-center justify-center gap-1">
@@ -649,7 +649,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
 
             {/* Detailed Physical & Sensory Description */}
             <div>
-              <label className="block text-xs font-bold text-amber-400 mb-1">
+              <label className="block text-xs font-bold text-zinc-200 mb-1">
                 Deskripsi Fisik, Pegangan, Kadar Gagang & Catatan Tarra Penjual
               </label>
               <textarea
@@ -657,7 +657,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 value={characterNotes}
                 onChange={(e) => setCharacterNotes(e.target.value)}
                 placeholder="Tulis detail pegangan (lemas/bergetah/kering), jumlah gagang, warna, serta catatan penjual..."
-                className="w-full px-3 py-2 bg-black border border-zinc-800 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-amber-500 text-xs"
+                className="w-full px-3 py-2 bg-black border border-zinc-800 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700 text-xs"
               />
             </div>
           </div>

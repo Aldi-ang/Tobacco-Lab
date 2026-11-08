@@ -26,7 +26,7 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
   };
 
   return (
-    <div className="bg-black/95 p-3.5 rounded-xl border border-zinc-800 hover:border-amber-500/50 transition-all duration-200 space-y-3">
+    <div className="bg-black/95 p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-600 transition-all duration-200 space-y-3">
       {/* Top Row: Label & Stepper Buttons */}
       <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-zinc-800/90">
         <div className="min-w-0">
@@ -37,19 +37,19 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
           <button
             type="button"
             onClick={() => handleStep(-0.5)}
-            className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-amber-400 border border-zinc-800 hover:border-amber-500 cursor-pointer"
+            className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer"
             title={`Kurangi ${label}`}
             aria-label={`Kurangi ${label}`}
           >
             <ChevronLeft className="w-3.5 h-3.5" />
           </button>
-          <div className="px-2.5 py-1 rounded-lg bg-black text-amber-400 border border-amber-500 font-mono font-extrabold text-xs min-w-[56px] text-center shadow-[0_0_12px_rgba(245,158,11,0.2)]">
-            {safeVal.toFixed(1)}/5
+          <div className="px-2.5 py-1 rounded-lg bg-black text-white border border-zinc-700 font-mono font-extrabold text-xs min-w-[56px] text-center">
+            {safeVal.toFixed(1)}<span className="text-amber-400">/5</span>
           </div>
           <button
             type="button"
             onClick={() => handleStep(0.5)}
-            className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-amber-400 border border-zinc-800 hover:border-amber-500 cursor-pointer"
+            className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer"
             title={`Tambah ${label}`}
             aria-label={`Tambah ${label}`}
           >
@@ -60,9 +60,9 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
 
       {/* Smooth Track + Native Range Overlay with spacing */}
       <div className="pt-0.5 space-y-2.5">
-        <div className="relative h-2.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-700/90">
+        <div className="relative h-2.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
           <motion.div
-            className="h-full bg-gradient-to-r from-amber-600 via-amber-500 to-amber-300 rounded-full"
+            className="h-full bg-gradient-to-r from-zinc-400 via-white to-amber-400 rounded-full"
             initial={false}
             animate={{ width: `${fillPercent}%` }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
@@ -90,8 +90,8 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
                 onClick={() => onChange(step)}
                 className={`py-1 rounded-md font-mono text-[10px] font-bold transition-all duration-200 cursor-pointer ${
                   isActive
-                    ? 'bg-black text-amber-400 border border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.3)]'
-                    : 'bg-zinc-950 text-zinc-400 hover:text-white hover:border-amber-500/40 border border-zinc-800/80'
+                    ? 'bg-black text-amber-400 border border-amber-500/80'
+                    : 'bg-zinc-950 text-zinc-400 hover:text-white hover:border-zinc-600 border border-zinc-800/80'
                 }`}
               >
                 {step}
@@ -151,18 +151,18 @@ export function SegmentedControl<T extends string>({
 
   return (
     <div
-      className={`w-full flex items-center justify-between gap-2 p-1.5 rounded-xl bg-black/95 border border-zinc-800 ${className}`}
+      className={`w-full flex items-center justify-between gap-1.5 p-1 rounded-xl bg-black/95 border border-zinc-800 ${className}`}
       role="tablist"
     >
       {/* Fixed Left Navigator Button */}
       <button
         type="button"
         onClick={handlePrev}
-        className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-amber-400 border border-amber-500/70 hover:border-amber-400 transition-colors cursor-pointer"
+        className="h-7 w-7 sm:h-8 sm:w-8 shrink-0 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
         title="Segmen Sebelumnya"
         aria-label="Segmen Sebelumnya"
       >
-        <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+        <ChevronLeft className="w-3.5 h-3.5 stroke-[2.5]" />
       </button>
 
       {/* PHONE VIEW (< sm): Fixed-Width Center Indicator so `<` and `>` NEVER move */}
@@ -171,9 +171,9 @@ export function SegmentedControl<T extends string>({
           role="tab"
           aria-selected={true}
           title={currentOption.fullLabel || currentOption.label}
-          className="w-full h-9 px-3 rounded-lg bg-black border border-amber-500 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)] flex items-center justify-center gap-1.5 text-xs font-extrabold whitespace-nowrap overflow-hidden select-none"
+          className="w-full h-7 px-2.5 rounded-lg bg-black border border-amber-500/80 text-white flex items-center justify-center gap-1.5 text-[11px] font-extrabold whitespace-nowrap overflow-hidden select-none"
         >
-          <span className="shrink-0">{currentOption.icon}</span>
+          <span className="shrink-0 text-amber-400">{currentOption.icon}</span>
           <span className="truncate">{currentOption.label}</span>
           {currentOption.badge !== undefined && (
             <span className="text-[10px] font-mono text-zinc-300 font-bold shrink-0">
@@ -185,7 +185,7 @@ export function SegmentedControl<T extends string>({
 
       {/* TABLET & DESKTOP VIEW (>= sm): Equal-Width Columns so format never shifts */}
       <div
-        className="hidden sm:grid flex-1 min-w-0 gap-1.5"
+        className="hidden sm:grid flex-1 min-w-0 gap-1"
         style={{
           gridTemplateColumns: `repeat(${Math.max(1, options.length)}, minmax(0, 1fr))`,
         }}
@@ -201,25 +201,25 @@ export function SegmentedControl<T extends string>({
               aria-selected={isActive}
               title={fullText}
               onClick={() => onChange(opt.id)}
-              className={`group relative w-full h-9 px-2.5 rounded-lg flex items-center justify-center gap-1.5 text-xs font-extrabold whitespace-nowrap transition-colors duration-150 cursor-pointer ${
+              className={`group relative w-full h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-extrabold whitespace-nowrap transition-colors duration-150 cursor-pointer ${
                 isActive
-                  ? 'text-amber-400'
+                  ? 'text-white'
                   : 'text-zinc-400 hover:text-white border border-transparent hover:border-zinc-800/80'
               }`}
             >
               {isActive && (
                 <div
                   key={`active-${groupId}`}
-                  className="absolute inset-0 rounded-lg bg-black border border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.25)]"
+                  className="absolute inset-0 rounded-lg bg-black border border-amber-500/80 shadow-[0_0_10px_rgba(245,158,11,0.12)]"
                 />
               )}
               <span className="relative z-10 flex items-center justify-center gap-1.5 min-w-0">
-                <span className="shrink-0">{opt.icon}</span>
+                <span className={`shrink-0 ${isActive ? 'text-amber-400' : ''}`}>{opt.icon}</span>
                 <span className="truncate">{opt.label}</span>
                 {opt.badge !== undefined && (
                   <span
                     className={`text-[10px] font-mono font-bold shrink-0 ${
-                      isActive ? 'text-amber-300' : 'text-zinc-400'
+                      isActive ? 'text-amber-400' : 'text-zinc-400'
                     }`}
                   >
                     ({opt.badge})
@@ -228,7 +228,7 @@ export function SegmentedControl<T extends string>({
               </span>
 
               {/* Sleek Hover Tooltip showing Full Segment Name */}
-              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-9 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-amber-500 text-amber-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
+              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-9 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                 {fullText}
               </span>
             </button>
@@ -240,11 +240,11 @@ export function SegmentedControl<T extends string>({
       <button
         type="button"
         onClick={handleNext}
-        className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-amber-400 border border-amber-500/70 hover:border-amber-400 transition-colors cursor-pointer"
+        className="h-7 w-7 sm:h-8 sm:w-8 shrink-0 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
         title="Segmen Berikutnya"
         aria-label="Segmen Berikutnya"
       >
-        <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+        <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
       </button>
     </div>
   );

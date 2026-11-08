@@ -11,7 +11,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-export const CURRENT_APP_VERSION = 'v3.7.0';
+export const CURRENT_APP_VERSION = 'v3.8.0';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -30,10 +30,56 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v3.8.0',
+    date: '8 November 2026',
+    codename: 'Tobacco Lab Rebrand, Edit Seri Jadi + Lock Guard & Auto-Slide KPI UI',
+    isLatest: true,
+    highlights:
+      'Rebranding penuh menjadi Tobacco Lab dengan rasio warna 85% Hitam / 10% Putih / 5% Amber, fitur Edit Lengkap Seri Jadi yang otomatis tersinkron dua arah dengan Gulungan beserta tombol Gembok Pengaman (Lock/Unlock), penghapusan header atas yang memakan tempat, panel Auto-Slide Nilai Bayar vs Riil & Weight Profit berangka besar, serta pemisahan kartu 3D dengan indikator 5 Karakter (/5) berwarna Amber.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Fitur Edit Seri Jadi & Sinkronisasi Otomatis Dua Arah dengan Gulungan',
+        description:
+          'Setiap Nomor Seri pada Tembakau Jadi dan di dalam Arsip Gulungan kini dapat diedit langsung (Harga Pabrik, Nomor Seri, Grade, Gulungan Terkait, Kemasan, Bruto, Wadah, Tarra, HPP, dan 5 Karakteristik /5). Setiap perubahan pada Seri Jadi otomatis memperbarui daftar seri, tabel nota, dan rata-rata di Gulungan terkait secara real-time.',
+      },
+      {
+        type: 'feature',
+        title: 'Tombol Kunci Pengaman (Lock / Unlock) pada Edit Nomor Seri',
+        description:
+          'Untuk mencegah perubahan data yang tidak disengaja, seluruh kolom pada Edit Seri Jadi dikunci secara otomatis kecuali kolom Harga Pabrik / KG yang siap langsung diedit. Tersedia tombol gembok di tiap kolom maupun tombol "Buka Semua" di bagian atas modal bila ingin mengubah data tetap.',
+      },
+      {
+        type: 'ui',
+        title: 'Panel Auto-Slide Nilai Bayar, Nilai Riil & Weight Profit Berangka Besar',
+        description:
+          'Mengganti 3 kotak kecil yang memakan layar menjadi 1 panel Auto-Slide (bergeser otomatis satu per satu) dengan angka Rupiah dan KG berukuran besar yang sangat jelas dibaca, dilengkapi tab pilih cepat (1. Nilai Bayar, 2. Nilai Riil, 3. Weight Profit) dan tombol fx rincian rumus.',
+      },
+      {
+        type: 'ui',
+        title: 'Penghapusan Header Judul Atas & Penyederhanaan Navigasi Segmen',
+        description:
+          'Menghapus panel judul atas yang berulang di Stok, Simulator, Seri Jadi, Status, Kalkulator, dan Gulungan sehingga menyisakan bar tombol segmen geser yang hemat ruang layar.',
+      },
+      {
+        type: 'ui',
+        title: 'Outline & Efek 3D pada Setiap Kartu Bahan & Seri + Angka Karakter (/5) Amber Besar',
+        description:
+          'Memberikan garis tepi kontras 2px dan bayangan kedalaman 3D pada setiap kartu Bahan di Stok dan Seri Jadi agar tampak terpisah tegas, serta memperbesar ukuran angka 5 Karakteristik Rasa (/5) dengan warna Amber terang.',
+      },
+      {
+        type: 'ui',
+        title: 'Rebranding Aplikasi menjadi Tobacco Lab & Tema 85% Hitam / 10% Putih / 5% Amber',
+        description:
+          'Memperbarui identitas aplikasi menjadi Tobacco Lab serta menyempurnakan komposisi warna menjadi 85% Hitam Pekat, 10% Putih Tajam, dan 5% Aksen Amber pilihan.',
+      },
+    ],
+  },
+  {
     version: 'v3.7.0',
     date: '7 November 2026',
     codename: 'Real vs Paid Value & Weight Profit/Loss (Untung/Rugi Timbangan)',
-    isLatest: true,
+    isLatest: false,
     highlights:
       'Kalkulasi lengkap Nilai Bayar Nota (Paid Value) vs Nilai Barang Riil Sebenarnya (Real Value) di Stok Mentah untuk melacak Weight Profit Beli (sebelum kirim sampel), serta pelacakan Untung/Rugi Timbangan Kemasan saat Setor ke Pabrik di seluruh segmen aplikasi.',
     changes: [
@@ -197,7 +243,7 @@ export const PATCH_RELEASES: PatchRelease[] = [
     date: '5 November 2026',
     codename: 'Minimalist Requiem UI, Personal Profit Ledger & CSV Sync',
     highlights:
-      'Pemisahan Surat Jalan Pabrik vs Arsip Personal (Profit), Sinkronisasi CSV Google Sheets, serta tema hitam-amber bergaya arsitektural.',
+      'Pemisahan Surat Jalan Pabrik vs Arsip Personal (Profit), Sinkronisasi CSV Google Sheets, serta tema hitam-putih-amber bergaya arsitektural.',
     changes: [
       {
         type: 'feature',
@@ -213,9 +259,9 @@ export const PATCH_RELEASES: PatchRelease[] = [
       },
       {
         type: 'ui',
-        title: 'Tema 80% Hitam, 10% Putih, 10% Amber Outline',
+        title: 'Tema 85% Hitam, 10% Putih, 5% Amber Outline',
         description:
-          'Mengubah seluruh tombol berlatar amber penuh menjadi latar hitam pekat dengan garis tepi (outline) amber serta animasi transisi yang lebih halus.',
+          'Mengubah seluruh permukaan menjadi 85% hitam pekat, 10% tipografi & garis tepi putih tajam, dan 5% aksen amber selektif.',
       },
     ],
   },
@@ -269,14 +315,14 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
       return {
         label: 'FITUR BARU',
         icon: <Sparkles className="w-3 h-3 text-amber-400 shrink-0" />,
-        className: 'bg-black text-amber-400 border-amber-500/80',
+        className: 'bg-black text-white border-zinc-700',
       };
     }
     if (type === 'fix') {
       return {
         label: 'PERBAIKAN BUG',
-        icon: <Wrench className="w-3 h-3 text-emerald-400 shrink-0" />,
-        className: 'bg-black text-emerald-400 border-emerald-500/70',
+        icon: <Wrench className="w-3 h-3 text-zinc-300 shrink-0" />,
+        className: 'bg-black text-zinc-200 border-zinc-800',
       };
     }
     return {
@@ -292,7 +338,7 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+        className="fixed inset-0 z-50 overflow-y-auto bg-black/90 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
         onClick={onClose}
       >
         <motion.div
@@ -301,12 +347,12 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
           exit={{ scale: 0.95, y: 14 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-zinc-950 border-2 border-amber-500 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-[0_0_40px_rgba(245,158,11,0.22)] text-white overflow-hidden"
+          className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-[0_24px_60px_rgba(0,0,0,0.95)] text-white overflow-hidden"
         >
           {/* Modal Header */}
           <div className="px-4 sm:px-6 py-4 border-b border-zinc-800 bg-black flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-black border border-amber-500 flex items-center justify-center shadow-[0_0_15px_rgba(245,158,11,0.3)] shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-black border border-zinc-700 flex items-center justify-center shrink-0">
                 <Sparkles className="w-5 h-5 text-amber-400" />
               </div>
               <div className="min-w-0">
@@ -314,11 +360,11 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
                   <h2 className="text-sm sm:text-lg font-black text-white truncate">
                     Patch Notes & Riwayat Update
                   </h2>
-                  <span className="px-2 py-0.5 rounded-md bg-black text-amber-400 border border-amber-500 font-mono font-black text-xs">
+                  <span className="px-2 py-0.5 rounded-md bg-black text-amber-400 border border-amber-500/70 font-mono font-black text-xs">
                     {CURRENT_APP_VERSION}
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-900 text-emerald-400 border border-emerald-500/50 text-[10px] font-bold">
-                    <CheckCircle2 className="w-3 h-3" /> Auto-Update Aktif
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-900 text-zinc-200 border border-zinc-700 text-[10px] font-bold">
+                    <CheckCircle2 className="w-3 h-3 text-amber-400" /> Auto-Update Aktif
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-400 truncate mt-0.5">
@@ -353,7 +399,7 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
                     onClick={() => setFilterType(tab.id)}
                     className={`h-8 px-3 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
                       active
-                        ? 'bg-black text-amber-400 border border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                        ? 'bg-black text-amber-400 border border-amber-500/80'
                         : 'bg-black/60 text-zinc-400 hover:text-white border border-zinc-800'
                     }`}
                   >
@@ -364,7 +410,7 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
             </div>
 
             <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-              <Smartphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <Smartphone className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
               <span>Sinkron otomatis di iPhone, Samsung & PC saat online</span>
             </div>
           </div>
@@ -385,28 +431,28 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
                   key={release.version}
                   className={`rounded-2xl border p-4 sm:p-5 space-y-3.5 ${
                     release.isLatest
-                      ? 'bg-black border-amber-500/80 shadow-[0_0_25px_rgba(245,158,11,0.12)]'
+                      ? 'bg-black border-zinc-700'
                       : 'bg-black/80 border-zinc-800/90'
                   }`}
                 >
                   {/* Release Version Header */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-zinc-800/90">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2.5 py-1 rounded-lg bg-black text-amber-400 border border-amber-500 font-mono font-black text-xs sm:text-sm">
+                      <span className="px-2.5 py-1 rounded-lg bg-black text-white border border-zinc-700 font-mono font-black text-xs sm:text-sm">
                         {release.version}
                       </span>
                       <h3 className="font-extrabold text-white text-sm sm:text-base">
                         {release.codename}
                       </h3>
                       {release.isLatest && (
-                        <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/60 text-[10px] font-black uppercase tracking-wider">
+                        <span className="px-2 py-0.5 rounded bg-black text-amber-400 border border-amber-500/70 text-[10px] font-black uppercase tracking-wider">
                           Versi Saat Ini
                         </span>
                       )}
                     </div>
 
                     <span className="inline-flex items-center gap-1.5 text-xs font-mono text-zinc-400 shrink-0">
-                      <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                      <Calendar className="w-3.5 h-3.5 text-zinc-400" />
                       {release.date}
                     </span>
                   </div>
@@ -451,7 +497,7 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
           {/* Modal Footer */}
           <div className="px-4 sm:px-6 py-3.5 border-t border-zinc-800 bg-black flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-              <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+              <ShieldCheck className="w-4 h-4 text-zinc-300 shrink-0" />
               <span>Data lokal gudang Anda tetap aman setiap kali versi baru di-update.</span>
             </div>
 

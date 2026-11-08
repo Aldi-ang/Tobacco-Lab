@@ -2,38 +2,38 @@ import React from 'react';
 
 /**
  * Artistic Dark Gothic / Classical Architectural Background ("Resident Evil 9 Requiem" Aesthetic)
- * - Deep obsidian & charcoal void (80% black dominance)
- * - Cathedral ribbed vault arches, rose geometry, and classical colonnade perspective lines in subtle gold/amber filigree
- * - Volumetric amber/gold chiaroscuro light shafts & vignette
+ * - Deep obsidian & charcoal void (85% black dominance, 10% crisp white/silver, 5% selective amber)
+ * - Cathedral ribbed vault arches, rose geometry, and classical colonnade perspective lines in subtle monochrome/amber filigree
+ * - Restrained chiaroscuro light shafts & deep obsidian vignette
  */
 export const ArchitecturalBackground: React.FC = () => {
   return (
     <div
-      className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none bg-[#030304]"
+      className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none bg-[#020203]"
       aria-hidden="true"
     >
-      {/* 1. Deep Chiaroscuro Radial & Volumetric Cathedral Light Shafts */}
+      {/* 1. Deep Chiaroscuro Radial & Volumetric Cathedral Light Shafts (85% Black Dominance) */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse 80% 55% at 50% -10%, rgba(245, 158, 11, 0.13) 0%, rgba(180, 83, 9, 0.05) 42%, rgba(3, 3, 4, 0.98) 80%), radial-gradient(circle at 15% 85%, rgba(217, 119, 6, 0.05) 0%, transparent 50%), radial-gradient(circle at 85% 80%, rgba(245, 158, 11, 0.05) 0%, transparent 50%)',
+            'radial-gradient(ellipse 70% 45% at 50% -12%, rgba(255, 255, 255, 0.035) 0%, rgba(245, 158, 11, 0.025) 35%, rgba(2, 2, 3, 0.99) 75%)',
         }}
       />
 
       {/* 2. Subtle Diagonal Requiem God-Rays from Upper Vault */}
       <div
-        className="absolute -top-32 left-1/2 -translate-x-1/2 w-[140vw] h-[75vh] opacity-30"
+        className="absolute -top-32 left-1/2 -translate-x-1/2 w-[140vw] h-[75vh] opacity-15"
         style={{
           background:
-            'conic-gradient(from 145deg at 50% 0%, transparent 0deg, rgba(245, 158, 11, 0.08) 15deg, transparent 30deg, rgba(245, 158, 11, 0.11) 35deg, transparent 48deg, rgba(245, 158, 11, 0.07) 58deg, transparent 72deg)',
+            'conic-gradient(from 145deg at 50% 0%, transparent 0deg, rgba(255, 255, 255, 0.05) 15deg, transparent 30deg, rgba(245, 158, 11, 0.04) 35deg, transparent 48deg, rgba(255, 255, 255, 0.04) 58deg, transparent 72deg)',
           filter: 'blur(28px)',
         }}
       />
 
       {/* 3. Full-Screen Gothic Cathedral & Neo-Classical Architectural Wireframe / Filigree SVG */}
       <svg
-        className="absolute inset-0 w-full h-full opacity-[0.18]"
+        className="absolute inset-0 w-full h-full opacity-[0.09]"
         viewBox="0 0 1920 1080"
         fill="none"
         preserveAspectRatio="xMidYMid slice"
@@ -41,27 +41,27 @@ export const ArchitecturalBackground: React.FC = () => {
       >
         <defs>
           <linearGradient id="requiemGoldLine" x1="960" y1="0" x2="960" y2="1080" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.65" />
-            <stop offset="45%" stopColor="#D97706" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="#78350F" stopOpacity="0.05" />
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.45" />
+            <stop offset="45%" stopColor="#A1A1AA" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#27272A" stopOpacity="0.04" />
           </linearGradient>
 
           <linearGradient id="requiemHorizontal" x1="0" y1="540" x2="1920" y2="540" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.04" />
-            <stop offset="25%" stopColor="#F59E0B" stopOpacity="0.25" />
-            <stop offset="50%" stopColor="#FBBF24" stopOpacity="0.45" />
-            <stop offset="75%" stopColor="#F59E0B" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#F59E0B" stopOpacity="0.04" />
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.02" />
+            <stop offset="25%" stopColor="#A1A1AA" stopOpacity="0.16" />
+            <stop offset="50%" stopColor="#F59E0B" stopOpacity="0.28" />
+            <stop offset="75%" stopColor="#A1A1AA" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0.02" />
           </linearGradient>
 
           <pattern id="architecturalGrid" width="120" height="120" patternUnits="userSpaceOnUse">
             <path
               d="M 120 0 L 0 0 0 120"
               fill="none"
-              stroke="rgba(245, 158, 11, 0.08)"
+              stroke="rgba(255, 255, 255, 0.05)"
               strokeWidth="0.75"
             />
-            <circle cx="60" cy="60" r="1" fill="rgba(245, 158, 11, 0.16)" />
+            <circle cx="60" cy="60" r="1" fill="rgba(255, 255, 255, 0.1)" />
           </pattern>
         </defs>
 
@@ -153,12 +153,12 @@ export const ArchitecturalBackground: React.FC = () => {
         </g>
       </svg>
 
-      {/* 4. Deep Cinematic Vignette Framing (Preserves 80% Black Dominance) */}
+      {/* 4. Deep Cinematic Vignette Framing (Preserves 85% Black Dominance) */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(circle at 50% 45%, transparent 35%, rgba(0, 0, 0, 0.65) 78%, rgba(0, 0, 0, 0.94) 100%)',
+            'radial-gradient(circle at 50% 45%, transparent 28%, rgba(0, 0, 0, 0.76) 72%, rgba(0, 0, 0, 0.97) 100%)',
         }}
       />
     </div>
