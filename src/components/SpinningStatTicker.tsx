@@ -24,12 +24,6 @@ interface SpinningStatTickerProps {
   intervalMs?: number;
 }
 
-/**
- * Interactive Swappable & Auto-Spinning Statistic Panel for Tobacco Cards.
- * - Lets users toggle/swap between different metrics (5 Karakter /5, Timbangan, Modal, Profit)
- *   via quick-swap pill tabs, left/right mini arrows, or tapping the stat deck directly.
- * - Automatically cycles smoothly when idle so all metrics remain visible without taking extra space.
- */
 export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
   items,
   intervalMs = 3400,
@@ -87,7 +81,6 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
       title="Ketuk untuk menukar (swap) tampilan statistik"
       className="relative bg-black/95 border border-zinc-800 hover:border-zinc-600 rounded-xl p-2.5 overflow-hidden transition-colors cursor-pointer select-none min-h-[108px] flex flex-col justify-between shadow-inner"
     >
-      {/* Top Header: Active Metric Label + Interactive Swap Button */}
       <div className="flex items-center justify-between gap-1.5 pb-1.5 border-b border-zinc-900">
         <span className="text-[10px] font-extrabold uppercase tracking-wider text-zinc-300 truncate">
           {current.label}
@@ -128,7 +121,6 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
         </div>
       </div>
 
-      {/* Swappable 3D Animated Metric Body */}
       <div className="relative my-auto py-1.5 min-h-[48px] flex items-center overflow-hidden">
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div
@@ -141,7 +133,6 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
             className="w-full"
           >
             {current.characterParams && current.characterParams.length > 0 ? (
-              /* ALL 5 CHARACTER PARAMETERS (/5) INSIDE THE SWAPPABLE PANEL */
               <div className="grid grid-cols-5 gap-1 text-center">
                 {current.characterParams.map((param) => (
                   <div
@@ -158,7 +149,6 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
                 ))}
               </div>
             ) : (
-              /* 2-LINE CLEAR STATISTIC DISPLAY */
               <div className="space-y-1">
                 <div className="flex items-center justify-between gap-1.5">
                   <span
@@ -183,7 +173,6 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
         </AnimatePresence>
       </div>
 
-      {/* Quick-Swap Metric Pill Switcher at Bottom */}
       <div className="grid grid-cols-4 gap-1 pt-1 border-t border-zinc-900/90">
         {items.map((it, idx) => {
           const isActive = idx === safeIndex;
@@ -227,11 +216,6 @@ interface AutoSlideValueTickerProps {
   intervalMs?: number;
 }
 
-/**
- * Auto-sliding single-panel KPI banner for Nilai Bayar vs Nilai Riil & Weight Profit.
- * Shows one metric at a time in large, readable numbers with auto-rotation,
- * quick-select tabs, and click-to-inspect calculation modal support.
- */
 export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
   slides,
   intervalMs = 3800,
@@ -278,7 +262,6 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
       onMouseLeave={() => setIsPaused(false)}
       className="requiem-card p-3 sm:p-3.5 rounded-xl border border-zinc-700/90 bg-black/95 space-y-2.5 select-none shadow-[0_4px_0_0_#18181b,0_10px_20px_rgba(0,0,0,0.85)]"
     >
-      {/* Top Bar: Current Slide Title + Calc FX Button & Arrows */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
@@ -329,7 +312,6 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
         </div>
       </div>
 
-      {/* Main Large Number Display (Clickable to open calculation modal) */}
       <div
         onClick={() => current.onOpenCalc?.()}
         className="relative overflow-hidden bg-zinc-950/95 border border-zinc-800 hover:border-zinc-600 rounded-xl px-3.5 py-2.5 cursor-pointer transition-colors"
@@ -367,7 +349,6 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
         </AnimatePresence>
       </div>
 
-      {/* 3 Quick-Select Slide Tabs */}
       <div className="grid grid-cols-3 gap-1.5">
         {slides.map((s, idx) => {
           const isActive = idx === safeIndex;

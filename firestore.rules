@@ -76,8 +76,9 @@ service cloud.firestore {
       allow update: if isOwner(userId)
         && isValidId(userId)
         && isValidWorkspace(incoming())
-        && incoming().ownerId == existing().ownerId
+        && (!('ownerId' in existing()) || incoming().ownerId == existing().ownerId)
         && incoming().diff(existing()).affectedKeys().hasOnly([
+          'ownerId',
           'rawTobaccos',
           'finishedBatches',
           'rollSamples',

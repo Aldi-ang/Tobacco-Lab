@@ -11,7 +11,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-export const CURRENT_APP_VERSION = 'v3.8.0';
+export const CURRENT_APP_VERSION = 'v3.9.0';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -30,13 +30,73 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
-    version: 'v3.8.0',
+    version: 'v3.9.0',
     date: '8 November 2026',
-    codename: 'Tobacco Lab Rebrand, Edit Seri Jadi + Lock Guard & Auto-Slide KPI UI',
+    codename:
+      'Official Domain (tobaccolab.vercel.app), iPhone Cloud Sync Guard, Nota Setor Pabrik Ringkas & Anti-Tabrakan Panel Atas',
     isLatest: true,
     highlights:
-      'Rebranding penuh menjadi Tobacco Lab dengan rasio warna 85% Hitam / 10% Putih / 5% Amber, fitur Edit Lengkap Seri Jadi yang otomatis tersinkron dua arah dengan Gulungan beserta tombol Gembok Pengaman (Lock/Unlock), penghapusan header atas yang memakan tempat, panel Auto-Slide Nilai Bayar vs Riil & Weight Profit berangka besar, serta pemisahan kartu 3D dengan indikator 5 Karakter (/5) berwarna Amber.',
+      'Integrasi domain resmi tobaccolab.vercel.app, perbaikan sinkronisasi Cloud di iPhone/Safari (Dual-Path Cloud Pull + proteksi anti-timpa data demo saat pasang ulang aplikasi), penyederhanaan kolom Nota Setor Pabrik (SERI, HARGA, JUMLAH tanpa STATUS) dan badge ACCEPTED/REJECTED di Arsip Personal, penempatan Riwayat di ujung paling kanan dengan animasi presisi, serta perbaikan tabrakan panel atas di ukuran layar menengah.',
     changes: [
+      {
+        type: 'feature',
+        title: 'Domain Resmi tobaccolab.vercel.app & Tautan Bagikan Cepat',
+        description:
+          'Menetapkan https://tobaccolab.vercel.app/ sebagai tautan resmi di modal Install & Bagikan Aplikasi serta mendukung otorisasi lintas domain untuk Login Cloud dan ekspor Google Sheets.',
+      },
+      {
+        type: 'fix',
+        title: 'Perbaikan Cloud Sync iPhone (iOS Safari) & Proteksi Anti-Timpa Data Demo',
+        description:
+          'Mengunci koneksi database utama dengan Dual-Path Cloud Pull (unduh langsung dari server + real-time listener + tombol ketuk segarkan Cloud) dan memisahkan izin Google Sheets dari Login Cloud utama. Menambahkan pengaman agar data demo tidak pernah menimpa data lama di Cloud saat aplikasi dihapus atau dipasang ulang di Home Screen iPhone.',
+      },
+      {
+        type: 'ui',
+        title: 'Penyederhanaan Kolom Nota Setor Pabrik & Status ACCEPTED / REJECTED di Riwayat',
+        description:
+          'Menghapus kata "PABRIK" dan kolom "STATUS" pada Nota Setor Pabrik serta mengubah "SERI ASAL -> BARU" menjadi "SERI" (menyisakan SERI, HARGA, dan JUMLAH yang bersih untuk pabrik). Pada Nota Arsip Personal, status kini ditampilkan tegas sebagai ACCEPTED atau REJECTED.',
+      },
+      {
+        type: 'ui',
+        title: 'Segmen Riwayat di Ujung Paling Kanan dengan Animasi Indikator Presisi',
+        description:
+          'Menempatkan tombol Riwayat pada posisi paling kanan di bar navigasi atas dan bawah dengan proporsi jarak otomatis dan animasi transisi pegas (spring pill) yang rapi di semua ukuran layar.',
+      },
+      {
+        type: 'fix',
+        title: 'Perbaikan Tabrakan Panel Header Atas di Ukuran Layar Menengah (Tablet / Split-Screen)',
+        description:
+          'Memperbaiki tata letak bar atas agar judul TOBACCO LAB dan deretan tombol aksi (Stok Gudang, Akun Cloud, Install, Patch Notes, Format, + Bahan) otomatis menyesuaikan baris tanpa saling bertumpuk di ukuran layar antara HP dan PC.',
+      },
+    ],
+  },
+  {
+    version: 'v3.8.0',
+    date: '8 November 2026',
+    codename:
+      'Tobacco Lab Rebrand, Riwayat Nota & Seri, Ganti Seri Reject (AK 1 -> AL 1), Google Sheets & Edit Seri Lock Guard',
+    isLatest: false,
+    highlights:
+      'Rebranding penuh menjadi Tobacco Lab (85% Hitam / 10% Putih / 5% Amber), Segmen Riwayat Nota Gulungan & Status Semua Seri, Integrasi Langsung Google Sheets, Ganti Nomor Seri Barang Reject saat masuk Gulungan/Pabrik baru (mis. AK 1 -> AL 1), Edit Lengkap Seri Jadi + Gembok Pengaman (Lock/Unlock) yang tersinkron dua arah dengan Gulungan, serta Auto-Slide KPI berangka besar.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Segmen Riwayat (Riwayat Nota Gulungan & Data Status Semua Seri)',
+        description:
+          'Menambahkan segmen Riwayat khusus untuk melihat kembali seluruh Nota Gulungan yang pernah dikirim ke pabrik (lengkap dengan mode Arsip Personal Profit vs Nota Setor Pabrik) serta tabel komprehensif status seluruh Nomor Seri di dalam aplikasi.',
+      },
+      {
+        type: 'feature',
+        title: 'Ganti Nomor Seri Barang Reject ke Gulungan & Pabrik Baru (AK 1 -> AL 1)',
+        description:
+          'Saat barang yang di-reject kembali ke Stok Tembakau Jadi dan dimasukkan ke Gulungan baru (maupun ke Pabrik tujuan baru), kini tersedia opsi untuk mengganti Nomor Serinya (contoh: AK 1 di Cello 1 reject -> diubah menjadi AL 1 untuk Djarum 1) dengan tampilan riwayat seri "AK 1 -> AL 1" di seluruh aplikasi.',
+      },
+      {
+        type: 'feature',
+        title: 'Integrasi Langsung Google Sheets (Buat Baru & Update Spreadsheet)',
+        description:
+          'Dukungan transfer langsung Riwayat Nota Gulungan, Status Semua Seri (beserta jejak AK 1 -> AL 1), dan Stok Bahan Mentah ke akun Google Sheets Anda secara otomatis maupun salin TSV/CSV sekali klik.',
+      },
       {
         type: 'feature',
         title: 'Fitur Edit Seri Jadi & Sinkronisasi Otomatis Dua Arah dengan Gulungan',
@@ -53,7 +113,7 @@ export const PATCH_RELEASES: PatchRelease[] = [
         type: 'ui',
         title: 'Panel Auto-Slide Nilai Bayar, Nilai Riil & Weight Profit Berangka Besar',
         description:
-          'Mengganti 3 kotak kecil yang memakan layar menjadi 1 panel Auto-Slide (bergeser otomatis satu per satu) dengan angka Rupiah dan KG berukuran besar yang sangat jelas dibaca, dilengkapi tab pilih cepat (1. Nilai Bayar, 2. Nilai Riil, 3. Weight Profit) dan tombol fx rincian rumus.',
+          'Mengganti 3 kotak kecil yang memakan layar menjadi 1 panel Auto-Slide (bergeser otomatis satu per satu) dengan angka Rupiah dan KG berukuran besar yang sangat jelas dibaca, dilengkapi tab pilih cepat dan tombol fx rincian rumus.',
       },
       {
         type: 'ui',
@@ -155,7 +215,7 @@ export const PATCH_RELEASES: PatchRelease[] = [
         type: 'fix',
         title: 'Perbaikan Kompatibilitas Safari iOS & Panduan Link Publik',
         description:
-          'Menyesuaikan registrasi Service Worker agar tidak terblokir di Safari iPhone serta menambahkan panduan pembuatan link publik (.run.app) dan tombol Bagikan/Salin Link di bar atas.',
+          'Menyesuaikan registrasi Service Worker agar tidak terblokir di Safari iPhone serta menambahkan panduan pembuatan tautan akses langsung dan tombol Bagikan/Salin Tautan di bar atas.',
       },
     ],
   },

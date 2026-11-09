@@ -18,7 +18,12 @@ import {
   TobaccoGrade,
   SerialFactoryStatus,
 } from '../types/tobacco';
-import { GRADE_LABELS, formatRupiah, clampRating5 } from '../utils/tobaccoMath';
+import {
+  GRADE_LABELS,
+  formatRupiah,
+  clampRating5,
+  formatSerialLineage,
+} from '../utils/tobaccoMath';
 import { NumericInput } from './NumericInput';
 
 interface EditFinishedSerialModalProps {
@@ -235,10 +240,25 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const matchedRoll = rollSamples.find((r) => r.id === rollId);
+    const nextSerialNumber = serialNumber.trim() || serial.serialNumber;
+    const isSerialRenamed = nextSerialNumber !== serial.serialNumber;
+    const baseHistory =
+      serial.serialHistory && serial.serialHistory.length > 0
+        ? [...serial.serialHistory]
+        : serial.previousSerialNumber && serial.previousSerialNumber !== serial.serialNumber
+          ? [serial.previousSerialNumber, serial.serialNumber]
+          : [serial.serialNumber];
+    if (isSerialRenamed && baseHistory[baseHistory.length - 1] !== nextSerialNumber) {
+      baseHistory.push(nextSerialNumber);
+    }
 
     const updated: FinishedTobaccoSerial = {
       ...serial,
-      serialNumber: serialNumber.trim() || serial.serialNumber,
+      serialNumber: nextSerialNumber,
+      previousSerialNumber: isSerialRenamed
+        ? serial.serialNumber
+        : serial.previousSerialNumber,
+      serialHistory: baseHistory,
       recipeName: recipeName.trim() || matchedRoll?.recipeName || serial.recipeName,
       rollId: matchedRoll?.id || rollId || serial.rollId,
       rollNumber: matchedRoll?.rollNumber || serial.rollNumber,
@@ -300,7 +320,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
               </span>
               <div className="min-w-0">
                 <h2 className="text-xs sm:text-sm font-black text-white truncate">
-                  Edit Seri Jadi — SERI {serial.serialNumber}
+                  Edit Seri Jadi — SERI {formatSerialLineage(serial)}
                 </h2>
                 <p className="text-[10px] text-zinc-400 truncate">
                   Harga Pabrik siap diedit • Tekan ikon gembok untuk mengubah kolom lain

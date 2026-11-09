@@ -28,6 +28,8 @@ import {
   formatRupiah,
   formatSheetRp,
   buildGoogleSheetText,
+  formatSerialLineage,
+  hasSerialLineage,
 } from '../utils/tobaccoMath';
 import { NumericInput } from './NumericInput';
 import { TobaccoRoll3D, FullScreenScrollModal } from './TobaccoRoll3D';
@@ -55,6 +57,7 @@ interface RollArchiveViewProps {
       taraKg?: number;
     }
   ) => void;
+  onOpenGoogleSheetsModal?: () => void;
 }
 
 export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
@@ -66,6 +69,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
   onOpenNewRollModal,
   onUpdateSerial,
   onRepriceSerial,
+  onOpenGoogleSheetsModal,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeRollId, setActiveRollId] = useState<string | null>(null);
@@ -81,7 +85,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
     const serialsInRoll = finishedBatches.filter(
       (b) => b.rollId === roll.id || b.rollNumber === roll.rollNumber
     );
-    const serialsText = serialsInRoll.map((s) => s.serialNumber).join(' ');
+    const serialsText = serialsInRoll.map((s) => formatSerialLineage(s)).join(' ');
 
     return (
       roll.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -260,7 +264,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                   <tr key={s.id} className="h-10 hover:bg-zinc-950/80 text-zinc-200">
                     <td className="py-1.5 px-2 border-r border-zinc-900">{idx + 1}</td>
                     <td className="py-1.5 px-2 border-r border-zinc-900 font-bold text-white">
-                      {s.serialNumber}
+                      {formatSerialLineage(s)}
                     </td>
                     <td className="py-1.5 px-2 border-r border-zinc-900">{bruto}</td>
                     <td className="py-1.5 px-2 border-r border-zinc-900">{tara}</td>
@@ -1116,6 +1120,18 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                       <Eye className="w-4 h-4 shrink-0" />
                       <span>Komposisi dan Evaluasi</span>
                     </button>
+
+                    {onOpenGoogleSheetsModal && (
+                      <button
+                        type="button"
+                        title="Transfer Langsung ke Google Sheets"
+                        onClick={onOpenGoogleSheetsModal}
+                        className="btn-amber-outline min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                        <span>Transfer Google Sheets</span>
+                      </button>
+                    )}
                   </div>
 
                   {!isNotaVisible && (
@@ -1169,7 +1185,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                             <div className="space-y-2">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="px-2.5 py-0.5 rounded-md bg-black border border-zinc-700 font-mono font-black text-amber-400 text-xs">
-                                  SERI {ser.serialNumber}
+                                  SERI {formatSerialLineage(ser)}
                                 </span>
 
                                 <div className="flex items-center gap-1.5">
@@ -1190,6 +1206,12 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                                   )}
                                 </div>
                               </div>
+                              {hasSerialLineage(ser) && ser.previousRollNumber && (
+                                <div className="text-[10px] font-mono text-zinc-400">
+                                  Eks-Gulungan:{' '}
+                                  <b className="text-amber-300">{ser.previousRollNumber}</b>
+                                </div>
+                              )}
 
                               <div className="bg-black/80 p-2 rounded-lg border border-zinc-900 space-y-1 font-mono text-[11px]">
                                 <div className="flex items-center justify-between text-zinc-400">

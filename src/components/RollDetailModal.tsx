@@ -54,7 +54,6 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
       ? roll.ingredientsSnapshot
       : serialsInRoll[0]?.ingredients || [];
 
-  // Calculate accurate multi-grade breakdown across all serials inside this Gulungan
   const gradeCounts = serialsInRoll.reduce<Record<string, number>>((acc, ser) => {
     const g = ser.compositeColorGrade || 'D';
     acc[g] = (acc[g] || 0) + 1;
@@ -86,7 +85,6 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
       <div className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden">
-        {/* Header (Shows Gulungan Name, Code, and Date) */}
         <div className="px-4 sm:px-5 py-3.5 border-b border-zinc-800 bg-black flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="p-2 rounded-xl bg-black text-amber-400 border border-zinc-700 shrink-0">
@@ -120,9 +118,7 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
           </button>
         </div>
 
-        {/* Locked Content Body (No Confusing < > Slider Inside!) */}
         <div className="overflow-y-auto p-4 sm:p-5 space-y-6 flex-1 text-xs">
-          {/* SECTION 1: KOMPOSISI DAUN & MULTI-GRADE SERI BREAKDOWN */}
           <div className="space-y-3 bg-black/90 p-4 rounded-xl border border-zinc-800">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-zinc-800">
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
@@ -130,7 +126,6 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
                 1. Rincian Komposisi Campuran Daun & Multi-Grade Seri
               </h3>
 
-              {/* Accurate Multi-Grade Breakdown across all Serials in this Gulungan */}
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[10px] text-zinc-400 font-bold">
                   Grade Seri di Gulungan Ini:
@@ -196,7 +191,6 @@ export const RollDetailModal: React.FC<RollDetailModalProps> = ({
             </div>
           </div>
 
-          {/* SECTION 2: EVALUASI GRADER PABRIK (/5) */}
           <form
             onSubmit={handleSaveTest}
             className="space-y-4 bg-black/90 p-4 rounded-xl border border-zinc-800"

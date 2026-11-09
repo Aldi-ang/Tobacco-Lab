@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { RawTobaccoList } from './components/RawTobaccoList';
@@ -18,10 +18,14 @@ import { MasterRegistryModal } from './components/MasterRegistryModal';
 import { PatchNotesModal, CURRENT_APP_VERSION } from './components/PatchNotesModal';
 import { ArchitecturalBackground } from './components/ArchitecturalBackground';
 import { CloudLoginScreen } from './components/CloudLoginScreen';
+import { HistoryView } from './components/HistoryView';
+import { GoogleSheetsExportModal } from './components/GoogleSheetsExportModal';
 import {
   auth,
   db,
   doc,
+  getDoc,
+  getDocFromServer,
   setDoc,
   onSnapshot,
   serverTimestamp,
@@ -49,7 +53,10 @@ import {
   INITIAL_PACKAGING_MASTERS,
   INITIAL_FACTORY_MASTERS,
 } from './data/mockTobacco';
-import { clampRating5 } from './utils/tobaccoMath';
+import {
+  clampRating5,
+  applyRejectedSerialReassignment,
+} from './utils/tobaccoMath';
 
 const STORAGE_KEYS = {
   RAW: 'kretek_master_raw_tobacco_v3',
@@ -127,6 +134,8 @@ export default function App() {
 
   const [blendPrefilledIngredients, setBlendPrefilledIngredients] = useState<BlendIngredient[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isGoogleSheetsModalOpen, setIsGoogleSheetsModalOpen] = useState<boolean>(false);
+  const [stockInitialPanel, setStockInitialPanel] = useState<'raw' | 'rejected-finished'>('raw');
 
   // Firebase Auth & Real-Time Cloud Sync State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -142,13 +151,104 @@ export default function App() {
   );
   const isApplyingRemoteRef = useRef<boolean>(false);
   const initialCloudLoadDoneRef = useRef<boolean>(false);
+  // Strict guard: never push local state to Firestore unless the user actually mutated data after cloud load
+  const hasLocalUserMutationRef = useRef<boolean>(false);
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage(null);
     }, 3500);
-  };
+  }, []);
+
+  const applyRemoteWorkspaceData = useCallback(
+    (data: Record<string, unknown>, notifyToast?: string) => {
+      isApplyingRemoteRef.current = true;
+      if (Array.isArray(data.rawTobaccos)) setRawTobaccos(data.rawTobaccos as RawTobacco[]);
+      if (Array.isArray(data.finishedBatches))
+        setFinishedBatches(data.finishedBatches as FinishedTobaccoSerial[]);
+      if (Array.isArray(data.rollSamples))
+        setRollSamples(data.rollSamples as TobaccoRollSample[]);
+      if (Array.isArray(data.packagingList))
+        setPackagingList(data.packagingList as PackagingMaster[]);
+      if (Array.isArray(data.factoryList)) setFactoryList(data.factoryList as FactoryMaster[]);
+
+      initialCloudLoadDoneRef.current = true;
+      setCloudSyncStatus('synced');
+      if (notifyToast) {
+        showToast(notifyToast);
+      }
+      setTimeout(() => {
+        isApplyingRemoteRef.current = false;
+      }, 150);
+    },
+    [showToast]
+  );
+
+  /**
+   * Explicit HTTP/Long-Polling Cloud Pull (Crucial for iPhone / iOS Safari / Home Screen PWA
+   * where passive `onSnapshot` streams can stall after Google OAuth sign-in).
+   */
+  const pullCloudWorkspace = useCallback(
+    async (user: User, options?: { showSuccessToast?: boolean }) => {
+      const workspacePath = `workspaces/${user.uid}`;
+      const workspaceRef = doc(db, 'workspaces', user.uid);
+      setCloudSyncStatus('syncing');
+
+      try {
+        // Race getDocFromServer against a 5s timer on mobile networks, falling back to getDoc
+        const snapshot = await Promise.race([
+          getDocFromServer(workspaceRef),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('SERVER_PULL_TIMEOUT')), 5000)
+          ),
+        ]).catch(async () => {
+          return await getDoc(workspaceRef);
+        });
+
+        if (snapshot.exists()) {
+          applyRemoteWorkspaceData(
+            snapshot.data() as Record<string, unknown>,
+            options?.showSuccessToast
+              ? 'Data Cloud terbaru berhasil dimuat dari server!'
+              : undefined
+          );
+          return true;
+        } else if (!snapshot.metadata.fromCache) {
+          // Only initialize a brand-new cloud workspace if the live server confirmed no document exists yet
+          await setDoc(workspaceRef, {
+            ownerId: user.uid,
+            rawTobaccos: sanitizeForFirestore(rawTobaccos.slice(0, 300)),
+            finishedBatches: sanitizeForFirestore(finishedBatches.slice(0, 500)),
+            rollSamples: sanitizeForFirestore(rollSamples.slice(0, 200)),
+            packagingList: sanitizeForFirestore(packagingList.slice(0, 100)),
+            factoryList: sanitizeForFirestore(factoryList.slice(0, 100)),
+            updatedAt: serverTimestamp(),
+          });
+          initialCloudLoadDoneRef.current = true;
+          setCloudSyncStatus('synced');
+          return true;
+        }
+        return false;
+      } catch (err) {
+        console.warn('Cloud pull warning:', err);
+        setCloudSyncStatus('error');
+        if (options?.showSuccessToast) {
+          showToast('Gagal menarik data Cloud. Periksa koneksi internet lalu ketuk ikon Cloud.');
+        }
+        return false;
+      }
+    },
+    [
+      applyRemoteWorkspaceData,
+      factoryList,
+      finishedBatches,
+      packagingList,
+      rawTobaccos,
+      rollSamples,
+      showToast,
+    ]
+  );
 
   // Track Firebase Google Authentication state
   useEffect(() => {
@@ -158,71 +258,65 @@ export default function App() {
       if (!user) {
         setCloudSyncStatus('offline');
         initialCloudLoadDoneRef.current = false;
+        hasLocalUserMutationRef.current = false;
       }
     });
     return () => unsubscribe();
   }, []);
 
-  // Attach real-time Firestore listener when user is signed in with Google
+  // Dual-Path Cloud Sync on Login: Immediate Server Pull + Real-Time Listener + Watchdog
   useEffect(() => {
     if (!authReady || !currentUser) return;
 
     const workspacePath = `workspaces/${currentUser.uid}`;
     const workspaceRef = doc(db, 'workspaces', currentUser.uid);
-    setCloudSyncStatus('syncing');
+    let isCancelled = false;
 
+    // 1. Immediately pull from server so iPhone / iOS Safari never hangs waiting on stream
+    pullCloudWorkspace(currentUser, { showSuccessToast: false });
+
+    // 2. Attach real-time listener for live multi-device updates
     const unsubscribe = onSnapshot(
       workspaceRef,
-      async (snapshot) => {
+      (snapshot) => {
+        if (isCancelled) return;
         if (snapshot.exists()) {
-          const data = snapshot.data();
-          isApplyingRemoteRef.current = true;
-          if (Array.isArray(data.rawTobaccos)) setRawTobaccos(data.rawTobaccos);
-          if (Array.isArray(data.finishedBatches)) setFinishedBatches(data.finishedBatches);
-          if (Array.isArray(data.rollSamples)) setRollSamples(data.rollSamples);
-          if (Array.isArray(data.packagingList)) setPackagingList(data.packagingList);
-          if (Array.isArray(data.factoryList)) setFactoryList(data.factoryList);
-          initialCloudLoadDoneRef.current = true;
-          setCloudSyncStatus('synced');
-          setTimeout(() => {
-            isApplyingRemoteRef.current = false;
-          }, 80);
-        } else {
-          // First time signing in: initialize cloud workspace with current data
-          try {
-            await setDoc(workspaceRef, {
-              ownerId: currentUser.uid,
-              rawTobaccos: sanitizeForFirestore(rawTobaccos.slice(0, 300)),
-              finishedBatches: sanitizeForFirestore(finishedBatches.slice(0, 500)),
-              rollSamples: sanitizeForFirestore(rollSamples.slice(0, 200)),
-              packagingList: sanitizeForFirestore(packagingList.slice(0, 100)),
-              factoryList: sanitizeForFirestore(factoryList.slice(0, 100)),
-              updatedAt: serverTimestamp(),
-            });
-            initialCloudLoadDoneRef.current = true;
-            setCloudSyncStatus('synced');
-          } catch (err) {
-            setCloudSyncStatus('error');
-            handleFirestoreError(err, OperationType.CREATE, workspacePath);
-          }
+          applyRemoteWorkspaceData(snapshot.data() as Record<string, unknown>);
         }
       },
       (err) => {
+        if (isCancelled) return;
         setCloudSyncStatus('error');
-        handleFirestoreError(err, OperationType.GET, workspacePath);
+        try {
+          handleFirestoreError(err, OperationType.GET, workspacePath);
+        } catch {
+          // Logged by handleFirestoreError
+        }
       }
     );
 
-    return () => unsubscribe();
+    // 3. Watchdog: if still syncing after 6.5s on mobile, retry explicit pull
+    const watchdogTimer = setTimeout(() => {
+      if (!isCancelled && !initialCloudLoadDoneRef.current) {
+        pullCloudWorkspace(currentUser, { showSuccessToast: false });
+      }
+    }, 6500);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(watchdogTimer);
+      unsubscribe();
+    };
   }, [authReady, currentUser]);
 
-  // Automatically sync local state changes to Firestore Cloud when logged in
+  // Automatically sync local state changes to Firestore Cloud ONLY after initial cloud pull AND real user edit
   useEffect(() => {
     if (
       !authReady ||
       !currentUser ||
       !initialCloudLoadDoneRef.current ||
-      isApplyingRemoteRef.current
+      isApplyingRemoteRef.current ||
+      !hasLocalUserMutationRef.current
     ) {
       return;
     }
@@ -242,6 +336,7 @@ export default function App() {
           factoryList: sanitizeForFirestore(factoryList.slice(0, 100)),
           updatedAt: serverTimestamp(),
         });
+        hasLocalUserMutationRef.current = false;
         setCloudSyncStatus('synced');
       } catch (err) {
         setCloudSyncStatus('error');
@@ -301,6 +396,7 @@ export default function App() {
   }, [factoryList]);
 
   const handleSaveRawTobacco = (tobacco: RawTobacco) => {
+    hasLocalUserMutationRef.current = true;
     const exists = rawTobaccos.some((t) => t.id === tobacco.id);
     if (exists) {
       setRawTobaccos(rawTobaccos.map((t) => (t.id === tobacco.id ? tobacco : t)));
@@ -315,6 +411,7 @@ export default function App() {
   const handleDeleteRawTobacco = (id: string) => {
     const item = rawTobaccos.find((t) => t.id === id);
     if (!item) return;
+    hasLocalUserMutationRef.current = true;
     setRawTobaccos(rawTobaccos.filter((t) => t.id !== id));
     showToast(`Tembakau "${item.name}" telah dihapus.`);
   };
@@ -376,6 +473,7 @@ export default function App() {
 
   // Save Multiple Finished Serials from 1 Mixture
   const handleSaveMultipleFinished = (createdSerials: FinishedTobaccoSerial[]) => {
+    hasLocalUserMutationRef.current = true;
     setFinishedBatches([...createdSerials, ...finishedBatches]);
 
     // Update Gulungan samples that received these serials
@@ -446,6 +544,7 @@ export default function App() {
     status: SerialFactoryStatus,
     currentRoll?: TobaccoRollSample
   ) => {
+    hasLocalUserMutationRef.current = true;
     setFinishedBatches((prev) =>
       prev.map((ser) => {
         if (ser.id !== serialId) return ser;
@@ -482,52 +581,58 @@ export default function App() {
     }
   };
 
-  // Re-assign a Rejected Seri from Stok Tembakau Jadi into the Newest / Selected Gulungan (keeps packaging & weights intact)
-  const handleReassignRejectedToRoll = (serialId: string, targetRollId: string) => {
+  // Re-assign a Rejected Seri from Stok Tembakau Jadi into the Newest / Selected Gulungan (with optional serial rename e.g. AK 1 -> AL 1 and new factory)
+  const handleReassignRejectedToRoll = (
+    serialId: string,
+    targetRollId: string,
+    newSerialNumber?: string,
+    newTargetFactory?: string
+  ) => {
     const targetRoll = rollSamples.find((r) => r.id === targetRollId);
     if (!targetRoll) return;
 
     const targetSerial = finishedBatches.find((b) => b.id === serialId);
     if (!targetSerial) return;
 
-    setFinishedBatches((prev) =>
-      prev.map((ser) => {
-        if (ser.id !== serialId) return ser;
-        return {
-          ...ser,
-          factoryStatus: 'PENDING',
-          previousRollId: ser.previousRollId || ser.rollId,
-          previousRollNumber:
-            ser.previousRollNumber || `${ser.rollNumber || 'GUL-LAMA'} (${ser.targetFactory})`,
-          previousFactory: ser.previousFactory || ser.targetFactory,
-          rollId: targetRoll.id,
-          rollNumber: targetRoll.rollNumber,
-          rollRackNumber: targetRoll.rackLocation,
-          targetFactory: targetRoll.targetFactory,
-        };
-      })
+    hasLocalUserMutationRef.current = true;
+    const oldSerialNum = targetSerial.serialNumber;
+    const { updatedSerial, updatedTargetRollSerialNumbers, lineageDisplay } =
+      applyRejectedSerialReassignment({
+        serial: targetSerial,
+        targetRoll,
+        newSerialNumber,
+        newTargetFactory,
+      });
+
+    const nextBatches = finishedBatches.map((ser) =>
+      ser.id === serialId ? updatedSerial : ser
     );
+    setFinishedBatches(nextBatches);
 
     setRollSamples((prevRolls) =>
-      prevRolls.map((r) => {
-        if (r.id === targetRoll.id) {
-          const existing = r.serialNumbers || [];
-          const nextSerials = existing.includes(targetSerial.serialNumber)
-            ? existing
-            : [...existing, targetSerial.serialNumber];
-          return {
-            ...r,
-            serialNumbers: nextSerials,
-            serialNumber: nextSerials.join(', '),
-          };
-        }
-        return r;
-      })
+      syncRollsWithSerials(
+        prevRolls.map((r) =>
+          r.id === targetRoll.id
+            ? {
+                ...r,
+                serialNumbers: updatedTargetRollSerialNumbers,
+                serialNumber: updatedTargetRollSerialNumbers.join(', '),
+              }
+            : r
+        ),
+        nextBatches
+      )
     );
 
-    showToast(
-      `Seri ${targetSerial.serialNumber} (Kemasan & Berat Utuh) dimasukkan ke Gulungan ${targetRoll.rollNumber}!`
-    );
+    if (updatedSerial.serialNumber !== oldSerialNum) {
+      showToast(
+        `Seri ${oldSerialNum} diubah menjadi ${updatedSerial.serialNumber} (${lineageDisplay}) & dimasukkan ke Gulungan ${targetRoll.rollNumber} (${updatedSerial.targetFactory})!`
+      );
+    } else {
+      showToast(
+        `Seri ${updatedSerial.serialNumber} (Kemasan & Berat Utuh) dimasukkan ke Gulungan ${targetRoll.rollNumber} (${updatedSerial.targetFactory})!`
+      );
+    }
   };
 
   // Synchronize all Gulungan (rollSamples) metadata & snapshots whenever any Seri Jadi is edited or moved
@@ -576,6 +681,7 @@ export default function App() {
 
   // Full Edit of a Seri Jadi (shared automatically with its Gulungan)
   const handleUpdateFinishedSerial = (updated: FinishedTobaccoSerial) => {
+    hasLocalUserMutationRef.current = true;
     const linkedRoll = rollSamples.find((r) => r.id === updated.rollId);
     const normalizedSerial: FinishedTobaccoSerial = {
       ...updated,
@@ -603,6 +709,7 @@ export default function App() {
       taraKg?: number;
     }
   ) => {
+    hasLocalUserMutationRef.current = true;
     const nextBatches = finishedBatches.map((ser) => {
       if (ser.id !== serialId) return ser;
       const nextBruto =
@@ -665,6 +772,7 @@ export default function App() {
   const handleDeleteFinished = (id: string) => {
     const item = finishedBatches.find((b) => b.id === id);
     if (!item) return;
+    hasLocalUserMutationRef.current = true;
     const nextBatches = finishedBatches.filter((b) => b.id !== id);
     setFinishedBatches(nextBatches);
     setRollSamples((prevRolls) => syncRollsWithSerials(prevRolls, nextBatches));
@@ -684,6 +792,7 @@ export default function App() {
     rollId: string,
     updatedTest: NonNullable<TobaccoRollSample['smokingTest']>
   ) => {
+    hasLocalUserMutationRef.current = true;
     setRollSamples(
       rollSamples.map((r) => (r.id === rollId ? { ...r, smokingTest: updatedTest } : r))
     );
@@ -723,6 +832,7 @@ export default function App() {
     reader.onload = (event) => {
       try {
         const parsed = JSON.parse(event.target?.result as string);
+        hasLocalUserMutationRef.current = true;
         if (parsed.rawTobaccos && Array.isArray(parsed.rawTobaccos))
           setRawTobaccos(parsed.rawTobaccos);
         if (parsed.finishedBatches && Array.isArray(parsed.finishedBatches))
@@ -743,6 +853,7 @@ export default function App() {
   };
 
   const handleResetData = () => {
+    hasLocalUserMutationRef.current = true;
     setRawTobaccos(INITIAL_RAW_TOBACCO);
     setFinishedBatches(INITIAL_FINISHED_TOBACCO);
     setRollSamples(INITIAL_ROLL_SAMPLES);
@@ -821,6 +932,11 @@ export default function App() {
             setOfflineBypass(false);
             showToast('Berhasil keluar dari akun Google Cloud.');
           }}
+          onForceCloudSync={() => {
+            if (currentUser) {
+              pullCloudWorkspace(currentUser, { showSuccessToast: true });
+            }
+          }}
         />
 
         <main className="flex-1 max-w-7xl w-full mx-auto py-4 sm:py-5 safe-main-container">
@@ -837,6 +953,8 @@ export default function App() {
                   tobaccos={rawTobaccos}
                   finishedBatches={finishedBatches}
                   rollSamples={rollSamples}
+                  factoryList={factoryList}
+                  initialStockPanel={stockInitialPanel}
                   onAddNew={() => {
                     setEditingTobacco(null);
                     setIsRawModalOpen(true);
@@ -874,6 +992,7 @@ export default function App() {
                   onOpenRoll={handleOpenRollFromFinished}
                   onUpdateSerial={handleUpdateFinishedSerial}
                   onDelete={handleDeleteFinished}
+                  onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
                 />
               )}
 
@@ -898,6 +1017,23 @@ export default function App() {
                   }}
                   onUpdateSerial={handleUpdateFinishedSerial}
                   onRepriceSerial={handleRepriceSerial}
+                  onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
+                />
+              )}
+
+              {activeTab === 'history' && (
+                <HistoryView
+                  rollSamples={rollSamples}
+                  finishedBatches={finishedBatches}
+                  rawTobaccos={rawTobaccos}
+                  packagingList={packagingList}
+                  factoryList={factoryList}
+                  onUpdateSerial={handleUpdateFinishedSerial}
+                  onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
+                  onGoToRejectedStock={() => {
+                    setStockInitialPanel('rejected-finished');
+                    setActiveTab('inventory');
+                  }}
                 />
               )}
 
@@ -938,24 +1074,29 @@ export default function App() {
         initialSection={masterInitialSection}
         packagingList={packagingList}
         onAddPackaging={(pkg) => {
+          hasLocalUserMutationRef.current = true;
           setPackagingList([...packagingList, pkg]);
           showToast(`Jenis Packaging "${pkg.name}" berhasil didaftarkan!`);
         }}
         onDeletePackaging={(id) => {
+          hasLocalUserMutationRef.current = true;
           setPackagingList(packagingList.filter((p) => p.id !== id));
           showToast('Jenis Packaging dihapus.');
         }}
         factoryList={factoryList}
         onAddFactory={(fac) => {
+          hasLocalUserMutationRef.current = true;
           setFactoryList([...factoryList, fac]);
           showToast(`Pabrik "${fac.name}" berhasil didaftarkan!`);
         }}
         onDeleteFactory={(id) => {
+          hasLocalUserMutationRef.current = true;
           setFactoryList(factoryList.filter((f) => f.id !== id));
           showToast('Data pabrik dihapus.');
         }}
         rollSamples={rollSamples}
         onAddRollSample={(roll) => {
+          hasLocalUserMutationRef.current = true;
           setRollSamples([...rollSamples, roll]);
           showToast(`Gulungan Sampel "${roll.rollNumber}" berhasil dibuat!`);
         }}
@@ -964,6 +1105,15 @@ export default function App() {
       <PatchNotesModal
         isOpen={isPatchNotesOpen}
         onClose={() => setIsPatchNotesOpen(false)}
+      />
+
+      <GoogleSheetsExportModal
+        isOpen={isGoogleSheetsModalOpen}
+        onClose={() => setIsGoogleSheetsModalOpen(false)}
+        rawTobaccos={rawTobaccos}
+        finishedBatches={finishedBatches}
+        rollSamples={rollSamples}
+        userEmail={currentUser?.email || null}
       />
 
       <AnimatePresence>

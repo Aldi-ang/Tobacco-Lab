@@ -1491,3 +1491,4 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
     </div>
   );
 };
+

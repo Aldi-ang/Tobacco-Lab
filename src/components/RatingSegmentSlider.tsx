@@ -27,7 +27,6 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
 
   return (
     <div className="bg-black/95 p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-600 transition-all duration-200 space-y-3">
-      {/* Top Row: Label & Stepper Buttons */}
       <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-zinc-800/90">
         <div className="min-w-0">
           <span className="text-xs font-bold text-white block truncate">{label}</span>
@@ -58,7 +57,6 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
         </div>
       </div>
 
-      {/* Smooth Track + Native Range Overlay with spacing */}
       <div className="pt-0.5 space-y-2.5">
         <div className="relative h-2.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
           <motion.div
@@ -79,7 +77,6 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
           />
         </div>
 
-        {/* Ergonomic Segment Quick-Select Buttons separated by border & spacing */}
         <div className="pt-2 border-t border-zinc-900 grid grid-cols-7 gap-1">
           {QUICK_STEPS.map((step) => {
             const isActive = Math.abs(safeVal - step) < 0.05;
@@ -106,8 +103,8 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
 
 export interface SegmentOption<T extends string> {
   id: T;
-  label: string; // Short label displayed on button
-  fullLabel?: string; // Full descriptive name shown on hover tooltip
+  label: string;
+  fullLabel?: string;
   badge?: string | number;
   icon?: React.ReactNode;
 }
@@ -119,13 +116,6 @@ interface SegmentedControlProps<T extends string> {
   className?: string;
 }
 
-/**
- * Fixed-Position Left/Right Navigator + Segment Switcher
- * - Full-width locked container (`w-full`) so the `<` and `>` navigator buttons stay
- *   in the exact same pixel position and never shift, resize, or snap when pressed.
- * - On Phone (`< sm`): Fixed-width center display between left `<` and right `>`.
- * - On Desktop (`>= sm`): Equal-width columns for every option between left `<` and right `>`.
- */
 export function SegmentedControl<T extends string>({
   options,
   value,
@@ -154,7 +144,6 @@ export function SegmentedControl<T extends string>({
       className={`w-full flex items-center justify-between gap-1.5 p-1 rounded-xl bg-black/95 border border-zinc-800 ${className}`}
       role="tablist"
     >
-      {/* Fixed Left Navigator Button */}
       <button
         type="button"
         onClick={handlePrev}
@@ -165,7 +154,6 @@ export function SegmentedControl<T extends string>({
         <ChevronLeft className="w-3.5 h-3.5 stroke-[2.5]" />
       </button>
 
-      {/* PHONE VIEW (< sm): Fixed-Width Center Indicator so `<` and `>` NEVER move */}
       <div className="sm:hidden flex-1 min-w-0 flex items-center justify-center">
         <div
           role="tab"
@@ -183,7 +171,6 @@ export function SegmentedControl<T extends string>({
         </div>
       </div>
 
-      {/* TABLET & DESKTOP VIEW (>= sm): Equal-Width Columns so format never shifts */}
       <div
         className="hidden sm:grid flex-1 min-w-0 gap-1"
         style={{
@@ -227,7 +214,6 @@ export function SegmentedControl<T extends string>({
                 )}
               </span>
 
-              {/* Sleek Hover Tooltip showing Full Segment Name */}
               <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-9 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                 {fullText}
               </span>
@@ -236,7 +222,6 @@ export function SegmentedControl<T extends string>({
         })}
       </div>
 
-      {/* Fixed Right Navigator Button */}
       <button
         type="button"
         onClick={handleNext}

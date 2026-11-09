@@ -8,7 +8,7 @@ import {
   WifiOff,
   Copy,
   Check,
-  Rocket,
+  Globe,
 } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -91,12 +91,23 @@ export const PWAInstallButton: React.FC = () => {
     }
   };
 
-  const baseOrigin =
-    typeof window !== 'undefined' && window.location.hostname.endsWith('.run.app')
-      ? window.location.origin.replace('https://ais-dev-', 'https://ais-pre-')
-      : 'https://ais-pre-erljkfkvxcacp6lxhzwb5h-921586357276.asia-east1.run.app';
+  const OFFICIAL_VERCEL_URL = 'https://tobaccolab.vercel.app';
 
-  const PUBLIC_SAFARI_URL = `${baseOrigin}/?__storage_access_granted=1`;
+  const isRunApp =
+    typeof window !== 'undefined' && window.location.hostname.endsWith('.run.app');
+  const isLocalhost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  const PUBLIC_SAFARI_URL =
+    !isRunApp && !isLocalhost && typeof window !== 'undefined'
+      ? window.location.origin
+      : OFFICIAL_VERCEL_URL;
+
+  const displayDomain =
+    !isRunApp && !isLocalhost && typeof window !== 'undefined'
+      ? window.location.host
+      : 'tobaccolab.vercel.app';
 
   const handleCopyCurrentUrl = () => {
     navigator.clipboard.writeText(PUBLIC_SAFARI_URL);
@@ -109,7 +120,7 @@ export const PWAInstallButton: React.FC = () => {
       try {
         await navigator.share({
           title: 'Tobacco Lab — Sistem Racikan & HPP Tembakau',
-          text: 'Buka Aplikasi Tobacco Lab di Safari / Chrome (Bypass Cookie Check):',
+          text: 'Buka Aplikasi Resmi Tobacco Lab:',
           url: PUBLIC_SAFARI_URL,
         });
       } catch {
@@ -128,11 +139,11 @@ export const PWAInstallButton: React.FC = () => {
         type="button"
         onClick={handleInstallClick}
         className="inline-flex items-center gap-1 h-8 sm:h-9 px-2 sm:px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-bold text-[11px] sm:text-xs transition-all cursor-pointer shrink-0"
-        title="Panduan Buka di Safari (iPhone), Perbarui Logo Home Screen & Install"
+        title="Install Aplikasi Tobacco Lab ke Layar Utama (iPhone, Android & PC)"
       >
         <Smartphone className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-        <span className="hidden md:inline">Buka di Safari / Install</span>
-        <span className="md:hidden">Safari</span>
+        <span className="hidden md:inline">Install App</span>
+        <span className="md:hidden">Install</span>
       </button>
 
       {showGuideModal &&
@@ -154,10 +165,10 @@ export const PWAInstallButton: React.FC = () => {
                   />
                   <div>
                     <h3 className="font-black text-sm sm:text-base text-white">
-                      Tobacco Lab — Buka di Safari (iPhone), Samsung & PC
+                      Tobacco Lab — Install Aplikasi Resmi
                     </h3>
                     <p className="text-[11px] text-zinc-400">
-                      Link Bypass &quot;Action required to load your app&quot; untuk Safari iOS
+                      Akses Cepat Layar Penuh untuk iPhone, Android &amp; PC
                     </p>
                   </div>
                 </div>
@@ -170,24 +181,22 @@ export const PWAInstallButton: React.FC = () => {
                 </button>
               </div>
 
-              {/* DIRECT BYPASS LINK FOR SAFARI "ACTION REQUIRED TO LOAD YOUR APP" */}
               <div className="bg-black border border-zinc-800 rounded-xl p-3.5 space-y-2 text-xs">
                 <div className="font-black text-white flex items-center gap-1.5 text-xs sm:text-sm">
-                  <Rocket className="w-4 h-4 text-amber-400 shrink-0" />
-                  Link Bypass Langsung untuk Safari iPhone:
+                  <Globe className="w-4 h-4 text-amber-400 shrink-0" />
+                  Tautan Akses Resmi Tobacco Lab:
                 </div>
-                <p className="text-zinc-300 text-[11px] leading-relaxed">
-                  Layar <b>&quot;Action required to load your app&quot;</b> (`/__cookie_check.html`) tertahan di Safari karena Safari menolak cookie `Partitioned` milik proxy AI Studio. Gunakan link khusus dengan akhiran <code className="text-white">?__storage_access_granted=1</code> di bawah ini untuk <b>melewati layar Action Required secara otomatis</b>:
-                </p>
-                <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 font-mono text-[11px] text-zinc-200 break-all select-all">
-                  {PUBLIC_SAFARI_URL}
+                <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 font-mono text-xs text-amber-400 font-bold flex items-center justify-between gap-2">
+                  <span className="truncate">{displayDomain}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-black text-zinc-300 border border-zinc-800 shrink-0">
+                    HTTPS Aman
+                  </span>
                 </div>
                 <p className="text-zinc-400 text-[11px] leading-relaxed">
-                  Catatan: Pastikan Anda sudah login ke akun Google (<b className="text-white">adikaryasukses99@gmail.com</b>) di Safari iPhone Anda, atau gunakan browser <b>Google Chrome di iPhone</b> jika Safari Anda berada dalam mode Private/Blokir Semua Cookie.
+                  Gunakan tombol di bawah untuk menyalin tautan aplikasi atau membagikannya langsung ke Safari (iPhone) maupun Chrome (Android/PC).
                 </p>
               </div>
 
-              {/* Quick Copy / Share Current URL Buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -197,12 +206,12 @@ export const PWAInstallButton: React.FC = () => {
                   {copiedUrl ? (
                     <>
                       <Check className="w-4 h-4 stroke-[2.5] text-amber-400" />
-                      <span>Link Safari Tersalin!</span>
+                      <span>Tautan Tersalin!</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Salin Link Safari (.run.app)</span>
+                      <span>Salin Tautan Tobacco Lab</span>
                     </>
                   )}
                 </button>
@@ -213,7 +222,7 @@ export const PWAInstallButton: React.FC = () => {
                   className="h-9 px-3 rounded-xl bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Share className="w-3.5 h-3.5 text-zinc-300" />
-                  <span>Bagikan ke Safari / AirDrop</span>
+                  <span>Bagikan ke Safari / Perangkat</span>
                 </button>
               </div>
 
@@ -224,23 +233,23 @@ export const PWAInstallButton: React.FC = () => {
                   </div>
                   <ol className="list-decimal list-inside text-zinc-300 space-y-1 text-[11px] sm:text-xs">
                     <li>
-                      Setelah link terbuka di <b>Safari</b>, ketuk tombol <b>Share / Bagikan</b> (ikon kotak dengan panah ke atas di bagian bawah Safari).
+                      Buka tautan di <b>Safari</b>, lalu ketuk tombol <b>Share / Bagikan</b> di bagian bawah.
                     </li>
                     <li>
-                      Geser ke bawah lalu pilih <b>&quot;Add to Home Screen&quot; (Tambah ke Layar Utama)</b>.
+                      Pilih <b>&quot;Add to Home Screen&quot; (Tambah ke Layar Utama)</b>.
                     </li>
                     <li>
-                      Ketuk <b>Add / Tambah</b> — ikon <b>Tobacco Lab</b> akan muncul di layar utama iPhone Anda seperti aplikasi native!
+                      Ketuk <b>Add / Tambah</b> — aplikasi <b>Tobacco Lab</b> siap dibuka penuh seperti aplikasi native.
                     </li>
                   </ol>
                 </div>
 
                 <div className="bg-black border border-zinc-800 rounded-xl p-3.5 space-y-1.5">
                   <div className="font-bold text-white flex items-center gap-1.5">
-                    <PlusSquare className="w-3.5 h-3.5 text-zinc-300" /> Install di Samsung / Android & PC (Chrome / Edge):
+                    <PlusSquare className="w-3.5 h-3.5 text-zinc-300" /> Install di Android &amp; PC (Chrome / Edge):
                   </div>
                   <ol className="list-decimal list-inside text-zinc-300 space-y-1 text-[11px] sm:text-xs">
-                    <li>Ketuk ikon menu <b>⋮</b> di pojok kanan atas browser Chrome.</li>
+                    <li>Ketuk ikon menu <b>⋮</b> di pojok kanan atas browser.</li>
                     <li>Pilih <b>&quot;Install App&quot;</b> atau <b>&quot;Tambahkan ke Layar Utama&quot;</b>.</li>
                   </ol>
                 </div>

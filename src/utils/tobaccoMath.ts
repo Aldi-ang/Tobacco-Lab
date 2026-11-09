@@ -163,14 +163,7 @@ export function calculateTaraDeduction(
 }
 
 /**
- * Menghitung Modal Asal (Paid Value) vs Nilai Barang Sebenarnya (Real Value) & Weight Profit Pembelian:
- * - Netto Bayar (Paid Netto) = Bruto - Potongan Tarra Nota (misal 50 - 7 = 43 kg)
- * - Nilai Bayar (Paid Value / Modal Asal) = Netto Bayar * Harga Beli (misal 43 * Harga)
- * - Netto Riil Sebenarnya (Real Netto) = Bruto - Berat Kemasan Riil (misal 50 - 2 = 48 kg)
- * - Nilai Barang Sebenarnya (Real Value) = Netto Riil * Harga Beli (misal 48 * Harga)
- * - Weight Profit Pembelian (Kg) = Netto Riil - Netto Bayar (= Potongan Tarra Nota - Berat Kemasan Riil, misal +5 kg)
- * - Weight Profit Pembelian (Rp) = Real Value - Paid Value (misal +5 * Harga)
- * - Harga Modal Efektif per KG Riil = Paid Value / Netto Riil (Rp/kg)
+ * Menghitung Modal Asal (Paid Value) vs Nilai Barang Sebenarnya (Real Value) & Weight Profit Pembelian
  */
 export function calculateRawTobaccoCost(params: {
   grossWeightKg: number;
@@ -206,7 +199,6 @@ export function calculateRawTobaccoCost(params: {
     taraFormula
   );
 
-  // Berat kemasan/wadah fisik sebenarnya (contoh: Karung Goni 2 kg, Keranjang 3 kg)
   const realPackagingMassKg = Number(
     Math.min(
       gross,
@@ -221,17 +213,10 @@ export function calculateRawTobaccoCost(params: {
     ).toFixed(2)
   );
 
-  // Netto Riil Sebenarnya = Bruto - Berat Wadah Riil (misal: 50 kg - 2 kg = 48 kg)
   const realNetWeightKg = Number(Math.max(0, gross - realPackagingMassKg).toFixed(2));
-
-  // Modal Asal (Paid Value) = Harga * Netto Bayar
   const totalModalAsal = Math.round(netWeightKg * pricePerKgPurchase);
   const totalInvoiceCost = netWeightKg * pricePerKgPurchase + additionalCost;
-
-  // Real Value (Nilai Barang Sebenarnya di Gudang) = Netto Riil * Harga Beli
   const realStockValueRp = Math.round(realNetWeightKg * pricePerKgPurchase);
-
-  // Weight Profit Pembelian (Selisih Berat & Nilai antara Barang Riil vs yang Kita Bayar)
   const purchaseWeightProfitKg = Number((realNetWeightKg - netWeightKg).toFixed(2));
   const purchaseWeightProfitRp = Math.round(realStockValueRp - totalModalAsal);
 
@@ -254,9 +239,6 @@ export function calculateRawTobaccoCost(params: {
   };
 }
 
-/**
- * Konversi skor rata-rata grade menjadi label TobaccoGrade
- */
 export function scoreToColorGrade(score: number): TobaccoGrade {
   if (score >= 8.5) return 'A+';
   if (score >= 7.5) return 'A';
@@ -269,19 +251,12 @@ export function scoreToColorGrade(score: number): TobaccoGrade {
   return 'E';
 }
 
-/**
- * Clamp rating to 0 - 5 scale
- */
 export function clampRating5(val: number): number {
   const num = Number(val) || 0;
-  // Auto-normalize legacy >5 values if any
   const scaled = num > 5 ? num / 2 : num;
   return Number(Math.max(0, Math.min(5, scaled)).toFixed(1));
 }
 
-/**
- * Menghitung kalkulator racikan otomatis (Real-time HPP & 5 Sensory Ratings /5)
- */
 export function calculateBlendMetrics(params: {
   ingredients: BlendIngredient[];
   additionalCosts: AdditionalCostItem[];
@@ -409,15 +384,6 @@ export function calculateBlendMetrics(params: {
   };
 }
 
-/**
- * Menghitung spesifikasi packaging, pengiriman tembakau jadi ke pabrik & Weight Profit/Loss Pabrik:
- * - Netto Tagih Pabrik = Bruto - Potongan Tarra Pabrik
- * - Netto Riil Tembakau = Bruto - Berat Wadah Riil
- * - Selisih Timbangan Pabrik (factoryWeightProfitKg) = Netto Tagih Pabrik - Netto Riil Tembakau
- *   (= Berat Wadah Riil - Potongan Tarra Pabrik)
- *   Contoh Untung (+1 kg): Wadah Riil 3 kg, Potongan Tarra Pabrik 2 kg -> Kita untung +1 kg kemasan dibayar harga tembakau!
- *   Contoh Rugi (-1 kg): Wadah Riil 6 kg, Potongan Tarra Pabrik 7 kg (10% + 2 dari 50 kg) -> Kita rugi -1 kg nilai tembakau!
- */
 export function calculateFactoryDelivery(params: {
   packaging: PackagingSpec;
   hppPerNetKg: number;
@@ -460,9 +426,6 @@ export function calculateFactoryDelivery(params: {
   const factoryDeductionKg = Number((singlePackageTara.deductionKg * packageCount).toFixed(2));
   const factoryNetBillableKg = Number(Math.max(0, grossWeightShipped - factoryDeductionKg).toFixed(2));
 
-  // Selisih Timbangan Pabrik:
-  // Positif (+) jika Berat Wadah Riil > Potongan Tarra Pabrik (Untung Timbangan Kemasan)
-  // Negatif (-) jika Potongan Tarra Pabrik > Berat Wadah Riil (Rugi Timbangan Pabrik)
   const factoryWeightProfitKg = Number((factoryNetBillableKg - realTobaccoNetTotalKg).toFixed(2));
   const factoryWeightProfitRp = Math.round(
     factoryWeightProfitKg * (factoryTargetPricePerKg || 0)
@@ -500,22 +463,11 @@ export function formatRupiah(amount: number): string {
   }).format(amount || 0);
 }
 
-/**
- * Format angka Rupiah sesuai gaya Google Sheet user: "Rp140,000" atau "Rp7,280,000"
- */
 export function formatSheetRp(amount: number): string {
   const rounded = Math.round(amount || 0);
   return `Rp${rounded.toLocaleString('en-US')}`;
 }
 
-/**
- * Generate TSV (Tab-Separated Values) atau CSV persis seperti format Google Sheet user:
- * Row 1: TANGGAL \t <Tanggal> \t <Nama Gulungan / Pabrik>
- * Row 2: (Kosong)
- * Row 3: NO \t SERI \t BRUTO \t TARA \t NETTO \t PACKAGING \t GRADE \t HARGA \t JUMLAH
- * Row 4..N: Data
- * Row N+1: \t \t <Sum Bruto> \t <Sum Tara> \t <Sum Netto> \t \t \t \t <Sum Jumlah>
- */
 export function buildGoogleSheetText(params: {
   dateLabel: string;
   headerTitle: string;
@@ -537,7 +489,6 @@ export function buildGoogleSheetText(params: {
   const isInternal = mode === 'INTERNAL_COST';
 
   if (isInternal) {
-    // Row 1: TANGGAL | 3 November 2026 | CELLO MUNTILAN (ARSIP PERSONAL MODAL, HARGA PABRIK & PROFIT)
     rows.push([
       'TANGGAL',
       dateLabel,
@@ -552,9 +503,7 @@ export function buildGoogleSheetText(params: {
       '',
       '',
     ]);
-    // Row 2: Blank row
     rows.push(['', '', '', '', '', '', '', '', '', '', '', '']);
-    // Row 3: Headers with HARGA MODAL, JUMLAH MODAL, HARGA PABRIK, JUMLAH PABRIK, and PROFIT for Personal Archive
     rows.push([
       'NO',
       'SERI',
@@ -570,11 +519,8 @@ export function buildGoogleSheetText(params: {
       'PROFIT',
     ]);
   } else {
-    // Row 1: TANGGAL | 3 November 2026 | CELLO MUNTILAN
     rows.push(['TANGGAL', dateLabel, headerTitle, '', '', '', '', '', '']);
-    // Row 2: Blank row
     rows.push(['', '', '', '', '', '', '', '', '']);
-    // Row 3: Strictly 9 columns for Factory Nota (No cost or profit exposed)
     rows.push(['NO', 'SERI', 'BRUTO', 'TARA', 'NETTO', 'PACKAGING', 'GRADE', 'HARGA', 'JUMLAH']);
   }
 
@@ -609,7 +555,7 @@ export function buildGoogleSheetText(params: {
     if (isInternal) {
       rows.push([
         String(idx + 1),
-        s.serialNumber,
+        formatSerialLineage(s),
         String(bruto),
         String(tara),
         String(netto),
@@ -636,7 +582,6 @@ export function buildGoogleSheetText(params: {
     }
   });
 
-  // Bottom Totals Row
   if (isInternal) {
     rows.push([
       '',
@@ -669,10 +614,6 @@ export function buildGoogleSheetText(params: {
   return rows.map((r) => r.map(cleanCell).join(separator)).join('\n');
 }
 
-/**
- * Sinkronisasi Data Batch Tembakau Jadi (Nomor Seri) ke format CSV / Google Sheets
- * Menyertakan kolom lengkap untuk Modal Produksi (Production Cost) & Harga Tagih (Billable Price)
- */
 export function buildFinishedBatchSyncCsv(params: {
   batches: FinishedTobaccoSerial[];
   separator?: ',' | '\t';
@@ -723,13 +664,15 @@ export function buildFinishedBatchSyncCsv(params: {
     rows.push(new Array(16).fill(''));
   }
 
-  // Header Columns explicitly including Production Cost & Billable Price
   rows.push([
     'NO',
     'SERI',
+    'RIWAYAT SERI (ASAL -> BARU)',
     'TANGGAL',
     'PABRIK TUJUAN',
+    'EKS-PABRIK',
     'GULUNGAN',
+    'EKS-GULUNGAN',
     'PACKAGING',
     'GRADE',
     'BRUTO (KG)',
@@ -757,13 +700,11 @@ export function buildFinishedBatchSyncCsv(params: {
     const pkgName = (b.packaging.packagingType || 'KRJ MUNTILAN').toUpperCase();
     const grade = b.compositeColorGrade || 'D';
 
-    // Production Cost (Modal Produksi per KG & Total Modal Produksi)
     const productionCostPerKg = Math.round(b.effectiveHppAfterTaraPerKg || b.hppPerNetKg || 0);
     const totalProductionCost = Math.round(
       b.totalProductionCost || netto * productionCostPerKg
     );
 
-    // Billable Price (Harga Tagih Pabrik per KG & Total Tagihan Nota)
     const billablePricePerKg = Math.round(b.factoryTargetPricePerKg || 0);
     const totalBillableAmount = Math.round(netto * billablePricePerKg);
 
@@ -786,9 +727,12 @@ export function buildFinishedBatchSyncCsv(params: {
     rows.push([
       String(idx + 1),
       b.serialNumber,
+      formatSerialLineage(b),
       b.createdAt,
       b.targetFactory,
+      b.previousFactory || '-',
       b.rollNumber || '-',
+      b.previousRollNumber || '-',
       pkgName,
       grade,
       String(bruto),
@@ -803,10 +747,12 @@ export function buildFinishedBatchSyncCsv(params: {
     ]);
   });
 
-  // Totals Footer Row
   rows.push([
     'TOTAL',
     `${batches.length} SERI`,
+    '',
+    '',
+    '',
     '',
     '',
     '',
@@ -826,3 +772,120 @@ export function buildFinishedBatchSyncCsv(params: {
   return rows.map((r) => r.map(cleanCell).join(separator)).join('\n');
 }
 
+export function formatSerialLineage(serial: {
+  serialNumber: string;
+  previousSerialNumber?: string;
+  serialHistory?: string[];
+}): string {
+  const current = (serial.serialNumber || '').trim();
+  if (Array.isArray(serial.serialHistory) && serial.serialHistory.length > 1) {
+    const cleaned = serial.serialHistory.map((s) => s.trim()).filter(Boolean);
+    const deduped = cleaned.filter((item, idx) => idx === 0 || item !== cleaned[idx - 1]);
+    if (deduped.length > 1) {
+      return deduped.join(' -> ');
+    }
+  }
+  const prev = (serial.previousSerialNumber || '').trim();
+  if (prev && prev !== current) {
+    return `${prev} -> ${current}`;
+  }
+  return current;
+}
+
+export function hasSerialLineage(serial: {
+  serialNumber: string;
+  previousSerialNumber?: string;
+  serialHistory?: string[];
+}): boolean {
+  return formatSerialLineage(serial).includes(' -> ');
+}
+
+export function applyRejectedSerialReassignment(params: {
+  serial: FinishedTobaccoSerial;
+  targetRoll: {
+    id: string;
+    rollNumber: string;
+    recipeName: string;
+    targetFactory: string;
+    rackLocation: string;
+    serialNumbers?: string[];
+    serialNumber: string;
+  };
+  newSerialNumber?: string;
+  newTargetFactory?: string;
+  dateStr?: string;
+}): {
+  updatedSerial: FinishedTobaccoSerial;
+  updatedTargetRollSerialNumbers: string[];
+  lineageDisplay: string;
+} {
+  const { serial, targetRoll, newSerialNumber, newTargetFactory, dateStr } = params;
+  const oldSerialNum = serial.serialNumber.trim();
+  const nextSerialNum = (newSerialNumber ?? oldSerialNum).trim() || oldSerialNum;
+  const isRenamed = nextSerialNum !== oldSerialNum;
+
+  const existingHistory =
+    Array.isArray(serial.serialHistory) && serial.serialHistory.length > 0
+      ? [...serial.serialHistory]
+      : serial.previousSerialNumber && serial.previousSerialNumber !== oldSerialNum
+        ? [serial.previousSerialNumber, oldSerialNum]
+        : [oldSerialNum];
+
+  if (isRenamed && existingHistory[existingHistory.length - 1] !== nextSerialNum) {
+    existingHistory.push(nextSerialNum);
+  }
+
+  const fromRollLabel =
+    serial.previousRollNumber ||
+    (serial.rollNumber ? `${serial.rollNumber} (${serial.targetFactory})` : 'GUL-LAMA');
+  const fromFactoryName = serial.previousFactory || serial.targetFactory;
+  const finalTargetFactory = (newTargetFactory || targetRoll.targetFactory).trim();
+  const today = dateStr || new Date().toISOString().split('T')[0];
+
+  const transferRecord = {
+    id: `trf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    date: today,
+    fromSerialNumber: oldSerialNum,
+    toSerialNumber: nextSerialNum,
+    fromRollId: serial.previousRollId || serial.rollId,
+    fromRollNumber: fromRollLabel,
+    toRollId: targetRoll.id,
+    toRollNumber: `${targetRoll.rollNumber} (${targetRoll.recipeName})`,
+    fromFactory: fromFactoryName,
+    toFactory: finalTargetFactory,
+    notes: isRenamed
+      ? `Ubah Nomor Seri ${oldSerialNum} -> ${nextSerialNum} & masuk ke ${targetRoll.rollNumber} (${finalTargetFactory})`
+      : `Masuk kembali ke ${targetRoll.rollNumber} (${finalTargetFactory}) dengan Nomor Seri tetap ${nextSerialNum}`,
+  };
+
+  const updatedSerial: FinishedTobaccoSerial = {
+    ...serial,
+    serialNumber: nextSerialNum,
+    previousSerialNumber: isRenamed
+      ? oldSerialNum
+      : serial.previousSerialNumber,
+    serialHistory: existingHistory,
+    transferHistory: [...(serial.transferHistory || []), transferRecord],
+    factoryStatus: 'PENDING',
+    previousRollId: serial.previousRollId || serial.rollId,
+    previousRollNumber: fromRollLabel,
+    previousFactory: fromFactoryName,
+    rollId: targetRoll.id,
+    rollNumber: targetRoll.rollNumber,
+    rollRackNumber: targetRoll.rackLocation,
+    targetFactory: finalTargetFactory,
+  };
+
+  const currentRollSerials = (targetRoll.serialNumbers || []).filter(
+    (s) => s !== oldSerialNum
+  );
+  const updatedTargetRollSerialNumbers = currentRollSerials.includes(nextSerialNum)
+    ? currentRollSerials
+    : [...currentRollSerials, nextSerialNum];
+
+  return {
+    updatedSerial,
+    updatedTargetRollSerialNumbers,
+    lineageDisplay: formatSerialLineage(updatedSerial),
+  };
+}

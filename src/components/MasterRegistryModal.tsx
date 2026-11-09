@@ -43,7 +43,6 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
     initialSection
   );
 
-  // Packaging form state (includes Harga Kemasan & Ongkos Packaging/Press)
   const [pkgName, setPkgName] = useState('');
   const [pkgMassKg, setPkgMassKg] = useState<number>(3);
   const [pkgTaraPercent, setPkgTaraPercent] = useState<number>(0);
@@ -52,12 +51,10 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
   const [pkgPressCostRp, setPkgPressCostRp] = useState<number>(15000);
   const [pkgNotes, setPkgNotes] = useState('');
 
-  // Factory form state
   const [facName, setFacName] = useState('');
   const [facSampleKg, setFacSampleKg] = useState<number>(0);
   const [facNotes, setFacNotes] = useState('');
 
-  // Gulungan form state
   const [rollNumber, setRollNumber] = useState(
     () => `GUL-${new Date().getFullYear()}-${String(rollSamples.length + 1).padStart(3, '0')}`
   );
@@ -132,7 +129,6 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
       <div className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden">
-        {/* Header */}
         <div className="px-5 py-4 border-b border-zinc-800 bg-black flex items-center justify-between">
           <div>
             <h2 className="text-base sm:text-lg font-extrabold text-white">
@@ -152,7 +148,6 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
           </button>
         </div>
 
-        {/* Sub-tabs */}
         <div className="px-5 py-3 border-b border-zinc-800 bg-zinc-950">
           <SegmentedControl
             value={activeSection}
@@ -183,7 +178,6 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
           />
         </div>
 
-        {/* Body */}
         <div className="p-5 overflow-y-auto flex-1 space-y-5 text-xs">
           {activeSection === 'packaging' && (
             <>

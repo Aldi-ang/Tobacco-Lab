@@ -9,6 +9,9 @@ import {
   calculateFactoryDelivery,
   buildGoogleSheetText,
   buildFinishedBatchSyncCsv,
+  formatSerialLineage,
+  hasSerialLineage,
+  applyRejectedSerialReassignment,
 } from './tobaccoMath';
 import { BlendIngredient, FinishedTobaccoSerial } from '../types/tobacco';
 
@@ -183,7 +186,7 @@ test('buildGoogleSheetText formats columns and totals matching the Google Sheet 
   assert.equal(internalLines[3].includes('Rp7,280,000'), true);
   assert.equal(internalLines[3].includes('Rp2,029,976'), true);
 
-  // Verify CSV synchronization structure with production cost & billable price columns
+  // Verify CSV synchronization structure with production cost, billable price, and serial lineage columns
   const syncCsv = buildFinishedBatchSyncCsv({
     batches: [sampleSerial],
     separator: ',',
@@ -191,7 +194,7 @@ test('buildGoogleSheetText formats columns and totals matching the Google Sheet 
   const csvLines = syncCsv.split('\n');
   assert.equal(
     csvLines[0],
-    'NO,SERI,TANGGAL,PABRIK TUJUAN,GULUNGAN,PACKAGING,GRADE,BRUTO (KG),TARA (KG),NETTO (KG),MODAL PRODUKSI / KG,TOTAL MODAL PRODUKSI,HARGA TAGIH / KG,TOTAL TAGIHAN NOTA,PROFIT BERSIH,STATUS PABRIK'
+    'NO,SERI,RIWAYAT SERI (ASAL -> BARU),TANGGAL,PABRIK TUJUAN,EKS-PABRIK,GULUNGAN,EKS-GULUNGAN,PACKAGING,GRADE,BRUTO (KG),TARA (KG),NETTO (KG),MODAL PRODUKSI / KG,TOTAL MODAL PRODUKSI,HARGA TAGIH / KG,TOTAL TAGIHAN NOTA,PROFIT BERSIH,STATUS PABRIK'
   );
   assert.equal(csvLines[1].includes('"Rp100,962"'), true);
   assert.equal(csvLines[1].includes('"Rp5,250,000"'), true);
@@ -284,5 +287,89 @@ test('Case Study 2 & 3 (Factory-Side Weight Profit & Loss): 3kg real packaging w
   assert.equal(factoryLoss.factoryWeightProfitKg, -1); // -1 kg loss of tobacco value!
   assert.equal(factoryLoss.factoryWeightProfitRp, -120000);
 });
+
+test('Rejected Seri renaming & reassignment: AK 1 in Cello 1 rejected -> renamed to AL 1 -> moved to Djarum 1 displays "AK 1 -> AL 1"', () => {
+  const rejectedSerial: FinishedTobaccoSerial = {
+    id: 'tbk-fin-ak1',
+    serialNumber: 'AK 1',
+    recipeName: 'CELLO 1 - Seri AK 1',
+    targetFactory: 'CELLO MUNTILAN',
+    createdAt: '2026-11-03',
+    ingredients: [],
+    totalBlendNetKg: 48,
+    weightedPower: 4.3,
+    weightedImpact: 4.1,
+    weightedBitter: 2.4,
+    weightedBurn: 4.7,
+    weightedSugar: 4.1,
+    compositeColorGrade: 'D',
+    totalMaterialCost: 3500000,
+    additionalCosts: [],
+    totalOverheadCost: 50000,
+    totalProductionCost: 3550000,
+    hppPerNetKg: 74000,
+    packaging: {
+      packagingType: 'KRJ MUNTILAN',
+      packagingMassKg: 3,
+      packageCount: 1,
+      netTobaccoWeightKg: 48,
+      grossWeightPerPackage: 51,
+      factoryTaraFormula: {
+        rawFormula: '3 kg',
+        percent: 0,
+        flatKg: 3,
+        pricingBasis: 'NET_WEIGHT',
+      },
+    },
+    factoryDeductionKg: 3,
+    factoryNetBillableKg: 48,
+    factoryTargetPricePerKg: 95000,
+    projectedRevenue: 4560000,
+    projectedProfit: 1010000,
+    profitMarginPercent: 22.15,
+    factoryStatus: 'REJECTED_STOCK',
+    previousRollId: 'gul-cello-1',
+    previousRollNumber: 'CELLO 1 (GUL-2026-001)',
+    previousFactory: 'CELLO MUNTILAN',
+    rollId: 'gul-cello-1',
+    rollNumber: 'GUL-2026-001',
+  };
+
+  assert.equal(hasSerialLineage(rejectedSerial), false);
+  assert.equal(formatSerialLineage(rejectedSerial), 'AK 1');
+
+  const djarumRoll = {
+    id: 'gul-djarum-1',
+    rollNumber: 'DJARUM 1',
+    recipeName: 'SETORAN DJARUM 1',
+    targetFactory: 'PT Djarum Kudus (Divisi Pembelian Daun)',
+    rackLocation: 'Rak Djarum 01',
+    serialNumbers: ['DJ 1'],
+    serialNumber: 'DJ 1',
+  };
+
+  const result = applyRejectedSerialReassignment({
+    serial: rejectedSerial,
+    targetRoll: djarumRoll,
+    newSerialNumber: 'AL 1',
+    newTargetFactory: 'PT Djarum Kudus (Divisi Pembelian Daun)',
+    dateStr: '2026-11-08',
+  });
+
+  assert.equal(result.updatedSerial.serialNumber, 'AL 1');
+  assert.equal(result.updatedSerial.previousSerialNumber, 'AK 1');
+  assert.deepEqual(result.updatedSerial.serialHistory, ['AK 1', 'AL 1']);
+  assert.equal(result.lineageDisplay, 'AK 1 -> AL 1');
+  assert.equal(hasSerialLineage(result.updatedSerial), true);
+  assert.equal(result.updatedSerial.rollId, 'gul-djarum-1');
+  assert.equal(result.updatedSerial.rollNumber, 'DJARUM 1');
+  assert.equal(result.updatedSerial.targetFactory, 'PT Djarum Kudus (Divisi Pembelian Daun)');
+  assert.equal(result.updatedSerial.factoryStatus, 'PENDING');
+  assert.equal(result.updatedSerial.transferHistory?.length, 1);
+  assert.equal(result.updatedSerial.transferHistory?.[0].fromSerialNumber, 'AK 1');
+  assert.equal(result.updatedSerial.transferHistory?.[0].toSerialNumber, 'AL 1');
+  assert.deepEqual(result.updatedTargetRollSerialNumbers, ['DJ 1', 'AL 1']);
+});
+
 
 

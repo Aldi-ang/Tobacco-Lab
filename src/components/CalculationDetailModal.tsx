@@ -32,9 +32,6 @@ interface CalculationDetailModalProps {
   onClose: () => void;
 }
 
-/**
- * Compact symbol mark indicating a calculation panel can be pressed to inspect its exact formula
- */
 export const CalcSymbolBadge: React.FC<{
   symbol?: string;
   className?: string;
@@ -63,7 +60,6 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
         className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col text-white overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="px-4 sm:px-5 py-3.5 border-b border-zinc-800 bg-black flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-black text-amber-400 border border-zinc-700 shrink-0">
@@ -92,9 +88,7 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
           </button>
         </div>
 
-        {/* Body */}
         <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 text-xs">
-          {/* Core Formula Box */}
           <div className="bg-black border border-zinc-800 rounded-xl p-3.5 space-y-1.5">
             <div className="text-[10px] font-black uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 shrink-0" />
@@ -105,7 +99,6 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Step-by-Step Breakdown */}
           <div className="space-y-3">
             <div className="text-[11px] font-black uppercase tracking-wider text-zinc-300">
               Asal Angka Langkah Demi Langkah ({data.steps.length} Langkah):
@@ -179,7 +172,6 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
             })}
           </div>
 
-          {/* Summary Comparison Table if provided */}
           {data.summaryRows && data.summaryRows.length > 0 && (
             <div className="bg-black border border-zinc-800 rounded-xl p-3.5 space-y-2">
               <div className="text-[10px] font-black uppercase tracking-wider text-zinc-200">
@@ -217,7 +209,6 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
             </div>
           )}
 
-          {/* Final Conclusion */}
           <div className="bg-zinc-950 border border-zinc-700 rounded-xl p-3.5 flex items-start gap-2.5">
             <CheckCircle2 className="w-4 h-4 text-zinc-300 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
@@ -229,7 +220,6 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="px-5 py-3 border-t border-zinc-800 bg-black flex justify-end">
           <button
             type="button"
@@ -246,11 +236,6 @@ export const CalculationDetailModal: React.FC<CalculationDetailModalProps> = ({
 
 export type RawTobaccoCalcFocus = 'PAID_VALUE' | 'REAL_VALUE' | 'WEIGHT_PROFIT';
 
-/**
- * Helper 1: Panel-Specific Step-by-Step Calculation Detail for Raw Tobacco Purchase
- * Each panel ('PAID_VALUE', 'REAL_VALUE', 'WEIGHT_PROFIT') returns ONLY the specific steps
- * for the numbers displayed on that pressed panel.
- */
 export function buildRawTobaccoCalcDetail(params: {
   name: string;
   packagingType: string;
@@ -409,7 +394,6 @@ export function buildRawTobaccoCalcDetail(params: {
     };
   }
 
-  // Default: 'WEIGHT_PROFIT' (Panel 3)
   return {
     title: `3. Weight Profit (Untung Timbangan) — ${itemName}`,
     subtitle: `Netto Riil ${realNetKg} kg vs Netto Bayar ${paidNetKg} kg • Harga ${formatRupiah(price)}/kg`,
@@ -474,9 +458,6 @@ export function buildRawTobaccoCalcDetail(params: {
 
 export type SerialFactoryCalcFocus = 'FACTORY_WEIGHT' | 'FACTORY_PROFIT';
 
-/**
- * Helper 2: Panel-Specific Step-by-Step Calculation Detail for Finished Serial / Factory Delivery
- */
 export function buildSerialFactoryCalcDetail(params: {
   serialNumber: string;
   packagingType: string;
@@ -588,7 +569,6 @@ export function buildSerialFactoryCalcDetail(params: {
     };
   }
 
-  // focus === 'FACTORY_PROFIT' (Panel 2)
   return {
     title: `2. Modal, Harga Pabrik & Profit — Seri ${serialNumber}`,
     subtitle: `Netto Tagih ${factoryBillableNetKg} kg • Harga Pabrik ${formatRupiah(factoryPricePerKg)}/kg`,

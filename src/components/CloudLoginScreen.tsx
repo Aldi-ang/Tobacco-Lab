@@ -27,7 +27,6 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
   return (
     <div className="min-h-screen bg-[#020203] text-white flex flex-col items-center justify-center p-4 safe-fullscreen-modal relative overflow-hidden">
       <div className="w-full max-w-md requiem-card border border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-[0_24px_60px_rgba(0,0,0,0.95)] space-y-5 relative z-10">
-        {/* Brand Header with Black-Background White-Leaf Logo */}
         <div className="flex flex-col items-center text-center space-y-3">
           <img
             src="/awd-logo.png"
@@ -47,7 +46,6 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
           </div>
         </div>
 
-        {/* Cloud Features Box */}
         <div className="bg-black/90 border border-zinc-800 rounded-xl p-3.5 space-y-2 text-xs">
           <div className="flex items-start gap-2.5">
             <ShieldCheck className="w-4 h-4 text-white shrink-0 mt-0.5" />
@@ -70,7 +68,6 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
           </div>
         )}
 
-        {/* Primary Google Sign-In Button */}
         <div className="space-y-2.5">
           <button
             type="button"

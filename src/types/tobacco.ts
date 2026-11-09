@@ -112,9 +112,26 @@ export interface PackagingSpec {
   factoryTaraFormula: TaraFormula; // Potongan tara nota pabrik seri ini
 }
 
+export interface SerialTransferRecord {
+  id: string;
+  date: string;
+  fromSerialNumber: string;
+  toSerialNumber: string;
+  fromRollId?: string;
+  fromRollNumber: string;
+  toRollId: string;
+  toRollNumber: string;
+  fromFactory: string;
+  toFactory: string;
+  notes?: string;
+}
+
 export interface FinishedTobaccoSerial {
   id: string;
-  serialNumber: string; // Nomor Seri eksklusif per 1 kemasan (misal "57", "58", atau "TBK-JDI-2026-001")
+  serialNumber: string; // Nomor Seri aktif saat ini per 1 kemasan (misal "57", "AL 1")
+  previousSerialNumber?: string; // Nomor Seri sebelum diganti saat masuk gulungan baru (misal "AK 1")
+  serialHistory?: string[]; // Jejak perubahan nomor seri berurutan, misal ["AK 1", "AL 1"]
+  transferHistory?: SerialTransferRecord[]; // Riwayat perpindahan gulungan / pabrik & pergantian seri
   mixtureBatchId?: string;
   packageIndex?: number;
   totalPackagesInMixture?: number;

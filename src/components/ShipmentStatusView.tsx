@@ -16,7 +16,12 @@ import {
   TobaccoRollSample,
   SerialFactoryStatus,
 } from '../types/tobacco';
-import { GRADE_LABELS, formatRupiah } from '../utils/tobaccoMath';
+import {
+  GRADE_LABELS,
+  formatRupiah,
+  formatSerialLineage,
+  hasSerialLineage,
+} from '../utils/tobaccoMath';
 import { SegmentedControl } from './RatingSegmentSlider';
 import { TobaccoRoll3D, FullScreenScrollModal } from './TobaccoRoll3D';
 
@@ -64,9 +69,11 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
       const matchingStatusSerials = allInThisRoll.filter((b) => {
         const st = b.factoryStatus || 'PENDING';
         const matchTab = statusFilter === 'ALL' || st === statusFilter;
+        const lineage = formatSerialLineage(b);
         const matchSearch =
           !searchTerm.trim() ||
           b.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          lineage.toLowerCase().includes(searchTerm.toLowerCase()) ||
           roll.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
           roll.recipeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
           roll.targetFactory.toLowerCase().includes(searchTerm.toLowerCase());
@@ -388,7 +395,7 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                           {/* Top Row: Nomor Seri Badge, Status Badge & Grade */}
                           <div className="flex items-center justify-between gap-1.5 flex-wrap">
                             <span className="px-2.5 py-1 rounded-lg bg-zinc-950 text-white border border-zinc-700 font-mono font-black text-xs sm:text-sm">
-                              SERI {ser.serialNumber}
+                              SERI {formatSerialLineage(ser)}
                             </span>
 
                             <div className="flex items-center gap-1.5">
@@ -414,6 +421,12 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                               </span>
                             </div>
                           </div>
+                          {hasSerialLineage(ser) && ser.previousRollNumber && (
+                            <div className="text-[10px] font-mono text-zinc-400">
+                              Eks-Gulungan:{' '}
+                              <b className="text-amber-300">{ser.previousRollNumber}</b>
+                            </div>
+                          )}
 
                           {/* Weight & Packaging Box */}
                           <div className="bg-zinc-950 border border-zinc-800/90 rounded-lg p-2.5 space-y-1.5 font-mono text-xs">

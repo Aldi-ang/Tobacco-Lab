@@ -1,18 +1,11 @@
 import React from 'react';
 
-/**
- * Artistic Dark Gothic / Classical Architectural Background ("Resident Evil 9 Requiem" Aesthetic)
- * - Deep obsidian & charcoal void (85% black dominance, 10% crisp white/silver, 5% selective amber)
- * - Cathedral ribbed vault arches, rose geometry, and classical colonnade perspective lines in subtle monochrome/amber filigree
- * - Restrained chiaroscuro light shafts & deep obsidian vignette
- */
 export const ArchitecturalBackground: React.FC = () => {
   return (
     <div
       className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none bg-[#020203]"
       aria-hidden="true"
     >
-      {/* 1. Deep Chiaroscuro Radial & Volumetric Cathedral Light Shafts (85% Black Dominance) */}
       <div
         className="absolute inset-0"
         style={{
@@ -21,7 +14,6 @@ export const ArchitecturalBackground: React.FC = () => {
         }}
       />
 
-      {/* 2. Subtle Diagonal Requiem God-Rays from Upper Vault */}
       <div
         className="absolute -top-32 left-1/2 -translate-x-1/2 w-[140vw] h-[75vh] opacity-15"
         style={{
@@ -31,7 +23,6 @@ export const ArchitecturalBackground: React.FC = () => {
         }}
       />
 
-      {/* 3. Full-Screen Gothic Cathedral & Neo-Classical Architectural Wireframe / Filigree SVG */}
       <svg
         className="absolute inset-0 w-full h-full opacity-[0.09]"
         viewBox="0 0 1920 1080"
@@ -65,19 +56,15 @@ export const ArchitecturalBackground: React.FC = () => {
           </pattern>
         </defs>
 
-        {/* Fine Architectural Blueprint Grid */}
         <rect width="1920" height="1080" fill="url(#architecturalGrid)" />
 
-        {/* Outer Cathedral Nave Colonnade Pillars (Left & Right) */}
         <g stroke="url(#requiemGoldLine)" strokeWidth="1.2">
-          {/* Left Colonnade */}
           <line x1="90" y1="0" x2="90" y2="1080" />
           <line x1="110" y1="0" x2="110" y2="1080" strokeDasharray="6 6" />
           <line x1="240" y1="0" x2="240" y2="1080" />
           <line x1="254" y1="0" x2="254" y2="1080" />
           <line x1="420" y1="60" x2="420" y2="1080" strokeOpacity="0.5" />
 
-          {/* Right Colonnade */}
           <line x1="1830" y1="0" x2="1830" y2="1080" />
           <line x1="1810" y1="0" x2="1810" y2="1080" strokeDasharray="6 6" />
           <line x1="1680" y1="0" x2="1680" y2="1080" />
@@ -85,28 +72,21 @@ export const ArchitecturalBackground: React.FC = () => {
           <line x1="1500" y1="60" x2="1500" y2="1080" strokeOpacity="0.5" />
         </g>
 
-        {/* Pointed Gothic / Requiem Ribbed Vault Arches */}
         <g stroke="url(#requiemGoldLine)" strokeWidth="1.4">
-          {/* Grand Outer Pointed Arch */}
           <path d="M 90 1080 L 90 420 Q 90 60 960 -20 Q 1830 60 1830 420 L 1830 1080" />
-          {/* Second Concentric Vault Arch */}
           <path d="M 240 1080 L 240 460 Q 240 110 960 25 Q 1680 110 1680 460 L 1680 1080" />
-          {/* Inner Sanctum Pointed Arch */}
           <path d="M 420 1080 L 420 500 Q 420 180 960 85 Q 1500 180 1500 500 L 1500 1080" />
-          {/* Ribbed Vault Diagonal Crossings */}
           <path d="M 90 420 Q 520 220 960 260 Q 1400 220 1830 420" strokeOpacity="0.45" />
           <path d="M 240 460 Q 600 140 960 25 Q 1320 140 1680 460" strokeOpacity="0.55" />
           <path d="M 420 500 Q 690 290 960 260 Q 1230 290 1500 500" strokeOpacity="0.35" />
         </g>
 
-        {/* Central Requiem Rose Window / Astrolabe Geometry */}
         <g transform="translate(960, 260)" stroke="url(#requiemGoldLine)">
           <circle r="195" strokeWidth="1.2" strokeOpacity="0.5" />
           <circle r="178" strokeWidth="0.8" strokeDasharray="4 6" strokeOpacity="0.6" />
           <circle r="135" strokeWidth="1" strokeOpacity="0.45" />
           <circle r="88" strokeWidth="1.2" strokeOpacity="0.55" />
           <circle r="36" strokeWidth="1" strokeOpacity="0.7" />
-          {/* Octagonal Sacred Geometry */}
           <polygon
             points="0,-178 126,-126 178,0 126,126 0,178 -126,126 -178,0 -126,-126"
             strokeWidth="0.75"
@@ -118,7 +98,6 @@ export const ArchitecturalBackground: React.FC = () => {
             strokeOpacity="0.35"
             transform="rotate(22.5)"
           />
-          {/* Radial Spokes */}
           {Array.from({ length: 12 }).map((_, i) => {
             const angle = (i * 30 * Math.PI) / 180;
             const x2 = Math.cos(angle) * 195;
@@ -137,12 +116,10 @@ export const ArchitecturalBackground: React.FC = () => {
           })}
         </g>
 
-        {/* Classical Horizon & Perspective Floor Lines */}
         <line x1="0" y1="260" x2="1920" y2="260" stroke="url(#requiemHorizontal)" strokeWidth="1" />
         <line x1="0" y1="500" x2="1920" y2="500" stroke="url(#requiemHorizontal)" strokeWidth="0.8" />
         <line x1="0" y1="820" x2="1920" y2="820" stroke="url(#requiemHorizontal)" strokeWidth="0.8" />
 
-        {/* Perspective Vanishing Lines from Sanctum Center */}
         <g stroke="url(#requiemGoldLine)" strokeWidth="0.6" strokeOpacity="0.25">
           <line x1="960" y1="260" x2="0" y2="920" />
           <line x1="960" y1="260" x2="360" y2="1080" />
@@ -153,7 +130,6 @@ export const ArchitecturalBackground: React.FC = () => {
         </g>
       </svg>
 
-      {/* 4. Deep Cinematic Vignette Framing (Preserves 85% Black Dominance) */}
       <div
         className="absolute inset-0"
         style={{

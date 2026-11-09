@@ -32,6 +32,8 @@ import {
   formatSheetRp,
   clampRating5,
   buildFinishedBatchSyncCsv,
+  formatSerialLineage,
+  hasSerialLineage,
 } from '../utils/tobaccoMath';
 import { SegmentedControl } from './RatingSegmentSlider';
 import { SpinningStatTicker } from './SpinningStatTicker';
@@ -52,6 +54,7 @@ interface FinishedTobaccoListProps {
   onOpenRoll: (rollId: string) => void;
   onUpdateSerial?: (updated: FinishedTobaccoSerial) => void;
   onDelete: (id: string) => void;
+  onOpenGoogleSheetsModal?: () => void;
 }
 
 export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
@@ -62,6 +65,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
   onOpenRoll,
   onUpdateSerial,
   onDelete,
+  onOpenGoogleSheetsModal,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFactory, setSelectedFactory] = useState<string>('ALL');
@@ -76,8 +80,10 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
   const factories = ['ALL', ...Array.from(new Set(finishedBatches.map((b) => b.targetFactory)))];
 
   const filtered = finishedBatches.filter((b) => {
+    const lineage = formatSerialLineage(b);
     const matchSearch =
       b.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lineage.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (b.recipeName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       b.targetFactory.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (b.rollNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -234,7 +240,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-1">
             <span className="px-2 py-0.5 rounded-lg bg-black text-amber-400 border border-zinc-700 font-mono font-black text-[11px] sm:text-xs tracking-wide shrink-0">
-              SERI {batch.serialNumber}
+              SERI {formatSerialLineage(batch)}
             </span>
             <span
               className={`px-1.5 py-0.5 rounded-md text-[10px] font-black border shrink-0 ${gradeInfo.color}`}
@@ -457,6 +463,17 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {onOpenGoogleSheetsModal && (
+                <button
+                  type="button"
+                  title="Transfer Langsung ke Google Sheets (Akun Google)"
+                  onClick={onOpenGoogleSheetsModal}
+                  className="btn-amber-outline min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" /> Transfer Google Sheets
+                </button>
+              )}
+
               <button
                 type="button"
                 title="Salin Format CSV Koma (,)"
@@ -560,7 +577,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                       <tr key={b.id} className="hover:bg-zinc-950/90 text-zinc-200">
                         <td className="py-2 px-2 border-r border-zinc-900">{idx + 1}</td>
                         <td className="py-2 px-2 border-r border-zinc-900 font-black text-white">
-                          {b.serialNumber}
+                          {formatSerialLineage(b)}
                         </td>
                         <td className="py-2 px-2 border-r border-zinc-900 text-left">
                           {b.targetFactory}
@@ -712,7 +729,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
               <div className="px-5 py-3.5 border-b border-zinc-800 bg-black flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="px-3 py-1 rounded-xl bg-black text-amber-400 border border-zinc-700 font-mono font-black text-xs sm:text-sm tracking-wide">
-                    SERI {activeSerial.serialNumber}
+                    SERI {formatSerialLineage(activeSerial)}
                   </span>
                   <div>
                     <h2 className="text-sm sm:text-base font-extrabold text-white">
@@ -721,6 +738,13 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                     <p className="text-[11px] text-zinc-400">
                       Pabrik: <b className="text-white">{activeSerial.targetFactory}</b> •{' '}
                       {activeSerial.createdAt}
+                      {hasSerialLineage(activeSerial) && activeSerial.previousRollNumber && (
+                        <span>
+                          {' '}
+                          • Eks-Gulungan:{' '}
+                          <b className="text-white">{activeSerial.previousRollNumber}</b>
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>

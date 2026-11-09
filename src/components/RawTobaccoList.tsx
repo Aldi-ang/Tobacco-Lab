@@ -23,12 +23,14 @@ import {
   RawTobacco,
   FinishedTobaccoSerial,
   TobaccoRollSample,
+  FactoryMaster,
 } from '../types/tobacco';
 import {
   GRADE_LABELS,
   formatRupiah,
   clampRating5,
   calculateRawTobaccoCost,
+  formatSerialLineage,
 } from '../utils/tobaccoMath';
 import { SegmentedControl } from './RatingSegmentSlider';
 import { SpinningStatTicker, AutoSlideValueTicker } from './SpinningStatTicker';
@@ -44,11 +46,18 @@ interface RawTobaccoListProps {
   tobaccos: RawTobacco[];
   finishedBatches: FinishedTobaccoSerial[];
   rollSamples: TobaccoRollSample[];
+  factoryList?: FactoryMaster[];
+  initialStockPanel?: 'raw' | 'rejected-finished';
   onAddNew: () => void;
   onEdit: (tobacco: RawTobacco) => void;
   onDelete: (id: string) => void;
   onAddToBlend: (tobacco: RawTobacco) => void;
-  onReassignRejectedToRoll: (serialId: string, targetRollId: string) => void;
+  onReassignRejectedToRoll: (
+    serialId: string,
+    targetRollId: string,
+    newSerialNumber?: string,
+    newTargetFactory?: string
+  ) => void;
   onUnpackRejectedToBlend?: (serial: FinishedTobaccoSerial) => void;
 }
 
@@ -56,6 +65,8 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
   tobaccos,
   finishedBatches,
   rollSamples,
+  factoryList = [],
+  initialStockPanel = 'raw',
   onAddNew,
   onEdit,
   onDelete,
@@ -63,7 +74,12 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
   onReassignRejectedToRoll,
   onUnpackRejectedToBlend,
 }) => {
-  const [activeStockPanel, setActiveStockPanel] = useState<'raw' | 'rejected-finished'>('raw');
+  const [activeStockPanel, setActiveStockPanel] = useState<'raw' | 'rejected-finished'>(
+    initialStockPanel
+  );
+  React.useEffect(() => {
+    setActiveStockPanel(initialStockPanel);
+  }, [initialStockPanel]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrigin, setSelectedOrigin] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
@@ -79,6 +95,10 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
 
   const newestRollId = rollSamples[rollSamples.length - 1]?.id || rollSamples[0]?.id || '';
   const [selectedTargetRollMap, setSelectedTargetRollMap] = useState<Record<string, string>>({});
+  const [newSerialNumberMap, setNewSerialNumberMap] = useState<Record<string, string>>({});
+  const [selectedTargetFactoryMap, setSelectedTargetFactoryMap] = useState<Record<string, string>>(
+    {}
+  );
 
   const rejectedFinishedItems = finishedBatches.filter(
     (b) => b.factoryStatus === 'REJECTED_STOCK'
@@ -642,6 +662,28 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {rejectedFinishedItems.map((item) => {
                 const targetRollId = selectedTargetRollMap[item.id] || newestRollId;
+                const selectedRollObj = rollSamples.find((r) => r.id === targetRollId);
+                const newSerialInput = newSerialNumberMap[item.id] ?? '';
+                const trimmedNewSerial = newSerialInput.trim();
+                const targetFactoryValue =
+                  selectedTargetFactoryMap[item.id] ||
+                  selectedRollObj?.targetFactory ||
+                  item.targetFactory;
+
+                const currentLineageText = formatSerialLineage(item);
+                const previewNextLineage =
+                  trimmedNewSerial && trimmedNewSerial !== item.serialNumber
+                    ? `${currentLineageText} -> ${trimmedNewSerial}`
+                    : currentLineageText;
+
+                const allFactoryOptions = Array.from(
+                  new Set([
+                    ...factoryList.map((f) => f.name),
+                    ...rollSamples.map((r) => r.targetFactory),
+                    item.targetFactory,
+                  ])
+                );
+
                 return (
                   <motion.div
                     key={item.id}
@@ -657,7 +699,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="px-2.5 py-1 rounded-lg bg-black text-amber-400 border border-zinc-700 font-mono font-black text-xs">
-                            SERI {item.serialNumber}
+                            SERI {currentLineageText}
                           </span>
                           <span className="px-2 py-0.5 rounded bg-zinc-900 text-amber-400 border border-zinc-800 text-xs font-black">
                             Grade {item.compositeColorGrade}
@@ -671,6 +713,11 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                           <b className="text-white font-mono">
                             {item.previousRollNumber || item.rollNumber || 'GUL-2026-001'}
                           </b>
+                          {' • '}
+                          Pabrik Asal:{' '}
+                          <b className="text-amber-300">
+                            {item.previousFactory || item.targetFactory}
+                          </b>
                         </p>
                       </div>
 
@@ -682,35 +729,142 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       </div>
                     </div>
 
-                    {/* Primary Action: Reassign into Newest Gulungan (Packaging & Weight Intact) */}
-                    <div className="pt-2.5 border-t border-zinc-800 flex flex-col gap-2 w-full min-w-0">
-                      <select
-                        value={targetRollId}
-                        onChange={(e) =>
-                          setSelectedTargetRollMap((prev) => ({
-                            ...prev,
-                            [item.id]: e.target.value,
-                          }))
-                        }
-                        aria-label={`Pilih Gulungan Tujuan untuk Seri ${item.serialNumber}`}
-                        className="w-full min-w-0 max-w-full h-9 px-3 bg-black border border-zinc-700 rounded-xl text-xs text-white font-bold truncate focus:outline-hidden focus:border-zinc-700"
-                      >
-                        {rollSamples.map((r, idx) => (
-                          <option key={r.id} value={r.id}>
-                            {r.rollNumber} — {r.recipeName}
-                            {idx === rollSamples.length - 1 ? ' [TERBARU]' : ''}
-                          </option>
-                        ))}
-                      </select>
+                    {/* Primary Action: Rename Serial (e.g. AK 1 -> AL 1) & Reassign into New Gulungan / Factory */}
+                    <div className="pt-3 border-t border-zinc-800 space-y-2.5 w-full min-w-0">
+                      {/* Step 1: Opsi Ganti Nomor Seri (misal AK 1 menjadi AL 1) */}
+                      <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <label className="text-[10px] uppercase font-extrabold text-amber-400">
+                            Opsi Ganti Nomor Seri Baru (Misal: {item.serialNumber} menjadi AL 1)
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setNewSerialNumberMap((prev) => ({
+                                ...prev,
+                                [item.id]:
+                                  item.serialNumber.toUpperCase() === 'AK 1'
+                                    ? 'AL 1'
+                                    : `AL ${item.serialNumber.replace(/[^0-9]/g, '') || '1'}`,
+                              }))
+                            }
+                            className="px-2 py-0.5 rounded bg-black hover:bg-zinc-900 border border-amber-500/60 text-[10px] font-mono font-bold text-amber-300 cursor-pointer"
+                          >
+                            Contoh:{' '}
+                            {item.serialNumber.toUpperCase() === 'AK 1'
+                              ? 'AL 1'
+                              : `AL ${item.serialNumber.replace(/[^0-9]/g, '') || '1'}`}
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
+                          <input
+                            type="text"
+                            value={newSerialInput}
+                            onChange={(e) =>
+                              setNewSerialNumberMap((prev) => ({
+                                ...prev,
+                                [item.id]: e.target.value,
+                              }))
+                            }
+                            placeholder={`Kosongkan jika tetap ${item.serialNumber} (atau ketik mis. AL 1)`}
+                            aria-label={`Nomor Seri Baru untuk ${item.serialNumber}`}
+                            className="w-full h-9 px-3 bg-black border border-zinc-700 focus:border-amber-500 rounded-xl text-xs font-mono font-bold text-white placeholder-zinc-500 focus:outline-hidden"
+                          />
+
+                          <div className="h-9 px-3 rounded-xl bg-black border border-amber-500/60 flex items-center justify-between gap-2 text-xs font-mono">
+                            <span className="text-[10px] text-zinc-400 uppercase font-bold shrink-0">
+                              Tampilan Seri:
+                            </span>
+                            <span className="font-black text-amber-400 truncate">
+                              {previewNextLineage}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Step 2: Pilih Gulungan Tujuan Baru & Pabrik Tujuan Baru */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">
+                            Gulungan Baru Tujuan
+                          </label>
+                          <select
+                            value={targetRollId}
+                            onChange={(e) => {
+                              const nextRollId = e.target.value;
+                              const nextRoll = rollSamples.find((r) => r.id === nextRollId);
+                              setSelectedTargetRollMap((prev) => ({
+                                ...prev,
+                                [item.id]: nextRollId,
+                              }));
+                              if (nextRoll) {
+                                setSelectedTargetFactoryMap((prev) => ({
+                                  ...prev,
+                                  [item.id]: nextRoll.targetFactory,
+                                }));
+                              }
+                            }}
+                            aria-label={`Pilih Gulungan Tujuan untuk Seri ${item.serialNumber}`}
+                            className="w-full min-w-0 max-w-full h-9 px-3 bg-black border border-zinc-700 rounded-xl text-xs text-white font-bold truncate focus:outline-hidden focus:border-amber-500"
+                          >
+                            {rollSamples.map((r, idx) => (
+                              <option key={r.id} value={r.id}>
+                                {r.rollNumber} — {r.recipeName}
+                                {idx === rollSamples.length - 1 ? ' [TERBARU]' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-zinc-400 mb-1">
+                            Pabrik Tujuan Baru
+                          </label>
+                          <select
+                            value={targetFactoryValue}
+                            onChange={(e) =>
+                              setSelectedTargetFactoryMap((prev) => ({
+                                ...prev,
+                                [item.id]: e.target.value,
+                              }))
+                            }
+                            aria-label={`Pilih Pabrik Tujuan Baru untuk Seri ${item.serialNumber}`}
+                            className="w-full min-w-0 max-w-full h-9 px-3 bg-black border border-zinc-700 rounded-xl text-xs text-amber-300 font-bold truncate focus:outline-hidden focus:border-amber-500"
+                          >
+                            {allFactoryOptions.map((facName) => (
+                              <option key={facName} value={facName}>
+                                {facName}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
 
                       <button
                         type="button"
-                        title="Masukkan Seri Reject ke Gulungan Ini (Kemasan & Berat Tetap Utuh)"
-                        onClick={() => onReassignRejectedToRoll(item.id, targetRollId)}
+                        title="Masukkan Seri Reject ke Gulungan & Pabrik Tujuan (Kemasan & Berat Tetap Utuh)"
+                        onClick={() => {
+                          onReassignRejectedToRoll(
+                            item.id,
+                            targetRollId,
+                            trimmedNewSerial || undefined,
+                            targetFactoryValue
+                          );
+                          setNewSerialNumberMap((prev) => {
+                            const next = { ...prev };
+                            delete next[item.id];
+                            return next;
+                          });
+                        }}
                         className="btn-amber-outline w-full min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <ArrowRightCircle className="w-4 h-4 stroke-[2.2] shrink-0" />
-                        <span>Masukkan ke Gulungan</span>
+                        <span>
+                          {trimmedNewSerial && trimmedNewSerial !== item.serialNumber
+                            ? `Ubah jadi SERI ${previewNextLineage} & Masukkan ke Gulungan`
+                            : 'Masukkan ke Gulungan'}
+                        </span>
                       </button>
                     </div>
                   </motion.div>
@@ -1022,7 +1176,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
             >
               <div className="px-5 py-3.5 border-b border-zinc-800 bg-black flex items-center justify-between">
                 <span className="px-2.5 py-1 rounded-lg bg-black text-amber-400 border border-zinc-700 font-mono font-black text-xs">
-                  SERI {selectedRejectDetail.serialNumber} (Eks-Reject)
+                  SERI {formatSerialLineage(selectedRejectDetail)} (Eks-Reject)
                 </span>
                 <button
                   type="button"
