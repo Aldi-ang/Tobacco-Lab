@@ -275,6 +275,7 @@ export function calculateBlendMetrics(params: {
   weightedBitter: number;
   weightedBurn: number;
   weightedSugar: number;
+  weightedAroma: number;
   compositeColorGrade: TobaccoGrade;
   updatedIngredients: BlendIngredient[];
 } {
@@ -299,6 +300,7 @@ export function calculateBlendMetrics(params: {
       weightedBitter: 0,
       weightedBurn: 0,
       weightedSugar: 0,
+      weightedAroma: 0,
       compositeColorGrade: 'D',
       updatedIngredients: ingredients,
     };
@@ -311,6 +313,7 @@ export function calculateBlendMetrics(params: {
   let bitterSum = 0;
   let burnSum = 0;
   let sugarSum = 0;
+  let aromaSum = 0;
   let gradeScoreSum = 0;
 
   const updatedIngredients = ingredients.map((item) => {
@@ -325,6 +328,7 @@ export function calculateBlendMetrics(params: {
     const b = clampRating5(item.bitterRating || 0);
     const bu = clampRating5(item.burnRating ?? 4.0);
     const su = clampRating5(item.sugarRating ?? 3.5);
+    const ar = clampRating5(item.aromaRating ?? 4.2);
 
     totalMaterialCost += subtotalCost;
     totalRealPaidMaterialCost += subtotalRealPaidCost;
@@ -333,6 +337,7 @@ export function calculateBlendMetrics(params: {
     bitterSum += item.usedNetKg * b;
     burnSum += item.usedNetKg * bu;
     sugarSum += item.usedNetKg * su;
+    aromaSum += item.usedNetKg * ar;
     gradeScoreSum += item.usedNetKg * (GRADE_SCORES[item.colorGrade] || 2);
 
     return {
@@ -342,6 +347,7 @@ export function calculateBlendMetrics(params: {
       bitterRating: b,
       burnRating: bu,
       sugarRating: su,
+      aromaRating: ar,
       percentageInBlend: Number(percentageInBlend.toFixed(1)),
       subtotalCost: Math.round(subtotalCost),
       subtotalRealPaidCost: Math.round(subtotalRealPaidCost),
@@ -361,6 +367,7 @@ export function calculateBlendMetrics(params: {
   const weightedBitter = Number((bitterSum / totalBlendNetKg).toFixed(1));
   const weightedBurn = Number((burnSum / totalBlendNetKg).toFixed(1));
   const weightedSugar = Number((sugarSum / totalBlendNetKg).toFixed(1));
+  const weightedAroma = Number((aromaSum / totalBlendNetKg).toFixed(1));
   const averageGradeScore = gradeScoreSum / totalBlendNetKg;
   const compositeColorGrade = scoreToColorGrade(averageGradeScore);
 
@@ -379,6 +386,7 @@ export function calculateBlendMetrics(params: {
     weightedBitter,
     weightedBurn,
     weightedSugar,
+    weightedAroma,
     compositeColorGrade,
     updatedIngredients,
   };

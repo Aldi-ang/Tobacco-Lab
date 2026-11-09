@@ -51,7 +51,8 @@ type LockableFieldKey =
   | 'impact'
   | 'bitter'
   | 'burn'
-  | 'sugar';
+  | 'sugar'
+  | 'aroma';
 
 const ALL_LOCKABLE_KEYS: LockableFieldKey[] = [
   'serialNumber',
@@ -70,6 +71,7 @@ const ALL_LOCKABLE_KEYS: LockableFieldKey[] = [
   'bitter',
   'burn',
   'sugar',
+  'aroma',
 ];
 
 export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = ({
@@ -100,6 +102,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
   const [bitter, setBitter] = useState(4.0);
   const [burn, setBurn] = useState(4.5);
   const [sugar, setSugar] = useState(4.0);
+  const [aroma, setAroma] = useState(4.2);
 
   // All fields EXCEPT Harga Pabrik are locked by default to prevent accidental edits
   const [unlockedFields, setUnlockedFields] = useState<
@@ -135,6 +138,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
     setBitter(clampRating5(serial.weightedBitter));
     setBurn(clampRating5(serial.weightedBurn ?? 4.5));
     setSugar(clampRating5(serial.weightedSugar ?? 4.0));
+    setAroma(clampRating5(serial.weightedAroma ?? 4.2));
 
     // Reset all locks whenever a serial is opened
     setUnlockedFields({});
@@ -290,6 +294,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
       weightedBitter: clampRating5(bitter),
       weightedBurn: clampRating5(burn),
       weightedSugar: clampRating5(sugar),
+      weightedAroma: clampRating5(aroma),
     };
 
     onSave(updated);
@@ -600,20 +605,21 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
               </div>
             </div>
 
-            {/* Section 4: 5 Karakteristik (/5) (Locked by Default) */}
+            {/* Section 4: 6 Karakteristik (/5) (Locked by Default) */}
             <div className="bg-black p-3 rounded-xl border border-zinc-800 space-y-2">
               <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
                 <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                5 Karakteristik Rasa (/5) (Terkunci Default)
+                6 Karakteristik Rasa (/5) (Terkunci Default)
               </span>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                 {(
                   [
                     { label: 'Power', key: 'power' as LockableFieldKey, val: power, set: setPower },
                     { label: 'Impact', key: 'impact' as LockableFieldKey, val: impact, set: setImpact },
                     { label: 'Bitter', key: 'bitter' as LockableFieldKey, val: bitter, set: setBitter },
-                    { label: 'Bakar', key: 'burn' as LockableFieldKey, val: burn, set: setBurn },
+                    { label: 'Burn', key: 'burn' as LockableFieldKey, val: burn, set: setBurn },
                     { label: 'Sugar', key: 'sugar' as LockableFieldKey, val: sugar, set: setSugar },
+                    { label: 'Aroma', key: 'aroma' as LockableFieldKey, val: aroma, set: setAroma },
                   ]
                 ).map((item) => {
                   const unlocked = isUnlocked(item.key);

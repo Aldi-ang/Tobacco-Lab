@@ -123,6 +123,7 @@ export const INITIAL_RAW_TOBACCO: RawTobacco[] = [
     bitterRating: 2.5,
     burnRating: 4.5,
     sugarRating: 4.2,
+    aromaRating: 4.7,
     colorGrade: 'E',
     characterNotes: 'Pegangan lemas berminyak/getah tebal, gagang sangat halus bersih, aroma tajam khas Srintil.',
   },
@@ -162,8 +163,9 @@ export const INITIAL_RAW_TOBACCO: RawTobacco[] = [
     bitterRating: 2.2,
     burnRating: 4.8,
     sugarRating: 3.9,
+    aromaRating: 4.4,
     colorGrade: 'D+',
-    characterNotes: 'Pegangan agak kering renyah, gagang sedang, pembakaran sempurna abu putih bersih.',
+    characterNotes: 'Pegangan agak kering renyah, gagang sedang, burn sempurna abu putih bersih.',
   },
   {
     id: 'tbk-raw-003',
@@ -201,6 +203,7 @@ export const INITIAL_RAW_TOBACCO: RawTobacco[] = [
     bitterRating: 2.8,
     burnRating: 4.3,
     sugarRating: 4.6,
+    aromaRating: 4.3,
     colorGrade: 'D',
     characterNotes: 'Karung Goni berat riil 2 kg dengan potongan beli 10% + 2 kg (7 kg). Bayar 43 kg padahal dapat 48 kg riil (+5 kg Weight Profit).',
   },
@@ -240,6 +243,7 @@ export const INITIAL_RAW_TOBACCO: RawTobacco[] = [
     bitterRating: 2.8,
     burnRating: 3.9,
     sugarRating: 3.0,
+    aromaRating: 3.8,
     colorGrade: 'D',
     characterNotes: 'Pegangan berurat mantap, cocok untuk pengisi dasar racikan hemat modal.',
   },
@@ -250,6 +254,7 @@ const CELLO_MUNTILAN_INGREDIENTS = [
     tobaccoId: 'tbk-raw-001',
     tobaccoName: 'Tembakau Temanggung Srintil (Grade E Super)',
     origin: 'Temanggung (Lereng Sumbing)',
+    sellerName: 'H. Daryono Temanggung',
     usedNetKg: 26,
     percentageInBlend: 50.0,
     realCostPerNetKg: 95000,
@@ -262,6 +267,7 @@ const CELLO_MUNTILAN_INGREDIENTS = [
     bitterRating: 2.5,
     burnRating: 4.5,
     sugarRating: 4.2,
+    aromaRating: 4.7,
     colorGrade: 'E' as const,
     characterNotes: 'Pegangan lemas berminyak/getah tebal',
   },
@@ -269,6 +275,7 @@ const CELLO_MUNTILAN_INGREDIENTS = [
     tobaccoId: 'tbk-raw-002',
     tobaccoName: 'Tembakau Muntilan Garangan Wangi',
     origin: 'Magelang (Muntilan)',
+    sellerName: 'Pengepul Cello Muntilan',
     usedNetKg: 26,
     percentageInBlend: 50.0,
     realCostPerNetKg: 82000,
@@ -281,8 +288,100 @@ const CELLO_MUNTILAN_INGREDIENTS = [
     bitterRating: 2.2,
     burnRating: 4.8,
     sugarRating: 3.9,
+    aromaRating: 4.4,
     colorGrade: 'D+' as const,
-    characterNotes: 'Pegangan agak kering renyah, pembakaran sempurna',
+    characterNotes: 'Pegangan agak kering renyah, burn sempurna',
+  },
+];
+
+const GRADE_D_PLUS_INGREDIENTS = [
+  {
+    tobaccoId: 'tbk-raw-002',
+    tobaccoName: 'Tembakau Muntilan Garangan Wangi',
+    origin: 'Magelang (Muntilan)',
+    sellerName: 'Pengepul Cello Muntilan',
+    usedNetKg: 26,
+    percentageInBlend: 60.0,
+    realCostPerNetKg: 82000,
+    effectiveCostPerRealKg: 82000,
+    subtotalCost: 2132000,
+    subtotalRealPaidCost: 2132000,
+    embeddedWeightProfitRp: 0,
+    powerRating: 4.0,
+    impactRating: 3.8,
+    bitterRating: 2.2,
+    burnRating: 4.8,
+    sugarRating: 3.9,
+    aromaRating: 4.4,
+    colorGrade: 'D+' as const,
+    characterNotes: 'Pegangan agak kering renyah, burn sempurna',
+  },
+  {
+    tobaccoId: 'tbk-raw-003',
+    tobaccoName: 'Tembakau Madura Campor Manis',
+    origin: 'Madura (Pamekasan)',
+    sellerName: 'Juragan Khalil Pamekasan',
+    usedNetKg: 18,
+    percentageInBlend: 40.0,
+    realCostPerNetKg: 70000,
+    effectiveCostPerRealKg: 62708.33,
+    subtotalCost: 1260000,
+    subtotalRealPaidCost: 1128750,
+    embeddedWeightProfitRp: 131250,
+    powerRating: 3.4,
+    impactRating: 3.5,
+    bitterRating: 2.8,
+    burnRating: 4.3,
+    sugarRating: 4.6,
+    aromaRating: 4.3,
+    colorGrade: 'D' as const,
+    characterNotes: 'Manis alami dan wangi lembut',
+  },
+];
+
+const GRADE_D_INGREDIENTS = [
+  {
+    tobaccoId: 'tbk-raw-003',
+    tobaccoName: 'Tembakau Madura Campor Manis',
+    origin: 'Madura (Pamekasan)',
+    sellerName: 'Juragan Khalil Pamekasan',
+    usedNetKg: 25,
+    percentageInBlend: 50.0,
+    realCostPerNetKg: 70000,
+    effectiveCostPerRealKg: 62708.33,
+    subtotalCost: 1750000,
+    subtotalRealPaidCost: 1567708,
+    embeddedWeightProfitRp: 182292,
+    powerRating: 3.4,
+    impactRating: 3.5,
+    bitterRating: 2.8,
+    burnRating: 4.3,
+    sugarRating: 4.6,
+    aromaRating: 4.3,
+    colorGrade: 'D' as const,
+    characterNotes: 'Manis alami dan wangi lembut',
+  },
+  {
+    tobaccoId: 'tbk-raw-004',
+    name: 'Tembakau Boyolali Daun Tengah (Grade D)',
+    tobaccoName: 'Tembakau Boyolali Daun Tengah',
+    origin: 'Boyolali (Selo Merapi)',
+    sellerName: 'Pak Slamet Cepogo',
+    usedNetKg: 25,
+    percentageInBlend: 50.0,
+    realCostPerNetKg: 64000,
+    effectiveCostPerRealKg: 62745.1,
+    subtotalCost: 1600000,
+    subtotalRealPaidCost: 1568628,
+    embeddedWeightProfitRp: 31372,
+    powerRating: 3.5,
+    impactRating: 3.6,
+    bitterRating: 2.8,
+    burnRating: 3.9,
+    sugarRating: 3.0,
+    aromaRating: 3.8,
+    colorGrade: 'D' as const,
+    characterNotes: 'Pegangan berurat mantap',
   },
 ];
 
@@ -316,6 +415,13 @@ function createCelloSerial(params: {
   const revenue = Math.round(nettoBillable * params.settledPricePerKg);
   const profit = revenue - totalProdCost;
 
+  const baseIngredients =
+    params.grade === 'E'
+      ? CELLO_MUNTILAN_INGREDIENTS
+      : params.grade === 'D+'
+      ? GRADE_D_PLUS_INGREDIENTS
+      : GRADE_D_INGREDIENTS;
+
   return {
     id: params.id,
     serialNumber: params.seri,
@@ -326,17 +432,22 @@ function createCelloSerial(params: {
     targetFactoryId: 'fac-cello-muntilan',
     targetFactory: 'CELLO MUNTILAN',
     createdAt: '2026-11-03',
-    ingredients: CELLO_MUNTILAN_INGREDIENTS.map((ing) => ({
-      ...ing,
-      usedNetKg: Number((realTobaccoNetKg / 2).toFixed(1)),
-      subtotalCost: Math.round((realTobaccoNetKg / 2) * ing.realCostPerNetKg),
-    })),
+    ingredients: baseIngredients.map((ing) => {
+      const shareRatio = (ing.percentageInBlend || 50) / 100;
+      const portionKg = Number((realTobaccoNetKg * shareRatio).toFixed(1));
+      return {
+        ...ing,
+        usedNetKg: portionKg,
+        subtotalCost: Math.round(portionKg * ing.realCostPerNetKg),
+      };
+    }),
     totalBlendNetKg: realTobaccoNetKg,
-    weightedPower: 4.3,
-    weightedImpact: 4.1,
-    weightedBitter: 2.4,
-    weightedBurn: 4.7,
-    weightedSugar: 4.1,
+    weightedPower: params.grade === 'E' ? 4.3 : params.grade === 'D+' ? 3.8 : 3.5,
+    weightedImpact: params.grade === 'E' ? 4.1 : params.grade === 'D+' ? 3.7 : 3.6,
+    weightedBitter: params.grade === 'E' ? 2.4 : params.grade === 'D+' ? 2.4 : 2.8,
+    weightedBurn: params.grade === 'E' ? 4.7 : params.grade === 'D+' ? 4.6 : 4.1,
+    weightedSugar: params.grade === 'E' ? 4.1 : params.grade === 'D+' ? 4.2 : 3.8,
+    weightedAroma: params.grade === 'E' ? 4.6 : params.grade === 'D+' ? 4.4 : 4.1,
     compositeColorGrade: params.grade,
     totalMaterialCost: materialCost,
     additionalCosts: [

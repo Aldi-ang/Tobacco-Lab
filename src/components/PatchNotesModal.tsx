@@ -11,7 +11,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-export const CURRENT_APP_VERSION = 'v3.9.0';
+export const CURRENT_APP_VERSION = 'v3.9.4';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -30,14 +30,102 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
-    version: 'v3.9.0',
-    date: '8 November 2026',
+    version: 'v3.9.4',
+    date: '9 November 2026',
     codename:
-      'Official Domain (tobaccolab.vercel.app), iPhone Cloud Sync Guard, Nota Setor Pabrik Ringkas & Anti-Tabrakan Panel Atas',
+      'Auto-Slide ke Form Edit, Ringkasan Komposisi Grade Poin-per-Poin (+Harga/KG), Huruf & Tombol Besar Ramah HP & Parameter Karakter Tetap',
     isLatest: true,
     highlights:
-      'Integrasi domain resmi tobaccolab.vercel.app, perbaikan sinkronisasi Cloud di iPhone/Safari (Dual-Path Cloud Pull + proteksi anti-timpa data demo saat pasang ulang aplikasi), penyederhanaan kolom Nota Setor Pabrik (SERI, HARGA, JUMLAH tanpa STATUS) dan badge ACCEPTED/REJECTED di Arsip Personal, penempatan Riwayat di ujung paling kanan dengan animasi presisi, serta perbaikan tabrakan panel atas di ukuran layar menengah.',
+      'Kemudahan otomatis geser layar ke atas (Auto-Slide) setiap menekan tombol Edit, format baru Ringkasan Komposisi Grade poin per poin lengkap dengan persentase, berat KG, dan harga per KG, ukuran tombol & teks yang jauh lebih besar dan mudah dibaca di HP, serta penguncian parameter karakter campuran Gulungan menjadi tetap (hanya menyisakan input Nama Grader & Tanggal Evaluasi).',
     changes: [
+      {
+        type: 'ui',
+        title: 'Format Poin-per-Poin pada Ringkasan Komposisi Grade (Lengkap Persentase, KG & Harga)',
+        description:
+          'Ringkasan Komposisi tiap Grade kini disusun rapi poin per poin ke bawah (contoh: Grade D+ lalu baris "- Muntilan Yohan 50% (50 KG) (Rp 50.000)" dan "- Temanggung Samuel 50% (50 KG) (Rp 75.000)") sehingga langsung jelas dan mudah dibaca.',
+      },
+      {
+        type: 'ui',
+        title: 'Tombol "Komposisi Tembakau Per Grade" & "Rata-Rata Karakter" Lebih Besar (Ramah Layar HP)',
+        description:
+          'Memperbesar ukuran tombol navigasi Komposisi Tembakau Per Grade, tombol filter tiap Grade, kartu Rata-Rata Karakter Tembakau Per Gulungan (2 kolom besar di layar HP), serta seluruh ukuran huruf agar terbaca jelas di ponsel.',
+      },
+      {
+        type: 'feature',
+        title: 'Otomatis Geser Layar ke Atas (Auto-Slide) Saat Menekan Tombol Edit',
+        description:
+          'Setiap kali menekan tombol Edit pada daftar Kemasan, Pabrik, atau Gulungan di menu Format, layar otomatis bergeser halus ke bagian atas menuju form Mode Edit.',
+      },
+      {
+        type: 'fix',
+        title: 'Parameter Karakter Gulungan Tetap (Uneditable) & Penyederhanaan Form Grader',
+        description:
+          'Menghapus Vonis Grader Pabrik dan slider evaluasi karakter yang tidak diperlukan karena campuran Seri di dalam Gulungan sudah bersifat tetap. Bagian bawah kini fokus pada pencatatan Nama Grader dan Tanggal Evaluasi.',
+      },
+    ],
+  },
+  {
+    version: 'v3.9.3',
+    date: '9 November 2026',
+    codename:
+      'Komposisi & Evaluasi Per Grade Gulungan, 6 Karakter Asli (+Aroma & Burn), 3 Tab Gulungan, Warna Gulungan Natural & Edit Format',
+    isLatest: false,
+    highlights:
+      'Pembaruan besar pada Arsip Gulungan (3 Tab navigasi jelas: Daftar Seri, Tabel Nota Sheet, dan Komposisi & Evaluasi Per Grade), rincian komposisi tiap Grade secara terpisah (contoh: Grade D = Muntilan Bu Menik 50% (50 kg), Windusari Pak Yohan 50% (50 kg)), standarisasi 6 Parameter Karakter Asli (Power, Impact, Bitter, Burn, Sugar, Aroma) di seluruh aplikasi tanpa Skor Kelembutan/Wangi/Kualitas Abu, warna Gulungan natural kayu & daun tembakau matang (tanpa tombol Animasi Gulungan), serta fitur Edit penuh pada menu Format.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Komposisi & Evaluasi Per Grade di Tiap Gulungan + Rata-Rata Karakter Gulungan',
+        description:
+          'Setiap Gulungan kini menampilkan rata-rata karakter tembakau di dalam gulungan serta rincian komposisi yang dipisahkan per Grade (tidak lagi digabung sekaligus). Contoh: Grade D = Muntilan Bu Menik 50% (50 kg), Windusari Pak Yohan 50% (50 kg), lengkap dengan rata-rata karakter tiap Grade.',
+      },
+      {
+        type: 'feature',
+        title: 'Standarisasi 6 Parameter Karakter Asli: Power, Impact, Bitter, Burn, Sugar & Aroma',
+        description:
+          'Menghapus Skor Kelembutan, Skor Wangi, Kualitas Abu, dan Laju Bakaran pada evaluasi gulungan. Mengganti istilah "Bakar" menjadi "Burn" serta menambahkan parameter ke-6 yaitu "Aroma" di Stok Tembakau Mentah, Kalkulator Racikan, Seri Jadi, hingga Evaluasi Gulungan.',
+      },
+      {
+        type: 'ui',
+        title: '3 Tab Navigasi Jelas di Dalam Gulungan (Daftar Seri, Tabel Nota Sheet, Komposisi & Evaluasi)',
+        description:
+          'Mengganti tombol "Sembunyikan Seri" dan "Buka Nota Sheet" yang membingungkan dengan 3 Tab Pemindah Tampilan langsung di dalam Gulungan: (1) Daftar Seri, (2) Tabel Nota Sheet, dan (3) Komposisi & Evaluasi Per Grade.',
+      },
+      {
+        type: 'ui',
+        title: 'Warna Gulungan Tembakau Lebih Natural & Penghapusan Tombol Animasi Gulungan',
+        description:
+          'Menghapus tombol "Animasi Gulungan" yang tidak diperlukan serta menyelaraskan warna luar dan dalam Gulungan menggunakan gradasi natural kayu walnut panggang dan daun tembakau maduro matang (tidak lagi putih di luar dan hitam pekat di dalam).',
+      },
+      {
+        type: 'feature',
+        title: 'Fitur Edit pada Menu Format (Kemasan, Pabrik & Gulungan)',
+        description:
+          'Menambahkan tombol Edit (pensil) pada setiap item di dalam modal Format sehingga pengguna kini dapat mengubah data Kemasan, Pabrik / Tujuan, maupun Gulungan yang sudah ada selain menambah dan menghapus.',
+      },
+    ],
+  },
+  {
+    version: 'v3.9.2',
+    date: '8 November 2026',
+    codename:
+      'Panel Rumus Interaktif (Angka Langsung di Bawah Rumus Utama + Rincian Tersembunyi di Langkah 2), Backup JSON HP & Domain Resmi',
+    isLatest: false,
+    highlights:
+      'Penyempurnaan seluruh Panel Tutorial Rumus (Langkah 1: Rumus Utama + penerapan angka nyata dari Langkah 2 tepat di bawahnya; Langkah 2: Daftar sumber tiap angka dengan tombol "Lihat Rumus" yang tersembunyi dulu hingga ditekan), fitur Backup & Restore Data JSON khusus HP (iPhone/Android), serta integrasi domain resmi tobaccolab.vercel.app.',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Penerapan Angka Nyata Tepat di Bawah "1. Rumus Utama" + Sumber Angka di "2. Angka pada Rumus"',
+        description:
+          'Pada seluruh panel rincian rumus (ƒx), kotak "1. Rumus Utama" kini langsung menampilkan penerapan angka nyata dari Langkah 2 tepat di bawah teks rumus (contoh: Total Kita Bayar = 43 kg × Rp 70.000 = Rp 3.010.000 | Netto Bayar = 50 kg − 7 kg = 43 kg). Di bawahnya, bagian "2. Angka pada Rumus" menampilkan daftar nilai tiap variabel dengan tombol "Lihat Rumus" untuk mengecek dari mana angka tersebut didapat.',
+      },
+      {
+        type: 'feature',
+        title: 'Backup & Restore Data JSON Kompatibel Penuh di HP (iPhone Safari / Files & Android)',
+        description:
+          'Menambahkan modal khusus Backup & Restore Data JSON yang mendukung "Simpan ke Files iPhone / Bagikan File JSON" (Web Share API), Unduh File .json langsung, Salin & Tempel (Copy-Paste) kode teks JSON anti-gagal, serta pemilih file .json yang kompatibel dengan iOS Files.',
+      },
       {
         type: 'feature',
         title: 'Domain Resmi tobaccolab.vercel.app & Tautan Bagikan Cepat',
@@ -58,15 +146,9 @@ export const PATCH_RELEASES: PatchRelease[] = [
       },
       {
         type: 'ui',
-        title: 'Segmen Riwayat di Ujung Paling Kanan dengan Animasi Indikator Presisi',
+        title: 'Segmen Riwayat di Ujung Paling Kanan & Anti-Tabrakan Panel Atas',
         description:
-          'Menempatkan tombol Riwayat pada posisi paling kanan di bar navigasi atas dan bawah dengan proporsi jarak otomatis dan animasi transisi pegas (spring pill) yang rapi di semua ukuran layar.',
-      },
-      {
-        type: 'fix',
-        title: 'Perbaikan Tabrakan Panel Header Atas di Ukuran Layar Menengah (Tablet / Split-Screen)',
-        description:
-          'Memperbaiki tata letak bar atas agar judul TOBACCO LAB dan deretan tombol aksi (Stok Gudang, Akun Cloud, Install, Patch Notes, Format, + Bahan) otomatis menyesuaikan baris tanpa saling bertumpuk di ukuran layar antara HP dan PC.',
+          'Menempatkan tombol Riwayat pada posisi paling kanan dengan animasi transisi pegas (spring pill), serta memperbaiki tata letak bar atas agar tidak bertumpuk di ukuran layar antara HP dan PC.',
       },
     ],
   },

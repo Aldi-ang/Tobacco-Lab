@@ -127,40 +127,36 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       setCalcDetail({
         title: `1. Total Nilai Seluruh Nota Gulungan (${finishedBatches.length} Seri)`,
         subtitle: `Dari ${rollSamples.length} Gulungan Terdaftar`,
-        badgeText: 'RIWAYAT NOTA • ASAL ANGKA TOTAL TAGIHAN NOTA',
+        badgeText: 'RIWAYAT NOTA • RUMUS TOTAL TAGIHAN NOTA',
         coreFormula: 'Total Tagihan Nota = Σ (Netto Tagih Seri × Harga Pabrik / KG)',
-        steps: finishedBatches.map((s, idx) => {
-          const netto = Math.max(0, s.packaging.grossWeightPerPackage - s.factoryDeductionKg);
-          const nota = getSerialNotaRp(s);
-          return {
-            stepNumber: idx + 1,
-            title: `Seri ${formatSerialLineage(s)} (${s.rollNumber || '-'} • ${s.targetFactory})`,
-            formula: `Netto Tagih = Bruto ${s.packaging.grossWeightPerPackage} kg − Tara ${s.factoryDeductionKg} kg = ${netto} kg`,
-            substitution: `${netto} kg × ${formatRupiah(s.factoryTargetPricePerKg)} = ${formatRupiah(nota)}`,
-            resultLabel: 'Nota Seri',
-            resultValue: formatRupiah(nota),
-            explanation: `Tagihan nota pabrik untuk Seri ${formatSerialLineage(s)} (${netto} kg).`,
-            highlight: 'amber' as const,
-          };
-        }),
-        summaryRows: [
+        appliedFormula: `Total Tagihan Nota (${finishedBatches.length} Seri) = ${formatRupiah(totalAllNotaRp)}`,
+        steps: [
           {
-            label: 'Jumlah Gulungan',
-            value: `${rollSamples.length} Gulungan`,
-            highlight: 'white',
-          },
-          {
-            label: 'Jumlah Nomor Seri',
-            value: `${finishedBatches.length} Seri`,
-            highlight: 'white',
-          },
-          {
-            label: 'Total Tagihan Nota',
-            value: formatRupiah(totalAllNotaRp),
+            stepNumber: 1,
+            title: 'Total Tagihan Nota',
+            formula: 'Total Tagihan Nota = Σ (Netto Tagih Seri × Harga Pabrik / KG)',
+            substitution: `${finishedBatches.length} Seri (${rollSamples.length} Gulungan) = ${formatRupiah(totalAllNotaRp)}`,
+            resultLabel: 'Total Tagihan Nota',
+            resultValue: formatRupiah(totalAllNotaRp),
+            explanation: `Total nilai seluruh nota dari ${finishedBatches.length} Nomor Seri.`,
             highlight: 'amber',
           },
+          ...finishedBatches.map((s, idx) => {
+            const netto = Math.max(0, s.packaging.grossWeightPerPackage - s.factoryDeductionKg);
+            const nota = getSerialNotaRp(s);
+            return {
+              stepNumber: idx + 2,
+              title: `Seri ${formatSerialLineage(s)}`,
+              formula: `Jumlah Nota = (Bruto − Tara) × Harga Pabrik`,
+              substitution: `(${s.packaging.grossWeightPerPackage} kg − ${s.factoryDeductionKg} kg) × ${formatRupiah(s.factoryTargetPricePerKg)} = ${netto} kg × ${formatRupiah(s.factoryTargetPricePerKg)} = ${formatRupiah(nota)}`,
+              resultLabel: `Seri ${formatSerialLineage(s)}`,
+              resultValue: formatRupiah(nota),
+              explanation: `Gulungan ${s.rollNumber || '-'} • Pabrik ${s.targetFactory} (${netto} kg).`,
+              highlight: 'white' as const,
+            };
+          }),
         ],
-        conclusion: `Total Nilai Seluruh Nota Gulungan sebesar ${formatRupiah(totalAllNotaRp)} merupakan akumulasi tagihan dari ${finishedBatches.length} Nomor Seri.`,
+        conclusion: `Total Tagihan Nota = ${formatRupiah(totalAllNotaRp)}.`,
       });
       return;
     }
@@ -169,35 +165,36 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       setCalcDetail({
         title: `2. Total Nilai Terima Cair (${cairBatches.length} Seri Diterima)`,
         subtitle: 'Uang Nota Pabrik yang Sudah Cair',
-        badgeText: 'RIWAYAT CAIR • ASAL ANGKA UANG CAIR',
-        coreFormula: 'Total Uang Cair = Σ Nota Seri berstatus ACCEPTED_CAIR',
-        steps: cairBatches.map((s, idx) => {
-          const netto = Math.max(0, s.packaging.grossWeightPerPackage - s.factoryDeductionKg);
-          const nota = getSerialNotaRp(s);
-          return {
-            stepNumber: idx + 1,
-            title: `Seri ${formatSerialLineage(s)} (${s.rollNumber || '-'} • ${s.targetFactory})`,
-            formula: `Netto Tagih ${netto} kg × Harga Pabrik ${formatRupiah(s.factoryTargetPricePerKg)}`,
-            substitution: `${netto} kg × ${formatRupiah(s.factoryTargetPricePerKg)} = ${formatRupiah(nota)}`,
-            resultLabel: 'Uang Cair',
-            resultValue: formatRupiah(nota),
-            explanation: `Uang cair dari Seri ${formatSerialLineage(s)} di ${s.targetFactory}.`,
-            highlight: 'amber' as const,
-          };
-        }),
-        summaryRows: [
+        badgeText: 'RIWAYAT CAIR • RUMUS TOTAL UANG CAIR',
+        coreFormula: 'Total Uang Cair = Σ (Netto Tagih × Harga Pabrik) untuk Seri ACCEPTED',
+        appliedFormula: `Total Uang Cair (${cairBatches.length} Seri ACCEPTED) = ${formatRupiah(totalCairRp)}`,
+        steps: [
           {
-            label: 'Jumlah Seri Cair',
-            value: `${cairBatches.length} Seri`,
-            highlight: 'white',
-          },
-          {
-            label: 'Total Uang Cair',
-            value: formatRupiah(totalCairRp),
+            stepNumber: 1,
+            title: 'Total Uang Cair',
+            formula: 'Total Uang Cair = Σ Nota Seri berstatus ACCEPTED',
+            substitution: `${cairBatches.length} Seri ACCEPTED = ${formatRupiah(totalCairRp)}`,
+            resultLabel: 'Total Uang Cair',
+            resultValue: formatRupiah(totalCairRp),
+            explanation: `Total uang yang telah cair dari ${cairBatches.length} Nomor Seri yang diterima pabrik.`,
             highlight: 'amber',
           },
+          ...cairBatches.map((s, idx) => {
+            const netto = Math.max(0, s.packaging.grossWeightPerPackage - s.factoryDeductionKg);
+            const nota = getSerialNotaRp(s);
+            return {
+              stepNumber: idx + 2,
+              title: `Seri ${formatSerialLineage(s)}`,
+              formula: `Uang Cair = Netto Tagih × Harga Pabrik`,
+              substitution: `${netto} kg × ${formatRupiah(s.factoryTargetPricePerKg)} = ${formatRupiah(nota)}`,
+              resultLabel: `Seri ${formatSerialLineage(s)}`,
+              resultValue: formatRupiah(nota),
+              explanation: `Gulungan ${s.rollNumber || '-'} • Pabrik ${s.targetFactory}.`,
+              highlight: 'white' as const,
+            };
+          }),
         ],
-        conclusion: `Total Uang Cair sebesar ${formatRupiah(totalCairRp)} berasal dari ${cairBatches.length} Nomor Seri yang telah diverifikasi Terima Cair oleh pabrik.`,
+        conclusion: `Total Uang Cair = ${formatRupiah(totalCairRp)}.`,
       });
       return;
     }
@@ -206,73 +203,96 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       setCalcDetail({
         title: `3. Total Nilai Menunggu QC (${pendingBatches.length} Seri Pending)`,
         subtitle: 'Tagihan Seri yang Sedang Diperiksa Pabrik',
-        badgeText: 'RIWAYAT PENDING • ASAL ANGKA MENUNGGU QC',
-        coreFormula: 'Total Menunggu QC = Σ Nota Seri berstatus PENDING',
-        steps: pendingBatches.map((s, idx) => {
-          const netto = Math.max(0, s.packaging.grossWeightPerPackage - s.factoryDeductionKg);
-          const nota = getSerialNotaRp(s);
-          return {
-            stepNumber: idx + 1,
-            title: `Seri ${formatSerialLineage(s)} (${s.rollNumber || '-'} • ${s.targetFactory})`,
-            formula: `Netto Tagih ${netto} kg × Harga Pabrik ${formatRupiah(s.factoryTargetPricePerKg)}`,
-            substitution: `${netto} kg × ${formatRupiah(s.factoryTargetPricePerKg)} = ${formatRupiah(nota)}`,
-            resultLabel: 'Nilai Pending',
-            resultValue: formatRupiah(nota),
-            explanation: `Menunggu keputusan QC pabrik untuk Seri ${formatSerialLineage(s)}.`,
-            highlight: 'white' as const,
-          };
-        }),
-        summaryRows: [
+        badgeText: 'RIWAYAT PENDING • RUMUS MENUNGGU QC',
+        coreFormula: 'Total Menunggu QC = Σ (Netto Tagih × Harga Pabrik) untuk Seri PENDING',
+        appliedFormula: `Total Menunggu QC (${pendingBatches.length} Seri PENDING) = ${formatRupiah(totalPendingRp)}`,
+        steps: [
           {
-            label: 'Jumlah Seri Menunggu QC',
-            value: `${pendingBatches.length} Seri`,
-            highlight: 'white',
-          },
-          {
-            label: 'Total Nilai Menunggu QC',
-            value: formatRupiah(totalPendingRp),
+            stepNumber: 1,
+            title: 'Total Menunggu QC',
+            formula: 'Total Menunggu QC = Σ Nota Seri berstatus PENDING',
+            substitution: `${pendingBatches.length} Seri PENDING = ${formatRupiah(totalPendingRp)}`,
+            resultLabel: 'Total Menunggu QC',
+            resultValue: formatRupiah(totalPendingRp),
+            explanation: `Total tagihan dari ${pendingBatches.length} Nomor Seri yang sedang menunggu hasil QC pabrik.`,
             highlight: 'amber',
           },
+          ...pendingBatches.map((s, idx) => {
+            const netto = Math.max(0, s.packaging.grossWeightPerPackage - s.factoryDeductionKg);
+            const nota = getSerialNotaRp(s);
+            return {
+              stepNumber: idx + 2,
+              title: `Seri ${formatSerialLineage(s)}`,
+              formula: `Nilai Pending = Netto Tagih × Harga Pabrik`,
+              substitution: `${netto} kg × ${formatRupiah(s.factoryTargetPricePerKg)} = ${formatRupiah(nota)}`,
+              resultLabel: `Seri ${formatSerialLineage(s)}`,
+              resultValue: formatRupiah(nota),
+              explanation: `Gulungan ${s.rollNumber || '-'} • Pabrik ${s.targetFactory}.`,
+              highlight: 'white' as const,
+            };
+          }),
         ],
-        conclusion: `Total Nilai Menunggu QC sebesar ${formatRupiah(totalPendingRp)} berasal dari ${pendingBatches.length} Nomor Seri yang sedang menunggu keputusan QC pabrik.`,
+        conclusion: `Total Menunggu QC = ${formatRupiah(totalPendingRp)}.`,
       });
       return;
     }
 
     // TOTAL_PROFIT
+    const totalAllModalRp = finishedBatches.reduce((acc, s) => acc + getSerialModalRp(s), 0);
     setCalcDetail({
       title: `4. Total Profit Bersih Keseluruhan (${finishedBatches.length} Seri)`,
       subtitle: 'Selisih Total Tagihan Nota Pabrik dikurangi Total Modal Produksi',
-      badgeText: 'RIWAYAT PROFIT • ASAL ANGKA PROFIT BERSIH',
-      coreFormula: 'Total Profit = Σ (Jumlah Nota Pabrik − Total Modal Produksi)',
-      steps: finishedBatches.map((s, idx) => {
-        const nota = getSerialNotaRp(s);
-        const modal = getSerialModalRp(s);
-        const profit = nota - modal;
-        return {
-          stepNumber: idx + 1,
-          title: `Seri ${formatSerialLineage(s)} (${s.rollNumber || '-'})`,
-          formula: `Profit = Nota ${formatRupiah(nota)} − Modal ${formatRupiah(modal)}`,
-          substitution: `${formatRupiah(nota)} − ${formatRupiah(modal)} = ${profit >= 0 ? '+' : ''}${formatRupiah(profit)}`,
-          resultLabel: 'Profit Seri',
-          resultValue: `${profit >= 0 ? '+' : ''}${formatRupiah(profit)}`,
-          explanation: `Selisih tagihan nota terhadap modal produksi Seri ${formatSerialLineage(s)}.`,
-          highlight: (profit >= 0 ? 'amber' : 'red') as 'amber' | 'red',
-        };
-      }),
-      summaryRows: [
+      badgeText: 'RIWAYAT PROFIT • RUMUS PROFIT BERSIH',
+      coreFormula: 'Total Profit = Total Tagihan Nota − Total Modal Produksi',
+      appliedFormula: `Total Profit = ${formatRupiah(totalAllNotaRp)} − ${formatRupiah(totalAllModalRp)} = ${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)}`,
+      steps: [
         {
-          label: 'Total Tagihan Nota',
-          value: formatRupiah(totalAllNotaRp),
+          stepNumber: 1,
+          title: 'Total Tagihan Nota',
+          formula: 'Total Tagihan Nota = Σ (Netto Tagih Seri × Harga Pabrik / KG)',
+          substitution: `${finishedBatches.length} Seri = ${formatRupiah(totalAllNotaRp)}`,
+          resultLabel: 'Total Tagihan Nota',
+          resultValue: formatRupiah(totalAllNotaRp),
+          explanation: `Total nilai tagihan nota seluruh ${finishedBatches.length} Nomor Seri.`,
           highlight: 'white',
         },
         {
-          label: 'Total Profit Bersih',
-          value: `${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)}`,
+          stepNumber: 2,
+          title: 'Total Modal Produksi',
+          formula: 'Total Modal Produksi = Σ (Netto Tagih Seri × Harga Modal / KG)',
+          substitution: `${finishedBatches.length} Seri = ${formatRupiah(totalAllModalRp)}`,
+          resultLabel: 'Total Modal Produksi',
+          resultValue: formatRupiah(totalAllModalRp),
+          explanation: `Total modal produksi seluruh ${finishedBatches.length} Nomor Seri.`,
+          highlight: 'white',
+        },
+        {
+          stepNumber: 3,
+          title: 'Total Profit',
+          formula: 'Total Profit = Total Tagihan Nota − Total Modal Produksi',
+          substitution: `${formatRupiah(totalAllNotaRp)} − ${formatRupiah(totalAllModalRp)} = ${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)}`,
+          resultLabel: 'Total Profit',
+          resultValue: `${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)}`,
+          explanation: `Total keuntungan bersih dari seluruh Nomor Seri.`,
           highlight: totalProfitRp >= 0 ? 'amber' : 'red',
         },
+        ...finishedBatches.map((s, idx) => {
+          const nota = getSerialNotaRp(s);
+          const modal = getSerialModalRp(s);
+          const profit = nota - modal;
+          return {
+            stepNumber: idx + 4,
+            title: `Seri ${formatSerialLineage(s)}`,
+            formula: `Profit Seri = Jumlah Nota Pabrik − Jumlah Modal Kita`,
+            substitution: `${formatRupiah(nota)} − ${formatRupiah(modal)} = ${profit >= 0 ? '+' : ''}${formatRupiah(profit)}`,
+            resultLabel: `Seri ${formatSerialLineage(s)}`,
+            resultValue: `${profit >= 0 ? '+' : ''}${formatRupiah(profit)}`,
+            explanation: `Gulungan ${s.rollNumber || '-'} • Pabrik ${s.targetFactory}.`,
+            highlight: (profit >= 0 ? 'amber' : 'red') as 'amber' | 'red',
+          };
+        }),
       ],
-      conclusion: `Total Profit Bersih sebesar ${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)} diperoleh dari selisih tagihan nota seluruh seri terhadap modal produksinya.`,
+      conclusion: `Total Profit = ${formatRupiah(totalAllNotaRp)} − ${formatRupiah(totalAllModalRp)} = ${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)}.`,
     });
   };
 

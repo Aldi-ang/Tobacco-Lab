@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Package,
@@ -6,6 +6,9 @@ import {
   Scroll,
   Plus,
   Trash2,
+  Edit3,
+  Check,
+  RotateCcw,
 } from 'lucide-react';
 import { PackagingMaster, FactoryMaster, TobaccoRollSample } from '../types/tobacco';
 import { NumericInput } from './NumericInput';
@@ -18,12 +21,16 @@ interface MasterRegistryModalProps {
   initialSection?: 'packaging' | 'factory' | 'gulungan';
   packagingList: PackagingMaster[];
   onAddPackaging: (pkg: PackagingMaster) => void;
+  onUpdatePackaging?: (pkg: PackagingMaster) => void;
   onDeletePackaging: (id: string) => void;
   factoryList: FactoryMaster[];
   onAddFactory: (fac: FactoryMaster) => void;
+  onUpdateFactory?: (fac: FactoryMaster) => void;
   onDeleteFactory: (id: string) => void;
   rollSamples: TobaccoRollSample[];
   onAddRollSample: (roll: TobaccoRollSample) => void;
+  onUpdateRollSample?: (roll: TobaccoRollSample) => void;
+  onDeleteRollSample?: (id: string) => void;
 }
 
 export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
@@ -32,17 +39,40 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
   initialSection = 'packaging',
   packagingList,
   onAddPackaging,
+  onUpdatePackaging,
   onDeletePackaging,
   factoryList,
   onAddFactory,
+  onUpdateFactory,
   onDeleteFactory,
   rollSamples,
   onAddRollSample,
+  onUpdateRollSample,
+  onDeleteRollSample,
 }) => {
   const [activeSection, setActiveSection] = useState<'packaging' | 'factory' | 'gulungan'>(
     initialSection
   );
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const formTopRef = useRef<HTMLDivElement | null>(null);
 
+  const slideUpToEditForm = () => {
+    setTimeout(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      formTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 30);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveSection(initialSection);
+    }
+  }, [initialSection, isOpen]);
+
+  // Packaging Form & Edit State
+  const [editingPkgId, setEditingPkgId] = useState<string | null>(null);
   const [pkgName, setPkgName] = useState('');
   const [pkgMassKg, setPkgMassKg] = useState<number>(3);
   const [pkgTaraPercent, setPkgTaraPercent] = useState<number>(0);
@@ -51,10 +81,14 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
   const [pkgPressCostRp, setPkgPressCostRp] = useState<number>(15000);
   const [pkgNotes, setPkgNotes] = useState('');
 
+  // Factory Form & Edit State
+  const [editingFacId, setEditingFacId] = useState<string | null>(null);
   const [facName, setFacName] = useState('');
   const [facSampleKg, setFacSampleKg] = useState<number>(0);
   const [facNotes, setFacNotes] = useState('');
 
+  // Gulungan Form & Edit State
+  const [editingRollId, setEditingRollId] = useState<string | null>(null);
   const [rollNumber, setRollNumber] = useState(
     () => `GUL-${new Date().getFullYear()}-${String(rollSamples.length + 1).padStart(3, '0')}`
   );
@@ -62,12 +96,51 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
   const [rollFactory, setRollFactory] = useState(factoryList[0]?.name || 'CELLO MUNTILAN');
   const [rollRack, setRollRack] = useState('Lemari Sampel Gudang A - Tabung Baru');
   const [rollWeightGrams, setRollWeightGrams] = useState<number>(250);
+  const [rollDate, setRollDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   if (!isOpen) return null;
 
-  const handleCreatePackaging = (e: React.FormEvent) => {
+  const resetPackagingForm = () => {
+    setEditingPkgId(null);
+    setPkgName('');
+    setPkgMassKg(3);
+    setPkgTaraPercent(0);
+    setPkgTaraFlatKg(3);
+    setPkgCostRp(35000);
+    setPkgPressCostRp(15000);
+    setPkgNotes('');
+  };
+
+  const handleStartEditPackaging = (pkg: PackagingMaster) => {
+    setEditingPkgId(pkg.id);
+    setPkgName(pkg.name);
+    setPkgMassKg(pkg.packagingMassKg || 0);
+    setPkgTaraPercent(pkg.taraPercent || 0);
+    setPkgTaraFlatKg(pkg.taraFlatKg || 0);
+    setPkgCostRp(pkg.packagingCostRp || 0);
+    setPkgPressCostRp(pkg.pressCostRp || 0);
+    setPkgNotes(pkg.notes || '');
+    slideUpToEditForm();
+  };
+
+  const handleSubmitPackaging = (e: React.FormEvent) => {
     e.preventDefault();
     if (!pkgName.trim()) return;
+    if (editingPkgId && onUpdatePackaging) {
+      onUpdatePackaging({
+        id: editingPkgId,
+        name: pkgName.trim().toUpperCase(),
+        packagingMassKg: pkgMassKg,
+        taraPercent: pkgTaraPercent,
+        taraFlatKg: pkgTaraFlatKg,
+        packagingCostRp: pkgCostRp,
+        pressCostRp: pkgPressCostRp,
+        notes: pkgNotes.trim(),
+      });
+      resetPackagingForm();
+      return;
+    }
+
     onAddPackaging({
       id: `pkg-${Date.now()}`,
       name: pkgName.trim().toUpperCase(),
@@ -78,27 +151,91 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
       pressCostRp: pkgPressCostRp,
       notes: pkgNotes.trim(),
     });
-    setPkgName('');
-    setPkgNotes('');
+    resetPackagingForm();
   };
 
-  const handleCreateFactory = (e: React.FormEvent) => {
+  const resetFactoryForm = () => {
+    setEditingFacId(null);
+    setFacName('');
+    setFacSampleKg(0);
+    setFacNotes('');
+  };
+
+  const handleStartEditFactory = (fac: FactoryMaster) => {
+    setEditingFacId(fac.id);
+    setFacName(fac.name);
+    setFacSampleKg(fac.sampleDeductionKg || 0);
+    setFacNotes(fac.notes || '');
+    slideUpToEditForm();
+  };
+
+  const handleSubmitFactory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!facName.trim()) return;
+    if (editingFacId && onUpdateFactory) {
+      onUpdateFactory({
+        id: editingFacId,
+        name: facName.trim(),
+        sampleDeductionKg: facSampleKg,
+        notes: facNotes.trim(),
+      });
+      resetFactoryForm();
+      return;
+    }
+
     onAddFactory({
       id: `fac-${Date.now()}`,
       name: facName.trim(),
       sampleDeductionKg: facSampleKg,
       notes: facNotes.trim(),
     });
-    setFacName('');
-    setFacNotes('');
+    resetFactoryForm();
   };
 
-  const handleCreateGulungan = (e: React.FormEvent) => {
+  const resetRollForm = () => {
+    setEditingRollId(null);
+    setRollNumber(
+      `GUL-${new Date().getFullYear()}-${String(rollSamples.length + 1).padStart(3, '0')}`
+    );
+    setRollLabel('');
+    setRollFactory(factoryList[0]?.name || 'CELLO MUNTILAN');
+    setRollRack('Lemari Sampel Gudang A - Tabung Baru');
+    setRollWeightGrams(250);
+    setRollDate(new Date().toISOString().split('T')[0]);
+  };
+
+  const handleStartEditRoll = (r: TobaccoRollSample) => {
+    setEditingRollId(r.id);
+    setRollNumber(r.rollNumber);
+    setRollLabel(r.recipeName);
+    setRollFactory(r.targetFactory);
+    setRollRack(r.rackLocation || 'Rak Gudang Utama');
+    setRollWeightGrams(r.sampleWeightGrams || 250);
+    setRollDate(r.sampleCreatedDate || new Date().toISOString().split('T')[0]);
+    slideUpToEditForm();
+  };
+
+  const handleSubmitGulungan = (e: React.FormEvent) => {
     e.preventDefault();
     if (!rollNumber.trim()) return;
-    const nowStr = new Date().toISOString().split('T')[0];
+    if (editingRollId && onUpdateRollSample) {
+      const existing = rollSamples.find((r) => r.id === editingRollId);
+      if (existing) {
+        onUpdateRollSample({
+          ...existing,
+          rollNumber: rollNumber.trim(),
+          recipeName: rollLabel.trim() || `${rollFactory}`,
+          targetFactory: rollFactory,
+          rackLocation: rollRack.trim() || 'Rak Gudang Utama',
+          sampleWeightGrams: rollWeightGrams || 250,
+          sampleCreatedDate: rollDate || existing.sampleCreatedDate,
+        });
+      }
+      resetRollForm();
+      return;
+    }
+
+    const nowStr = rollDate || new Date().toISOString().split('T')[0];
     onAddRollSample({
       id: `gul-${Date.now()}`,
       rollNumber: rollNumber.trim(),
@@ -116,6 +253,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
         bitter: 2.5,
         burn: 4.5,
         sugar: 4.0,
+        aroma: 4.2,
         colorGrade: 'E',
         hppPerKg: 0,
       },
@@ -135,7 +273,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
               Format: Kemasan (Harga & Press), Pabrik & Gulungan
             </h2>
             <p className="text-xs text-zinc-400">
-              Daftarkan jenis kemasan lengkap dengan Tarra, Harga Kemasan (Rp), dan Ongkos Press (Rp)
+              Tambah, Edit, atau Hapus jenis Kemasan, Pabrik Tujuan, dan Gulungan Sampel
             </p>
           </div>
           <button
@@ -170,7 +308,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
               {
                 id: 'gulungan',
                 label: 'Gulungan',
-                fullLabel: 'Master Gulungan Sampel Baru',
+                fullLabel: 'Master Gulungan Sampel',
                 icon: <Scroll className="w-3.5 h-3.5" />,
                 badge: rollSamples.length,
               },
@@ -178,16 +316,39 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
           />
         </div>
 
-        <div className="p-5 overflow-y-auto flex-1 space-y-5 text-xs">
+        <div
+          ref={scrollContainerRef}
+          className="p-5 overflow-y-auto flex-1 space-y-5 text-xs scroll-smooth"
+        >
+          <div ref={formTopRef} />
           {activeSection === 'packaging' && (
             <>
               <form
-                onSubmit={handleCreatePackaging}
-                className="bg-black p-4 rounded-xl border border-zinc-800 space-y-3"
+                onSubmit={handleSubmitPackaging}
+                className={`p-4 rounded-xl border space-y-3 ${
+                  editingPkgId
+                    ? 'bg-zinc-950 border-amber-500/70 shadow-[0_0_20px_rgba(245,158,11,0.1)]'
+                    : 'bg-black border-zinc-800'
+                }`}
               >
-                <div className="font-extrabold text-zinc-200 uppercase tracking-wider">
-                  + Tambah Jenis Packaging Baru (Tarra, Harga Kemasan & Ongkos Press)
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="font-extrabold text-amber-400 uppercase tracking-wider">
+                    {editingPkgId
+                      ? `✎ Mode Edit Kemasan: ${pkgName || 'Kemasan'}`
+                      : '+ Tambah Jenis Packaging Baru (Tarra, Harga Kemasan & Ongkos Press)'}
+                  </div>
+                  {editingPkgId && (
+                    <button
+                      type="button"
+                      onClick={resetPackagingForm}
+                      className="px-2.5 py-1 rounded-lg bg-black hover:bg-zinc-900 text-zinc-300 border border-zinc-700 font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Batal Edit</span>
+                    </button>
+                  )}
                 </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                   <div>
                     <label className="block text-white font-bold mb-1">
@@ -199,7 +360,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                       value={pkgName}
                       onChange={(e) => setPkgName(e.target.value)}
                       placeholder="Contoh: KRJ MUNTILAN"
-                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-bold focus:outline-hidden focus:border-zinc-700"
+                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-bold focus:outline-hidden focus:border-amber-500"
                     />
                   </div>
                   <div>
@@ -255,13 +416,23 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                     type="submit"
                     className="btn-amber-outline h-10 px-4 rounded-xl font-black flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Plus className="w-4 h-4 stroke-[2.5]" /> Simpan Packaging
+                    {editingPkgId ? (
+                      <>
+                        <Check className="w-4 h-4 stroke-[2.5]" /> Simpan Perubahan
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4 stroke-[2.5]" /> Simpan Packaging
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
 
               <div className="space-y-2">
-                <div className="font-bold text-white">Daftar Jenis Packaging Terdaftar:</div>
+                <div className="font-bold text-white">
+                  Daftar Jenis Packaging Terdaftar (Klik Edit untuk mengubah):
+                </div>
                 {packagingList.map((pkg) => {
                   const refDeduction50 = Number(
                     ((50 * (pkg.taraPercent || 0)) / 100 + (pkg.taraFlatKg || 0)).toFixed(2)
@@ -272,18 +443,24 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                   const factoryWeightDiff50 = Number(
                     ((pkg.packagingMassKg || 0) - refDeduction50).toFixed(2)
                   );
+                  const isBeingEdited = editingPkgId === pkg.id;
 
                   return (
                     <div
                       key={pkg.id}
-                      className="bg-black p-3.5 rounded-xl border border-zinc-800 flex items-center justify-between gap-3"
+                      className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 ${
+                        isBeingEdited
+                          ? 'bg-zinc-900 border-amber-500/70'
+                          : 'bg-black border-zinc-800'
+                      }`}
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-black text-white text-sm">{pkg.name}</span>
                           {buyWeightDiff50 !== 0 && (
                             <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 font-mono text-[10px] text-zinc-200 font-bold">
-                              @50kg: Beli {buyWeightDiff50 > 0 ? `+${buyWeightDiff50}` : buyWeightDiff50}kg • Setor Pabrik {factoryWeightDiff50 > 0 ? `+${factoryWeightDiff50}` : factoryWeightDiff50}kg
+                              @50kg: Beli {buyWeightDiff50 > 0 ? `+${buyWeightDiff50}` : buyWeightDiff50}kg • Setor Pabrik{' '}
+                              {factoryWeightDiff50 > 0 ? `+${factoryWeightDiff50}` : factoryWeightDiff50}kg
                             </span>
                           )}
                         </div>
@@ -307,13 +484,26 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                           </span>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => onDeletePackaging(pkg.id)}
-                        className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-900 cursor-pointer shrink-0"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditPackaging(pkg)}
+                          className="h-8 px-2.5 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-amber-400 border border-zinc-700 hover:border-amber-500/70 font-bold text-xs inline-flex items-center gap-1 cursor-pointer transition-colors"
+                          title={`Edit ${pkg.name}`}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeletePackaging(pkg.id)}
+                          className="h-8 w-8 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-900 border border-transparent hover:border-zinc-800 flex items-center justify-center cursor-pointer"
+                          title={`Hapus ${pkg.name}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -324,12 +514,31 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
           {activeSection === 'factory' && (
             <>
               <form
-                onSubmit={handleCreateFactory}
-                className="bg-black p-4 rounded-xl border border-zinc-800 space-y-3"
+                onSubmit={handleSubmitFactory}
+                className={`p-4 rounded-xl border space-y-3 ${
+                  editingFacId
+                    ? 'bg-zinc-950 border-amber-500/70 shadow-[0_0_20px_rgba(245,158,11,0.1)]'
+                    : 'bg-black border-zinc-800'
+                }`}
               >
-                <div className="font-extrabold text-zinc-200 uppercase tracking-wider">
-                  + Daftarkan Pabrik Tujuan Baru
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="font-extrabold text-amber-400 uppercase tracking-wider">
+                    {editingFacId
+                      ? `✎ Mode Edit Pabrik: ${facName || 'Pabrik'}`
+                      : '+ Daftarkan Pabrik Tujuan Baru'}
+                  </div>
+                  {editingFacId && (
+                    <button
+                      type="button"
+                      onClick={resetFactoryForm}
+                      className="px-2.5 py-1 rounded-lg bg-black hover:bg-zinc-900 text-zinc-300 border border-zinc-700 font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Batal Edit</span>
+                    </button>
+                  )}
                 </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                   <div className="sm:col-span-2">
                     <label className="block text-white font-bold mb-1">
@@ -341,7 +550,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                       value={facName}
                       onChange={(e) => setFacName(e.target.value)}
                       placeholder="Contoh: CELLO MUNTILAN"
-                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white focus:outline-hidden"
+                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white focus:outline-hidden focus:border-amber-500"
                     />
                   </div>
                   <div>
@@ -370,32 +579,65 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                     type="submit"
                     className="btn-amber-outline h-10 px-4 rounded-xl font-black flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
                   >
-                    <Plus className="w-4 h-4 stroke-[2.5]" /> Daftarkan Pabrik
+                    {editingFacId ? (
+                      <>
+                        <Check className="w-4 h-4 stroke-[2.5]" /> Simpan Perubahan
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4 stroke-[2.5]" /> Daftarkan Pabrik
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
 
               <div className="space-y-2">
-                {factoryList.map((fac) => (
-                  <div
-                    key={fac.id}
-                    className="bg-black p-3 rounded-xl border border-zinc-800 flex items-center justify-between gap-3"
-                  >
-                    <div>
-                      <div className="font-bold text-white text-sm">{fac.name}</div>
-                      <div className="text-zinc-400 mt-0.5">
-                        Potongan Sampel: <b className="text-white font-mono">{fac.sampleDeductionKg} kg</b>
+                <div className="font-bold text-white">
+                  Daftar Pabrik Terdaftar (Klik Edit untuk mengubah):
+                </div>
+                {factoryList.map((fac) => {
+                  const isBeingEdited = editingFacId === fac.id;
+                  return (
+                    <div
+                      key={fac.id}
+                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                        isBeingEdited
+                          ? 'bg-zinc-900 border-amber-500/70'
+                          : 'bg-black border-zinc-800'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold text-white text-sm">{fac.name}</div>
+                        <div className="text-zinc-400 mt-0.5">
+                          Potongan Sampel:{' '}
+                          <b className="text-white font-mono">{fac.sampleDeductionKg} kg</b>
+                          {fac.notes ? <span> • {fac.notes}</span> : null}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditFactory(fac)}
+                          className="h-8 px-2.5 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-amber-400 border border-zinc-700 hover:border-amber-500/70 font-bold text-xs inline-flex items-center gap-1 cursor-pointer transition-colors"
+                          title={`Edit ${fac.name}`}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteFactory(fac.id)}
+                          className="h-8 w-8 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-900 border border-transparent hover:border-zinc-800 flex items-center justify-center cursor-pointer"
+                          title={`Hapus ${fac.name}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteFactory(fac.id)}
-                      className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-900 cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           )}
@@ -403,12 +645,31 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
           {activeSection === 'gulungan' && (
             <>
               <form
-                onSubmit={handleCreateGulungan}
-                className="bg-black p-4 rounded-xl border border-zinc-800 space-y-3"
+                onSubmit={handleSubmitGulungan}
+                className={`p-4 rounded-xl border space-y-3 ${
+                  editingRollId
+                    ? 'bg-zinc-950 border-amber-500/70 shadow-[0_0_20px_rgba(245,158,11,0.1)]'
+                    : 'bg-black border-zinc-800'
+                }`}
               >
-                <div className="font-extrabold text-zinc-200 uppercase tracking-wider">
-                  + Buat Gulungan Sampel Baru
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="font-extrabold text-amber-400 uppercase tracking-wider">
+                    {editingRollId
+                      ? `✎ Mode Edit Gulungan: ${rollNumber}`
+                      : '+ Buat Gulungan Sampel Baru'}
+                  </div>
+                  {editingRollId && (
+                    <button
+                      type="button"
+                      onClick={resetRollForm}
+                      className="px-2.5 py-1 rounded-lg bg-black hover:bg-zinc-900 text-zinc-300 border border-zinc-700 font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Batal Edit</span>
+                    </button>
+                  )}
                 </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                   <div>
                     <label className="block text-white font-bold mb-1">Kode Gulungan *</label>
@@ -417,7 +678,7 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                       required
                       value={rollNumber}
                       onChange={(e) => setRollNumber(e.target.value)}
-                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold focus:outline-hidden"
+                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold focus:outline-hidden focus:border-amber-500"
                     />
                   </div>
                   <div>
@@ -435,16 +696,17 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-white font-bold mb-1">Berat Sampel (gram)</label>
-                    <NumericInput
-                      value={rollWeightGrams}
-                      onChange={setRollWeightGrams}
+                    <label className="block text-white font-bold mb-1">Tanggal Gulungan</label>
+                    <input
+                      type="date"
+                      value={rollDate}
+                      onChange={(e) => setRollDate(e.target.value)}
                       className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono focus:outline-hidden"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
                   <div>
                     <label className="block text-zinc-300 mb-1">Judul Setoran / Nota</label>
                     <input
@@ -464,33 +726,86 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                       className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white focus:outline-hidden"
                     />
                   </div>
+                  <div>
+                    <label className="block text-zinc-300 mb-1">Berat Sampel (gram)</label>
+                    <NumericInput
+                      value={rollWeightGrams}
+                      onChange={setRollWeightGrams}
+                      className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono focus:outline-hidden"
+                    />
+                  </div>
                   <button
                     type="submit"
                     className="btn-amber-outline h-10 px-4 rounded-xl font-black flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <Plus className="w-4 h-4 stroke-[2.5]" /> Buat Gulungan
+                    {editingRollId ? (
+                      <>
+                        <Check className="w-4 h-4 stroke-[2.5]" /> Simpan Perubahan
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4 stroke-[2.5]" /> Buat Gulungan
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
 
               <div className="space-y-2">
-                {rollSamples.map((r) => (
-                  <div
-                    key={r.id}
-                    className="bg-black p-3 rounded-xl border border-zinc-800 flex items-center justify-between gap-3"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-white">{r.rollNumber}</span>
-                        <span className="font-bold text-white">{r.recipeName}</span>
+                <div className="font-bold text-white">
+                  Daftar Gulungan Terdaftar (Klik Edit untuk mengubah):
+                </div>
+                {rollSamples.map((r) => {
+                  const isBeingEdited = editingRollId === r.id;
+                  return (
+                    <div
+                      key={r.id}
+                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                        isBeingEdited
+                          ? 'bg-zinc-900 border-amber-500/70'
+                          : 'bg-black border-zinc-800'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-700 font-mono font-bold text-amber-400">
+                            {r.rollNumber}
+                          </span>
+                          <span className="font-bold text-white">{r.recipeName}</span>
+                          <span className="text-[11px] font-mono text-zinc-400">
+                            ({r.sampleCreatedDate})
+                          </span>
+                        </div>
+                        <div className="text-zinc-400 mt-0.5">
+                          Pabrik: <b className="text-white">{r.targetFactory}</b> • Lokasi:{' '}
+                          {r.rackLocation}
+                        </div>
                       </div>
-                      <div className="text-zinc-400 mt-0.5">
-                        Pabrik: <b className="text-white">{r.targetFactory}</b> • Lokasi:{' '}
-                        {r.rackLocation}
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditRoll(r)}
+                          className="h-8 px-2.5 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-amber-400 border border-zinc-700 hover:border-amber-500/70 font-bold text-xs inline-flex items-center gap-1 cursor-pointer transition-colors"
+                          title={`Edit ${r.rollNumber}`}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
+                        {onDeleteRollSample && (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteRollSample(r.id)}
+                            className="h-8 w-8 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-900 border border-transparent hover:border-zinc-800 flex items-center justify-center cursor-pointer"
+                            title={`Hapus ${r.rollNumber}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           )}

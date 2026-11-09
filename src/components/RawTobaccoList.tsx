@@ -228,42 +228,54 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 const itemSteps = filteredRaw.map((item, idx) => {
                   const m = getRawWeightMetrics(item);
                   return {
-                    stepNumber: idx + 1,
+                    stepNumber: idx + 3,
                     title: `${item.name} (${item.origin})`,
-                    formula: `Netto Bayar = Bruto ${item.grossWeightKg} kg − Potongan Nota ${item.deductionKg} kg = ${m.paidNetKg} kg`,
-                    substitution: `${m.paidNetKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${formatRupiah(m.paidValueRp)}`,
-                    resultLabel: 'Nilai Bayar',
-                    resultValue: formatRupiah(m.paidValueRp),
-                    explanation: `Dari Bruto ${item.grossWeightKg} kg dipotong tarra nota ${item.deductionKg} kg (${item.taraFormula.rawFormula}) menjadi ${m.paidNetKg} kg.`,
+                    formula: `Nilai Bayar = (Bruto − Potongan Nota) × Harga Beli`,
+                    substitution: `(${item.grossWeightKg} kg − ${item.deductionKg} kg) × ${formatRupiah(item.pricePerKgPurchase)} = ${m.paidNetKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${formatRupiah(m.paidValueRp)}`,
+                    resultLabel: `${item.name}`,
+                    resultValue: `${formatRupiah(m.paidValueRp)} (${m.paidNetKg} kg)`,
+                    explanation: `Bruto ${item.grossWeightKg} kg dipotong tarra nota ${item.deductionKg} kg (${item.taraFormula.rawFormula}) menjadi ${m.paidNetKg} kg.`,
                     highlight: 'white' as const,
                   };
                 });
 
                 setCalcDetail({
                   title: `1. Total Nilai Bayar (Paid Value) — ${filteredRaw.length} Stok`,
-                  subtitle: `Total Netto Nota Dibayar: ${totals.paidNetKg} kg`,
-                  badgeText: 'PANEL 1 GUDANG • ASAL ANGKA TOTAL NILAI BAYAR',
+                  subtitle: `Total Netto Bayar: ${totals.paidNetKg} kg`,
+                  badgeText: 'PANEL 1 GUDANG • RUMUS TOTAL NILAI BAYAR',
                   coreFormula:
-                    'Total Nilai Bayar = Σ ((Bruto − Potongan Nota) × Harga Beli / KG)',
-                  steps: itemSteps,
-                  summaryRows: [
+                    'Total Nilai Bayar = Σ (Netto Bayar × Harga Beli)   |   Netto Bayar = Bruto − Potongan Nota',
+                  appliedFormula: `Total Nilai Bayar = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).paidValueRp)).join(' + ')} = ${formatRupiah(totals.paidValueRp)}   |   Total Netto Bayar = ${totals.paidNetKg} kg`,
+                  steps: [
                     {
-                      label: 'Jumlah Jenis Stok',
-                      value: `${filteredRaw.length} Jenis Tembakau`,
+                      stepNumber: 1,
+                      title: 'Total Netto Bayar',
+                      formula: 'Total Netto Bayar = Σ (Berat Bruto − Potongan Tarra Nota)',
+                      substitution:
+                        filteredRaw
+                          .map((item) => `${getRawWeightMetrics(item).paidNetKg} kg (${item.name})`)
+                          .join(' + ') + ` = ${totals.paidNetKg} kg`,
+                      resultLabel: 'Total Netto Bayar',
+                      resultValue: `${totals.paidNetKg} kg`,
+                      explanation: `Jumlah berat bersih nota dari seluruh ${filteredRaw.length} stok tembakau.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Total Netto Nota Dibayar',
-                      value: `${totals.paidNetKg} kg`,
-                      highlight: 'white',
-                    },
-                    {
-                      label: 'Total Nilai Bayar (Paid)',
-                      value: formatRupiah(totals.paidValueRp),
+                      stepNumber: 2,
+                      title: 'Total Nilai Bayar',
+                      formula: 'Total Nilai Bayar = Σ (Netto Bayar × Harga Beli / KG)',
+                      substitution:
+                        filteredRaw
+                          .map((item) => formatRupiah(getRawWeightMetrics(item).paidValueRp))
+                          .join(' + ') + ` = ${formatRupiah(totals.paidValueRp)}`,
+                      resultLabel: 'Total Nilai Bayar',
+                      resultValue: formatRupiah(totals.paidValueRp),
+                      explanation: `Total uang kas yang dibayarkan sesuai nota pembelian untuk ${filteredRaw.length} stok.`,
                       highlight: 'amber',
                     },
+                    ...itemSteps,
                   ],
-                  conclusion: `Total Nilai Bayar sebesar ${formatRupiah(totals.paidValueRp)} diperoleh dari penjumlahan Netto Bayar Nota seluruh stok (${totals.paidNetKg} kg) dikalikan harga beli masing-masing.`,
+                  conclusion: `Total Nilai Bayar = ${formatRupiah(totals.paidValueRp)} (${totals.paidNetKg} kg).`,
                 });
                 return;
               }
@@ -272,42 +284,54 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 const itemSteps = filteredRaw.map((item, idx) => {
                   const m = getRawWeightMetrics(item);
                   return {
-                    stepNumber: idx + 1,
+                    stepNumber: idx + 3,
                     title: `${item.name} (${item.origin})`,
-                    formula: `Netto Riil = Bruto ${item.grossWeightKg} kg − Wadah Riil ${m.realPkgMassKg} kg = ${m.realNetKg} kg`,
-                    substitution: `${m.realNetKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${formatRupiah(m.realValueRp)}`,
-                    resultLabel: 'Nilai Riil',
-                    resultValue: formatRupiah(m.realValueRp),
+                    formula: `Nilai Riil = (Bruto − Wadah Riil) × Harga Beli`,
+                    substitution: `(${item.grossWeightKg} kg − ${m.realPkgMassKg} kg) × ${formatRupiah(item.pricePerKgPurchase)} = ${m.realNetKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${formatRupiah(m.realValueRp)}`,
+                    resultLabel: `${item.name}`,
+                    resultValue: `${formatRupiah(m.realValueRp)} (${m.realNetKg} kg)`,
                     explanation: `Berat wadah asli (${item.taraFormula.packagingType || 'Standar'}) adalah ${m.realPkgMassKg} kg, sehingga fisik tembakau adalah ${m.realNetKg} kg.`,
-                    highlight: 'amber' as const,
+                    highlight: 'white' as const,
                   };
                 });
 
                 setCalcDetail({
                   title: `2. Total Nilai Barang Riil (Real Value) — ${filteredRaw.length} Stok`,
-                  subtitle: `Total Netto Fisik Sebenarnya: ${totals.realNetKg} kg`,
-                  badgeText: 'PANEL 2 GUDANG • ASAL ANGKA TOTAL NILAI BARANG RIIL',
+                  subtitle: `Total Netto Riil: ${totals.realNetKg} kg`,
+                  badgeText: 'PANEL 2 GUDANG • RUMUS TOTAL NILAI BARANG RIIL',
                   coreFormula:
-                    'Total Nilai Barang Riil = Σ ((Bruto − Berat Wadah Riil) × Harga Beli / KG)',
-                  steps: itemSteps,
-                  summaryRows: [
+                    'Total Nilai Riil = Σ (Netto Riil × Harga Beli)   |   Netto Riil = Bruto − Wadah Riil',
+                  appliedFormula: `Total Nilai Riil = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).realValueRp)).join(' + ')} = ${formatRupiah(totals.realValueRp)}   |   Total Netto Riil = ${totals.realNetKg} kg`,
+                  steps: [
                     {
-                      label: 'Jumlah Jenis Stok',
-                      value: `${filteredRaw.length} Jenis Tembakau`,
+                      stepNumber: 1,
+                      title: 'Total Netto Riil',
+                      formula: 'Total Netto Riil = Σ (Berat Bruto − Berat Wadah Riil)',
+                      substitution:
+                        filteredRaw
+                          .map((item) => `${getRawWeightMetrics(item).realNetKg} kg (${item.name})`)
+                          .join(' + ') + ` = ${totals.realNetKg} kg`,
+                      resultLabel: 'Total Netto Riil',
+                      resultValue: `${totals.realNetKg} kg`,
+                      explanation: `Jumlah berat fisik tembakau sebenarnya di gudang dari ${filteredRaw.length} stok.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Total Netto Fisik Sebenarnya',
-                      value: `${totals.realNetKg} kg`,
+                      stepNumber: 2,
+                      title: 'Total Nilai Riil',
+                      formula: 'Total Nilai Riil = Σ (Netto Riil × Harga Beli / KG)',
+                      substitution:
+                        filteredRaw
+                          .map((item) => formatRupiah(getRawWeightMetrics(item).realValueRp))
+                          .join(' + ') + ` = ${formatRupiah(totals.realValueRp)}`,
+                      resultLabel: 'Total Nilai Riil',
+                      resultValue: formatRupiah(totals.realValueRp),
+                      explanation: `Total nilai pasar barang berdasarkan berat fisik sebenarnya di gudang.`,
                       highlight: 'amber',
                     },
-                    {
-                      label: 'Total Nilai Barang Riil',
-                      value: formatRupiah(totals.realValueRp),
-                      highlight: 'amber',
-                    },
+                    ...itemSteps,
                   ],
-                  conclusion: `Total Nilai Barang Riil sebesar ${formatRupiah(totals.realValueRp)} diperoleh dari berat fisik tembakau sebenarnya di gudang (${totals.realNetKg} kg setelah dikurangi berat wadah asli) dikalikan harga beli masing-masing.`,
+                  conclusion: `Total Nilai Riil = ${formatRupiah(totals.realValueRp)} (${totals.realNetKg} kg).`,
                 });
                 return;
               }
@@ -316,42 +340,103 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
               const itemSteps = filteredRaw.map((item, idx) => {
                 const m = getRawWeightMetrics(item);
                 return {
-                  stepNumber: idx + 1,
+                  stepNumber: idx + 7,
                   title: `${item.name} (${item.origin})`,
-                  formula: `Selisih Kg = Netto Riil ${m.realNetKg} kg − Netto Bayar ${m.paidNetKg} kg = ${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg`,
-                  substitution: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)}`,
-                  resultLabel: 'Weight Profit',
+                  formula: `Weight Profit = (Netto Riil − Netto Bayar) × Harga Beli`,
+                  substitution: `(${m.realNetKg} kg − ${m.paidNetKg} kg) × ${formatRupiah(item.pricePerKgPurchase)} = ${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)}`,
+                  resultLabel: `${item.name}`,
                   resultValue: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg (${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)})`,
                   explanation: `Potongan nota ${item.deductionKg} kg vs berat wadah asli ${m.realPkgMassKg} kg (${item.taraFormula.packagingType || 'Standar'}).`,
                   highlight: (m.weightProfitKg >= 0 ? 'amber' : 'red') as 'amber' | 'red',
                 };
               });
 
+              const avgEffectiveModalPerKg =
+                totals.realNetKg > 0 ? Math.round(totals.paidValueRp / totals.realNetKg) : 0;
+
               setCalcDetail({
                 title: `3. Weight Profit (Untung Timbangan Beli) — ${filteredRaw.length} Stok`,
-                subtitle: `Selisih Berat Total: ${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg tembakau ekstra`,
-                badgeText: 'PANEL 3 GUDANG • ASAL ANGKA WEIGHT PROFIT BELI',
+                subtitle: `Total Netto Riil ${totals.realNetKg} kg vs Total Netto Bayar ${totals.paidNetKg} kg`,
+                badgeText: 'PANEL 3 GUDANG • RUMUS WEIGHT PROFIT BELI',
                 coreFormula:
-                  'Total Weight Profit = Total Nilai Barang Riil − Total Nilai Bayar Nota',
-                steps: itemSteps,
-                summaryRows: [
+                  'Weight Profit = Total Nilai Riil − Total Nilai Bayar   |   Modal Riil/KG = Total Nilai Bayar ÷ Total Netto Riil',
+                appliedFormula: `Weight Profit = ${formatRupiah(totals.realValueRp)} − ${formatRupiah(totals.paidValueRp)} = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}   |   Modal Riil/KG = ${formatRupiah(totals.paidValueRp)} ÷ ${totals.realNetKg} kg = ${formatRupiah(avgEffectiveModalPerKg)}/kg`,
+                steps: [
                   {
-                    label: 'Total Selisih Berat',
-                    value: `${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
-                    highlight: totals.weightProfitKg >= 0 ? 'amber' : 'red',
-                  },
-                  {
-                    label: 'Nilai Riil vs Nilai Bayar',
-                    value: `${formatRupiah(totals.realValueRp)} − ${formatRupiah(totals.paidValueRp)}`,
+                    stepNumber: 1,
+                    title: 'Total Netto Riil',
+                    formula: 'Total Netto Riil = Σ (Berat Bruto − Berat Wadah Riil)',
+                    substitution:
+                      filteredRaw
+                        .map((item) => `${getRawWeightMetrics(item).realNetKg} kg`)
+                        .join(' + ') + ` = ${totals.realNetKg} kg`,
+                    resultLabel: 'Total Netto Riil',
+                    resultValue: `${totals.realNetKg} kg`,
+                    explanation: `Total berat fisik tembakau sebenarnya di gudang setelah dikurangi berat wadah asli.`,
                     highlight: 'white',
                   },
                   {
-                    label: 'Total Weight Profit (Rp)',
-                    value: `${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
+                    stepNumber: 2,
+                    title: 'Total Netto Bayar',
+                    formula: 'Total Netto Bayar = Σ (Berat Bruto − Potongan Nota)',
+                    substitution:
+                      filteredRaw
+                        .map((item) => `${getRawWeightMetrics(item).paidNetKg} kg`)
+                        .join(' + ') + ` = ${totals.paidNetKg} kg`,
+                    resultLabel: 'Total Netto Bayar',
+                    resultValue: `${totals.paidNetKg} kg`,
+                    explanation: `Total berat bersih yang kita bayar sesuai nota penjual.`,
+                    highlight: 'white',
+                  },
+                  {
+                    stepNumber: 3,
+                    title: 'Total Nilai Riil',
+                    formula: 'Total Nilai Riil = Σ (Netto Riil × Harga Beli / KG)',
+                    substitution:
+                      filteredRaw
+                        .map((item) => formatRupiah(getRawWeightMetrics(item).realValueRp))
+                        .join(' + ') + ` = ${formatRupiah(totals.realValueRp)}`,
+                    resultLabel: 'Total Nilai Riil',
+                    resultValue: formatRupiah(totals.realValueRp),
+                    explanation: `Total nilai barang dihitung dari berat fisik tembakau sebenarnya (${totals.realNetKg} kg).`,
+                    highlight: 'white',
+                  },
+                  {
+                    stepNumber: 4,
+                    title: 'Total Nilai Bayar',
+                    formula: 'Total Nilai Bayar = Σ (Netto Bayar × Harga Beli / KG)',
+                    substitution:
+                      filteredRaw
+                        .map((item) => formatRupiah(getRawWeightMetrics(item).paidValueRp))
+                        .join(' + ') + ` = ${formatRupiah(totals.paidValueRp)}`,
+                    resultLabel: 'Total Nilai Bayar',
+                    resultValue: formatRupiah(totals.paidValueRp),
+                    explanation: `Total uang kas yang dibayarkan ke penjual (${totals.paidNetKg} kg).`,
+                    highlight: 'white',
+                  },
+                  {
+                    stepNumber: 5,
+                    title: 'Selisih Berat',
+                    formula: 'Selisih Berat = Total Netto Riil − Total Netto Bayar',
+                    substitution: `${totals.realNetKg} kg − ${totals.paidNetKg} kg = ${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
+                    resultLabel: 'Selisih Berat',
+                    resultValue: `${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
+                    explanation: `Ekstra berat fisik tembakau di gudang dibandingkan berat nota yang dibayar.`,
+                    highlight: totals.weightProfitKg >= 0 ? 'amber' : 'red',
+                  },
+                  {
+                    stepNumber: 6,
+                    title: 'Weight Profit',
+                    formula: 'Weight Profit = Total Nilai Riil − Total Nilai Bayar',
+                    substitution: `${formatRupiah(totals.realValueRp)} − ${formatRupiah(totals.paidValueRp)} = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
+                    resultLabel: 'Weight Profit',
+                    resultValue: `${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
+                    explanation: `Modal Riil Rata-Rata Gudang = ${formatRupiah(totals.paidValueRp)} ÷ ${totals.realNetKg} kg = ${formatRupiah(avgEffectiveModalPerKg)}/kg.`,
                     highlight: totals.weightProfitRp >= 0 ? 'amber' : 'red',
                   },
+                  ...itemSteps,
                 ],
-                conclusion: `Angka Weight Profit ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)} berasal dari selisih antara Total Nilai Barang Riil ${formatRupiah(totals.realValueRp)} (${totals.realNetKg} kg) dengan Total Nilai Bayar ${formatRupiah(totals.paidValueRp)} (${totals.paidNetKg} kg).`,
+                conclusion: `Weight Profit = ${formatRupiah(totals.realValueRp)} − ${formatRupiah(totals.paidValueRp)} = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}.`,
               });
             };
 
@@ -491,6 +576,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 const bitter5 = clampRating5(tobacco.bitterRating);
                 const burn5 = clampRating5(tobacco.burnRating ?? 4.5);
                 const sugar5 = clampRating5(tobacco.sugarRating ?? 4.0);
+                const aroma5 = clampRating5(tobacco.aromaRating ?? 4.2);
                 const pkgName = tobacco.taraFormula.packagingType || 'Keranjang';
                 const totalModalAsal =
                   tobacco.totalModalAsal ||
@@ -512,16 +598,17 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
 
                 const tickerItems = [
                   {
-                    id: 'all-5-characters',
+                    id: 'all-6-characters',
                     shortTab: 'Rasa /5',
-                    label: '5 Karakter (/5)',
+                    label: '6 Karakter (/5)',
                     value: '',
                     characterParams: [
                       { label: 'Power', shortLabel: 'Pwr', value: power5 },
                       { label: 'Impact', shortLabel: 'Imp', value: impact5 },
                       { label: 'Bitter', shortLabel: 'Bit', value: bitter5 },
-                      { label: 'Bakar', shortLabel: 'Bkr', value: burn5 },
+                      { label: 'Burn', shortLabel: 'Brn', value: burn5 },
                       { label: 'Sugar', shortLabel: 'Sgr', value: sugar5 },
+                      { label: 'Aroma', shortLabel: 'Arm', value: aroma5 },
                     ],
                   },
                   {
@@ -1079,18 +1166,19 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       </button>
                     </div>
 
-                    {/* 5 Sensory Ratings (/5) */}
+                    {/* 6 Sensory Ratings (/5) */}
                     <div className="bg-black p-3.5 rounded-xl border border-zinc-800">
                       <div className="text-[10px] text-zinc-200 uppercase font-extrabold mb-2">
-                        5 Parameter Karakteristik (/5)
+                        6 Parameter Karakteristik (/5)
                       </div>
-                      <div className="grid grid-cols-5 gap-1.5 text-center">
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center">
                         {[
                           { lbl: 'Power', val: clampRating5(t.powerRating) },
                           { lbl: 'Impact', val: clampRating5(t.impactRating) },
                           { lbl: 'Bitter', val: clampRating5(t.bitterRating) },
-                          { lbl: 'Bakar', val: clampRating5(t.burnRating ?? 4.5) },
+                          { lbl: 'Burn', val: clampRating5(t.burnRating ?? 4.5) },
                           { lbl: 'Sugar', val: clampRating5(t.sugarRating ?? 4.0) },
+                          { lbl: 'Aroma', val: clampRating5(t.aromaRating ?? 4.2) },
                         ].map((r) => (
                           <div
                             key={r.lbl}

@@ -54,6 +54,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
   const [bitterRating, setBitterRating] = useState<number>(2.5);
   const [burnRating, setBurnRating] = useState<number>(4.5);
   const [sugarRating, setSugarRating] = useState<number>(4.0);
+  const [aromaRating, setAromaRating] = useState<number>(4.2);
   const [colorGrade, setColorGrade] = useState<TobaccoGrade>('D+');
   const [characterNotes, setCharacterNotes] = useState('');
 
@@ -82,6 +83,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setBitterRating(clampRating5(editingTobacco.bitterRating));
       setBurnRating(clampRating5(editingTobacco.burnRating ?? 4.5));
       setSugarRating(clampRating5(editingTobacco.sugarRating ?? 4.0));
+      setAromaRating(clampRating5(editingTobacco.aromaRating ?? 4.2));
       setColorGrade(editingTobacco.colorGrade);
       setCharacterNotes(editingTobacco.characterNotes || '');
     } else {
@@ -104,9 +106,10 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setBitterRating(2.5);
       setBurnRating(4.5);
       setSugarRating(4.0);
+      setAromaRating(4.2);
       setColorGrade('D+');
       setCharacterNotes(
-        'Pegangan lemas berurat, gagang sedang, warna matang grade D+, pembakaran bagus.'
+        'Pegangan lemas berurat, gagang sedang, warna matang grade D+, burn & aroma bagus.'
       );
     }
   }, [editingTobacco, isOpen]);
@@ -199,6 +202,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       bitterRating: Number(bitterRating) || 0,
       burnRating: Number(burnRating) || 0,
       sugarRating: Number(sugarRating) || 0,
+      aromaRating: Number(aromaRating) || 0,
       colorGrade,
       characterNotes,
     };
@@ -565,7 +569,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-200">
-                3. Penilaian Karakteristik Tembakau (Skala Maksimal /5)
+                3. Penilaian 6 Karakteristik Tembakau (Skala Maksimal /5)
               </h3>
               <span className="text-[11px] text-zinc-400">
                 Geser slider atau klik tombol angka cepat (1 s/d 5)
@@ -592,7 +596,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 onChange={setBitterRating}
               />
               <RatingSegmentSlider
-                label="Pembakaran Rating"
+                label="Burn Rating"
                 sublabel="Daya bakar & kebersihan abu"
                 value={burnRating}
                 onChange={setBurnRating}
@@ -602,6 +606,12 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 sublabel="Kadar manis alami daun"
                 value={sugarRating}
                 onChange={setSugarRating}
+              />
+              <RatingSegmentSlider
+                label="Aroma Rating"
+                sublabel="Karakter aroma khas daun"
+                value={aromaRating}
+                onChange={setAromaRating}
               />
             </div>
 

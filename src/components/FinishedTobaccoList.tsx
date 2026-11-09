@@ -183,19 +183,21 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
     const bitter5 = clampRating5(batch.weightedBitter);
     const burn5 = clampRating5(batch.weightedBurn ?? 4.5);
     const sugar5 = clampRating5(batch.weightedSugar ?? 4.0);
+    const aroma5 = clampRating5(batch.weightedAroma ?? 4.2);
 
     const tickerItems = [
       {
-        id: 'all-5-characters',
+        id: 'all-6-characters',
         shortTab: 'Rasa /5',
-        label: '5 Karakter (/5)',
+        label: '6 Karakter (/5)',
         value: '',
         characterParams: [
           { label: 'Power', shortLabel: 'Pwr', value: power5 },
           { label: 'Impact', shortLabel: 'Imp', value: impact5 },
           { label: 'Bitter', shortLabel: 'Bit', value: bitter5 },
-          { label: 'Bakar', shortLabel: 'Bkr', value: burn5 },
+          { label: 'Burn', shortLabel: 'Brn', value: burn5 },
           { label: 'Sugar', shortLabel: 'Sgr', value: sugar5 },
+          { label: 'Aroma', shortLabel: 'Arm', value: aroma5 },
         ],
       },
       {
@@ -913,18 +915,19 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                   })()}
                 </div>
 
-                {/* 5 Sensory Ratings (/5) */}
+                {/* 6 Sensory Ratings (/5) */}
                 <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2">
                   <span className="text-[10px] font-extrabold uppercase text-zinc-200 block">
-                    5 Parameter Karakteristik Rasa (/5)
+                    6 Parameter Karakteristik Rasa (/5)
                   </span>
-                  <div className="grid grid-cols-5 gap-1.5 text-center">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center">
                     {[
                       { lbl: 'Power', val: clampRating5(activeSerial.weightedPower) },
                       { lbl: 'Impact', val: clampRating5(activeSerial.weightedImpact) },
                       { lbl: 'Bitter', val: clampRating5(activeSerial.weightedBitter) },
-                      { lbl: 'Bakar', val: clampRating5(activeSerial.weightedBurn ?? 4.5) },
+                      { lbl: 'Burn', val: clampRating5(activeSerial.weightedBurn ?? 4.5) },
                       { lbl: 'Sugar', val: clampRating5(activeSerial.weightedSugar ?? 4.0) },
+                      { lbl: 'Aroma', val: clampRating5(activeSerial.weightedAroma ?? 4.2) },
                     ].map((r) => (
                       <div
                         key={r.lbl}

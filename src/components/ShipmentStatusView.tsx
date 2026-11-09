@@ -479,8 +479,8 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                             </div>
                           </div>
 
-                          {/* All 5 Character Parameters (/5) Strip */}
-                          <div className="grid grid-cols-5 gap-1 bg-zinc-950 p-1.5 rounded-lg border border-zinc-900 text-center font-mono text-[10px]">
+                          {/* All 6 Character Parameters (/5) Strip */}
+                          <div className="grid grid-cols-6 gap-1 bg-zinc-950 p-1.5 rounded-lg border border-zinc-900 text-center font-mono text-[10px]">
                             <div>
                               <span className="text-[8px] text-zinc-500 block font-bold">PWR</span>
                               <b className="text-white">{ser.weightedPower}</b>
@@ -494,12 +494,16 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                               <b className="text-white">{ser.weightedBitter}</b>
                             </div>
                             <div>
-                              <span className="text-[8px] text-zinc-500 block font-bold">BKR</span>
+                              <span className="text-[8px] text-zinc-500 block font-bold">BRN</span>
                               <b className="text-white">{ser.weightedBurn ?? 4.5}</b>
                             </div>
                             <div>
                               <span className="text-[8px] text-zinc-500 block font-bold">SGR</span>
                               <b className="text-zinc-200">{ser.weightedSugar ?? 4.0}</b>
+                            </div>
+                            <div>
+                              <span className="text-[8px] text-zinc-500 block font-bold">ARM</span>
+                              <b className="text-amber-400">{ser.weightedAroma ?? 4.2}</b>
                             </div>
                           </div>
                         </div>

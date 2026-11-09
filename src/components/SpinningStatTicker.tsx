@@ -133,16 +133,20 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
             className="w-full"
           >
             {current.characterParams && current.characterParams.length > 0 ? (
-              <div className="grid grid-cols-5 gap-1 text-center">
+              <div
+                className={`grid ${
+                  current.characterParams.length >= 6 ? 'grid-cols-6' : 'grid-cols-5'
+                } gap-1 text-center`}
+              >
                 {current.characterParams.map((param) => (
                   <div
                     key={param.label}
                     className="bg-zinc-950 border border-zinc-800/90 rounded-lg py-1 px-0.5 flex flex-col items-center justify-center"
                   >
-                    <span className="text-[8px] sm:text-[9px] font-bold uppercase text-zinc-400 leading-none">
+                    <span className="text-[8px] sm:text-[9px] font-bold uppercase text-zinc-400 leading-none truncate max-w-full">
                       {param.shortLabel}
                     </span>
-                    <span className="font-mono font-black text-sm sm:text-base text-amber-400 leading-tight mt-0.5">
+                    <span className="font-mono font-black text-xs sm:text-sm text-amber-400 leading-tight mt-0.5">
                       {param.value.toFixed(1)}
                     </span>
                   </div>

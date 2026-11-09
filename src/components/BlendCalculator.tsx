@@ -96,6 +96,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
           bitterRating: clampRating5(rawTobaccos[0].bitterRating),
           burnRating: clampRating5(rawTobaccos[0].burnRating ?? 4.5),
           sugarRating: clampRating5(rawTobaccos[0].sugarRating ?? 4.2),
+          aromaRating: clampRating5(rawTobaccos[0].aromaRating ?? 4.3),
+          sellerName: rawTobaccos[0].sellerName,
           colorGrade: rawTobaccos[0].colorGrade,
           characterNotes: rawTobaccos[0].characterNotes,
         },
@@ -103,6 +105,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
           tobaccoId: rawTobaccos[1].id,
           tobaccoName: rawTobaccos[1].name,
           origin: rawTobaccos[1].origin,
+          sellerName: rawTobaccos[1].sellerName,
           usedNetKg: 51,
           percentageInBlend: 50,
           realCostPerNetKg: rawTobaccos[1].realCostPerNetKg,
@@ -114,6 +117,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
           bitterRating: clampRating5(rawTobaccos[1].bitterRating),
           burnRating: clampRating5(rawTobaccos[1].burnRating ?? 4.8),
           sugarRating: clampRating5(rawTobaccos[1].sugarRating ?? 3.9),
+          aromaRating: clampRating5(rawTobaccos[1].aromaRating ?? 4.2),
           colorGrade: rawTobaccos[1].colorGrade,
           characterNotes: rawTobaccos[1].characterNotes,
         },
@@ -378,6 +382,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
       tobaccoId: raw.id,
       tobaccoName: raw.name,
       origin: raw.origin,
+      sellerName: raw.sellerName,
       usedNetKg: 25,
       percentageInBlend: 0,
       realCostPerNetKg: raw.realCostPerNetKg,
@@ -388,6 +393,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
       bitterRating: clampRating5(raw.bitterRating),
       burnRating: clampRating5(raw.burnRating ?? 4.5),
       sugarRating: clampRating5(raw.sugarRating ?? 4.0),
+      aromaRating: clampRating5(raw.aromaRating ?? 4.2),
       colorGrade: raw.colorGrade,
       characterNotes: raw.characterNotes,
     };
@@ -500,6 +506,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
         weightedBitter: metrics.weightedBitter,
         weightedBurn: metrics.weightedBurn,
         weightedSugar: metrics.weightedSugar,
+        weightedAroma: metrics.weightedAroma,
         compositeColorGrade: pkg.grade || metrics.compositeColorGrade,
         totalMaterialCost: packageMaterialCost,
         additionalCosts: [
@@ -730,10 +737,13 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                                   Bitter: <b className="text-white">{clampRating5(item.bitterRating)}/5</b>
                                 </span>
                                 <span>
-                                  Bakar: <b className="text-white">{clampRating5(item.burnRating ?? 4.5)}/5</b>
+                                  Burn: <b className="text-white">{clampRating5(item.burnRating ?? 4.5)}/5</b>
                                 </span>
                                 <span>
                                   Sugar: <b className="text-white">{clampRating5(item.sugarRating ?? 4.0)}/5</b>
+                                </span>
+                                <span>
+                                  Aroma: <b className="text-white">{clampRating5(item.aromaRating ?? 4.2)}/5</b>
                                 </span>
                               </div>
                               {(item.characterNotes || rawData?.characterNotes) && (
@@ -969,6 +979,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                     badgeText: 'PANEL HPP / KG • ASAL ANGKA MODAL RATA-RATA PER KG',
                     coreFormula:
                       'HPP Rata-Rata / KG = Total Modal Produksi ÷ Total Netto Campuran',
+                    appliedFormula: `HPP Rata-Rata / KG = ${formatRupiah(metrics.totalProductionCost)} ÷ ${metrics.totalBlendNetKg} kg = ${formatRupiah(metrics.hppPerNetKg)}/kg`,
                     steps: [
                       {
                         stepNumber: 1,
@@ -1047,6 +1058,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                   badgeText: 'PANEL TOTAL MODAL • ASAL ANGKA NILAI BAHAN & KEMASAN',
                   coreFormula:
                     'Total Modal Produksi = Σ (Netto Bahan × Harga Beli) + Σ (Harga Kemasan + Ongkos Press)',
+                  appliedFormula: `Total Modal Produksi = ${formatRupiah(metrics.totalMaterialCost)} + ${formatRupiah(metrics.totalOverheadCost)} (${draft.packageCount} Seri) = ${formatRupiah(metrics.totalProductionCost)}`,
                   steps: [
                     ...ingSteps,
                     {
@@ -1186,8 +1198,9 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       { label: 'Power (Kekuatan)', val: metrics.weightedPower },
                       { label: 'Impact (Tarikan)', val: metrics.weightedImpact },
                       { label: 'Bitter (Pahit/Gurih)', val: metrics.weightedBitter },
-                      { label: 'Pembakaran', val: metrics.weightedBurn },
+                      { label: 'Burn (Daya Bakar)', val: metrics.weightedBurn },
                       { label: 'Sugar (Manis)', val: metrics.weightedSugar },
+                      { label: 'Aroma (Karakter Wangi)', val: metrics.weightedAroma },
                     ].map((s) => (
                       <div
                         key={s.label}

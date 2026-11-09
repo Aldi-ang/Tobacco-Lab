@@ -64,12 +64,13 @@ export interface RawTobacco {
 
   currentStockNetKg: number; // Sisa stok fisik di gudang (kg)
 
-  // 5 Penilaian Sensoris & Fisik (Skala Maksimal /5)
+  // 6 Penilaian Sensoris & Fisik (Skala Maksimal /5): Power, Impact, Bitter, Burn, Sugar, Aroma
   powerRating: number; // 0 - 5
   impactRating: number; // 0 - 5
   bitterRating: number; // 0 - 5
   burnRating: number; // 0 - 5
   sugarRating: number; // 0 - 5
+  aromaRating?: number; // 0 - 5
   colorGrade: TobaccoGrade; // Grade warna: A+, A, B+, B, C+, C, D+, D, E
   characterNotes: string; // Deskripsi fisik: pegangan, kadar gagang, warna, aroma
 }
@@ -78,6 +79,7 @@ export interface BlendIngredient {
   tobaccoId: string;
   tobaccoName: string;
   origin: string;
+  sellerName?: string;
   usedNetKg: number;
   percentageInBlend: number; // % dari total racikan
   realCostPerNetKg: number; // Harga nota / kg
@@ -90,6 +92,7 @@ export interface BlendIngredient {
   bitterRating: number; // /5
   burnRating: number; // /5
   sugarRating: number; // /5
+  aromaRating?: number; // /5
   colorGrade: TobaccoGrade;
   characterNotes?: string;
 }
@@ -144,12 +147,13 @@ export interface FinishedTobaccoSerial {
   ingredients: BlendIngredient[];
   totalBlendNetKg: number; // Netto tembakau fisik (riil) pada kemasan seri ini (kg)
 
-  // 5 Nilai Sensoris Campuran (Skala /5)
+  // 6 Nilai Sensoris Campuran (Skala /5): Power, Impact, Bitter, Burn, Sugar, Aroma
   weightedPower: number;
   weightedImpact: number;
   weightedBitter: number;
   weightedBurn: number;
   weightedSugar: number;
+  weightedAroma?: number;
   compositeColorGrade: TobaccoGrade;
 
   // Biaya & HPP
@@ -207,16 +211,22 @@ export interface TobaccoRollSample {
     bitter: number; // /5
     burn: number; // /5
     sugar: number; // /5
+    aroma?: number; // /5
     colorGrade: TobaccoGrade;
     hppPerKg: number;
   };
 
-  // Hasil Uji Hisap / Smoking Test dari Grader Pabrik (Skala /5)
+  // Evaluasi Karakter Grader Pabrik Menggunakan 6 Parameter Asli (Skala /5)
   smokingTest?: {
     testDate?: string;
     testerName?: string;
+    powerScore?: number; // /5
+    impactScore?: number; // /5
+    bitterScore?: number; // /5
+    burnScore?: number; // /5
+    sugarScore?: number; // /5
     aromaScore?: number; // /5
-    smoothnessScore?: number; // /5
+    smoothnessScore?: number; // legacy compatibility
     ashQuality?: 'Putih Bersih' | 'Abu Terang' | 'Abu Sedang' | 'Hitam/Kotor';
     burnRate?: 'Sempurna' | 'Cepat' | 'Lambat';
     tastingNotes?: string;

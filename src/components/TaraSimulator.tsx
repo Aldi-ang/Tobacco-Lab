@@ -578,38 +578,61 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               if (focus === 'PAID_VALUE') {
                 setCalcDetail({
                   title: `1. Nilai Kita Bayar (${formatRupiah(totalCombinedRawModalRp)})`,
-                  subtitle: `Gabungan ${simIngredients.length} Jenis Tembakau • Total Netto Nota ${totalCombinedNetKg} kg`,
-                  badgeText: 'PANEL 1 SIMULATOR • ASAL ANGKA NILAI KITA BAYAR',
+                  subtitle: `Gabungan ${simIngredients.length} Jenis Tembakau • Total Netto Bayar ${totalCombinedNetKg} kg`,
+                  badgeText: 'PANEL 1 SIMULATOR • RUMUS NILAI KITA BAYAR',
                   coreFormula:
-                    'Total Nilai Kita Bayar = Σ ((Bruto − Potongan Nota) × Harga Beli / KG)',
-                  steps: calculatedIngredients.map((ing, i) => ({
-                    stepNumber: i + 1,
-                    title: `Bahan #${i + 1}: ${ing.name}`,
-                    formula: `Netto Bayar = Bruto ${ing.grossKg} kg − Potongan Nota ${ing.deductionKg} kg = ${ing.netWeightKg} kg`,
-                    substitution: `${ing.netWeightKg} kg × ${formatRupiah(ing.pricePerKg)} = ${formatRupiah(ing.subtotalModal)}`,
-                    resultLabel: 'Subtotal Bayar',
-                    resultValue: formatRupiah(ing.subtotalModal),
-                    explanation: `Bruto ${ing.grossKg} kg dikurangi potongan nota ${ing.deductionKg} kg menghasilkan ${ing.netWeightKg} kg yang dibayar.`,
-                    highlight: 'white' as const,
-                  })),
-                  summaryRows: [
+                    'Total Nilai Kita Bayar = Σ (Netto Bayar × Harga Beli)   |   Netto Bayar = Bruto − Potongan Nota',
+                  appliedFormula: `Total Nilai Kita Bayar = ${calculatedIngredients.map((ing) => formatRupiah(ing.subtotalModal)).join(' + ')} = ${formatRupiah(totalCombinedRawModalRp)}   |   Total Netto Bayar = ${totalCombinedGrossKg} kg − ${Number((totalCombinedGrossKg - totalCombinedNetKg).toFixed(2))} kg = ${totalCombinedNetKg} kg`,
+                  steps: [
                     {
-                      label: 'Total Bruto Gabungan',
-                      value: `${totalCombinedGrossKg} kg`,
+                      stepNumber: 1,
+                      title: 'Total Bruto Gabungan',
+                      formula: 'Total Bruto = Σ Berat Bruto Bahan',
+                      substitution:
+                        calculatedIngredients.map((ing) => `${ing.grossKg} kg`).join(' + ') +
+                        ` = ${totalCombinedGrossKg} kg`,
+                      resultLabel: 'Total Bruto',
+                      resultValue: `${totalCombinedGrossKg} kg`,
+                      explanation: `Total berat kotor gabungan dari ${simIngredients.length} bahan.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Total Netto Bayar Nota',
-                      value: `${totalCombinedNetKg} kg`,
+                      stepNumber: 2,
+                      title: 'Total Netto Bayar',
+                      formula: 'Total Netto Bayar = Σ (Berat Bruto − Potongan Nota)',
+                      substitution:
+                        calculatedIngredients.map((ing) => `${ing.netWeightKg} kg`).join(' + ') +
+                        ` = ${totalCombinedNetKg} kg`,
+                      resultLabel: 'Total Netto Bayar',
+                      resultValue: `${totalCombinedNetKg} kg`,
+                      explanation: `Total berat bersih di atas kertas nota yang kita bayar.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Total Nilai Kita Bayar',
-                      value: formatRupiah(totalCombinedRawModalRp),
+                      stepNumber: 3,
+                      title: 'Total Nilai Kita Bayar',
+                      formula: 'Total Nilai Kita Bayar = Σ (Netto Bayar × Harga Beli / KG)',
+                      substitution:
+                        calculatedIngredients
+                          .map((ing) => formatRupiah(ing.subtotalModal))
+                          .join(' + ') + ` = ${formatRupiah(totalCombinedRawModalRp)}`,
+                      resultLabel: 'Total Nilai Kita Bayar',
+                      resultValue: formatRupiah(totalCombinedRawModalRp),
+                      explanation: `Total uang kas untuk membeli seluruh ${simIngredients.length} bahan.`,
                       highlight: 'amber',
                     },
+                    ...calculatedIngredients.map((ing, i) => ({
+                      stepNumber: i + 4,
+                      title: `Bahan #${i + 1}: ${ing.name}`,
+                      formula: `Nilai Bayar = (Bruto − Potongan Nota) × Harga Beli`,
+                      substitution: `(${ing.grossKg} kg − ${ing.deductionKg} kg) × ${formatRupiah(ing.pricePerKg)} = ${ing.netWeightKg} kg × ${formatRupiah(ing.pricePerKg)} = ${formatRupiah(ing.subtotalModal)}`,
+                      resultLabel: `${ing.name}`,
+                      resultValue: `${formatRupiah(ing.subtotalModal)} (${ing.netWeightKg} kg)`,
+                      explanation: `Bruto ${ing.grossKg} kg dikurangi potongan nota ${ing.deductionKg} kg menghasilkan ${ing.netWeightKg} kg.`,
+                      highlight: 'white' as const,
+                    })),
                   ],
-                  conclusion: `Angka ${formatRupiah(totalCombinedRawModalRp)} berasal dari penjumlahan uang nota seluruh ${simIngredients.length} bahan (${totalCombinedNetKg} kg Netto Bayar).`,
+                  conclusion: `Total Nilai Kita Bayar = ${formatRupiah(totalCombinedRawModalRp)}.`,
                 });
                 return;
               }
@@ -617,38 +640,50 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               if (focus === 'REAL_VALUE') {
                 setCalcDetail({
                   title: `2. Nilai Barang Riil (${formatRupiah(totalCombinedRealValueRp)})`,
-                  subtitle: `Gabungan ${simIngredients.length} Jenis Tembakau • Netto Fisik Riil ${totalCombinedRealNetKg} kg`,
-                  badgeText: 'PANEL 2 SIMULATOR • ASAL ANGKA NILAI BARANG RIIL',
+                  subtitle: `Gabungan ${simIngredients.length} Jenis Tembakau • Netto Riil ${totalCombinedRealNetKg} kg`,
+                  badgeText: 'PANEL 2 SIMULATOR • RUMUS NILAI BARANG RIIL',
                   coreFormula:
-                    'Total Nilai Barang Riil = Σ ((Bruto − Berat Wadah Riil) × Harga Beli / KG)',
-                  steps: calculatedIngredients.map((ing, i) => ({
-                    stepNumber: i + 1,
-                    title: `Bahan #${i + 1}: ${ing.name}`,
-                    formula: `Netto Riil = Bruto ${ing.grossKg} kg − Wadah Riil ${ing.realPackagingMassKg} kg = ${ing.realNetWeightKg} kg`,
-                    substitution: `${ing.realNetWeightKg} kg × ${formatRupiah(ing.pricePerKg)} = ${formatRupiah(ing.realStockValueRp)}`,
-                    resultLabel: 'Subtotal Riil',
-                    resultValue: formatRupiah(ing.realStockValueRp),
-                    explanation: `Bruto ${ing.grossKg} kg dikurangi berat wadah asli ${ing.realPackagingMassKg} kg menghasilkan ${ing.realNetWeightKg} kg fisik tembakau.`,
-                    highlight: 'amber' as const,
-                  })),
-                  summaryRows: [
+                    'Total Nilai Riil = Σ (Netto Riil × Harga Beli)   |   Netto Riil = Bruto − Wadah Riil',
+                  appliedFormula: `Total Nilai Riil = ${calculatedIngredients.map((ing) => formatRupiah(ing.realStockValueRp)).join(' + ')} = ${formatRupiah(totalCombinedRealValueRp)}   |   Total Netto Riil = ${totalCombinedRealNetKg} kg`,
+                  steps: [
                     {
-                      label: 'Total Netto Fisik Riil',
-                      value: `${totalCombinedRealNetKg} kg`,
-                      highlight: 'amber',
-                    },
-                    {
-                      label: 'HPP Fisik Rata-Rata',
-                      value: `${formatRupiah(weightedBlendHppPerNetKg)}/kg`,
+                      stepNumber: 1,
+                      title: 'Total Netto Riil',
+                      formula: 'Total Netto Riil = Σ (Berat Bruto − Berat Wadah Riil)',
+                      substitution:
+                        calculatedIngredients
+                          .map((ing) => `${ing.realNetWeightKg} kg`)
+                          .join(' + ') + ` = ${totalCombinedRealNetKg} kg`,
+                      resultLabel: 'Total Netto Riil',
+                      resultValue: `${totalCombinedRealNetKg} kg`,
+                      explanation: `Total berat fisik tembakau sebenarnya dari ${simIngredients.length} bahan.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Total Nilai Barang Riil',
-                      value: formatRupiah(totalCombinedRealValueRp),
+                      stepNumber: 2,
+                      title: 'Total Nilai Barang Riil',
+                      formula: 'Total Nilai Barang Riil = Σ (Netto Riil × Harga Beli / KG)',
+                      substitution:
+                        calculatedIngredients
+                          .map((ing) => formatRupiah(ing.realStockValueRp))
+                          .join(' + ') + ` = ${formatRupiah(totalCombinedRealValueRp)}`,
+                      resultLabel: 'Total Nilai Barang Riil',
+                      resultValue: formatRupiah(totalCombinedRealValueRp),
+                      explanation: `Nilai pasar barang berdasarkan berat fisik tembakau sebenarnya (${totalCombinedRealNetKg} kg).`,
                       highlight: 'amber',
                     },
+                    ...calculatedIngredients.map((ing, i) => ({
+                      stepNumber: i + 3,
+                      title: `Bahan #${i + 1}: ${ing.name}`,
+                      formula: `Nilai Riil = (Bruto − Wadah Riil) × Harga Beli`,
+                      substitution: `(${ing.grossKg} kg − ${ing.realPackagingMassKg} kg) × ${formatRupiah(ing.pricePerKg)} = ${ing.realNetWeightKg} kg × ${formatRupiah(ing.pricePerKg)} = ${formatRupiah(ing.realStockValueRp)}`,
+                      resultLabel: `${ing.name}`,
+                      resultValue: `${formatRupiah(ing.realStockValueRp)} (${ing.realNetWeightKg} kg)`,
+                      explanation: `Bruto ${ing.grossKg} kg dikurangi berat wadah asli ${ing.realPackagingMassKg} kg menghasilkan ${ing.realNetWeightKg} kg.`,
+                      highlight: 'white' as const,
+                    })),
                   ],
-                  conclusion: `Angka ${formatRupiah(totalCombinedRealValueRp)} berasal dari berat fisik tembakau sebenarnya (${totalCombinedRealNetKg} kg) dikalikan harga beli masing-masing bahan.`,
+                  conclusion: `Total Nilai Barang Riil = ${formatRupiah(totalCombinedRealValueRp)}.`,
                 });
                 return;
               }
@@ -656,38 +691,94 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               // focus === 'WEIGHT_PROFIT'
               setCalcDetail({
                 title: `3. Weight Profit Beli (${totalBuyWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(totalBuyWeightProfitRp)})`,
-                subtitle: `Selisih Berat: ${totalBuyWeightProfitKg >= 0 ? '+' : ''}${totalBuyWeightProfitKg} kg tembakau ekstra`,
-                badgeText: 'PANEL 3 SIMULATOR • ASAL ANGKA WEIGHT PROFIT BELI',
+                subtitle: `Netto Riil ${totalCombinedRealNetKg} kg vs Netto Bayar ${totalCombinedNetKg} kg`,
+                badgeText: 'PANEL 3 SIMULATOR • RUMUS WEIGHT PROFIT BELI',
                 coreFormula:
-                  'Weight Profit Beli = Total Nilai Barang Riil − Total Nilai Kita Bayar',
-                steps: calculatedIngredients.map((ing, i) => ({
-                  stepNumber: i + 1,
-                  title: `Bahan #${i + 1}: ${ing.name}`,
-                  formula: `Selisih Kg = Netto Riil ${ing.realNetWeightKg} kg − Netto Bayar ${ing.netWeightKg} kg = ${ing.purchaseWeightProfitKg >= 0 ? '+' : ''}${ing.purchaseWeightProfitKg} kg`,
-                  substitution: `${ing.purchaseWeightProfitKg >= 0 ? '+' : ''}${ing.purchaseWeightProfitKg} kg × ${formatRupiah(ing.pricePerKg)} = ${ing.purchaseWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(ing.purchaseWeightProfitRp)}`,
-                  resultLabel: 'Weight Profit',
-                  resultValue: `${ing.purchaseWeightProfitKg >= 0 ? '+' : ''}${ing.purchaseWeightProfitKg} kg (${ing.purchaseWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(ing.purchaseWeightProfitRp)})`,
-                  explanation: `Potongan nota ${ing.deductionKg} kg vs berat wadah riil ${ing.realPackagingMassKg} kg.`,
-                  highlight: (ing.purchaseWeightProfitKg >= 0 ? 'amber' : 'red') as 'amber' | 'red',
-                })),
-                summaryRows: [
+                  'Weight Profit Beli = Nilai Barang Riil − Nilai Kita Bayar   |   Selisih Berat = Netto Riil − Netto Bayar',
+                appliedFormula: `Weight Profit Beli = ${formatRupiah(totalCombinedRealValueRp)} − ${formatRupiah(totalCombinedRawModalRp)} = ${totalBuyWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(totalBuyWeightProfitRp)}   |   Selisih Berat = ${totalCombinedRealNetKg} kg − ${totalCombinedNetKg} kg = ${totalBuyWeightProfitKg >= 0 ? '+' : ''}${totalBuyWeightProfitKg} kg`,
+                steps: [
                   {
-                    label: 'Total Selisih Berat',
-                    value: `${totalBuyWeightProfitKg >= 0 ? '+' : ''}${totalBuyWeightProfitKg} kg`,
-                    highlight: totalBuyWeightProfitKg >= 0 ? 'amber' : 'red',
-                  },
-                  {
-                    label: 'Nilai Riil − Nilai Bayar',
-                    value: `${formatRupiah(totalCombinedRealValueRp)} − ${formatRupiah(totalCombinedRawModalRp)}`,
+                    stepNumber: 1,
+                    title: 'Netto Riil',
+                    formula: 'Netto Riil = Σ (Berat Bruto − Berat Wadah Riil)',
+                    substitution:
+                      calculatedIngredients.map((ing) => `${ing.realNetWeightKg} kg`).join(' + ') +
+                      ` = ${totalCombinedRealNetKg} kg`,
+                    resultLabel: 'Netto Riil',
+                    resultValue: `${totalCombinedRealNetKg} kg`,
+                    explanation: `Total berat fisik tembakau sebenarnya setelah dikurangi berat kemasan asli.`,
                     highlight: 'white',
                   },
                   {
-                    label: 'Weight Profit Beli (Rp)',
-                    value: `${totalBuyWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(totalBuyWeightProfitRp)}`,
+                    stepNumber: 2,
+                    title: 'Netto Bayar',
+                    formula: 'Netto Bayar = Σ (Berat Bruto − Potongan Nota)',
+                    substitution:
+                      calculatedIngredients.map((ing) => `${ing.netWeightKg} kg`).join(' + ') +
+                      ` = ${totalCombinedNetKg} kg`,
+                    resultLabel: 'Netto Bayar',
+                    resultValue: `${totalCombinedNetKg} kg`,
+                    explanation: `Total berat bersih yang kita bayar sesuai nota penjual.`,
+                    highlight: 'white',
+                  },
+                  {
+                    stepNumber: 3,
+                    title: 'Nilai Barang Riil',
+                    formula: 'Nilai Barang Riil = Σ (Netto Riil × Harga Beli / KG)',
+                    substitution:
+                      calculatedIngredients
+                        .map((ing) => formatRupiah(ing.realStockValueRp))
+                        .join(' + ') + ` = ${formatRupiah(totalCombinedRealValueRp)}`,
+                    resultLabel: 'Nilai Barang Riil',
+                    resultValue: formatRupiah(totalCombinedRealValueRp),
+                    explanation: `Total nilai barang sesuai berat fisik tembakau (${totalCombinedRealNetKg} kg).`,
+                    highlight: 'white',
+                  },
+                  {
+                    stepNumber: 4,
+                    title: 'Nilai Kita Bayar',
+                    formula: 'Nilai Kita Bayar = Σ (Netto Bayar × Harga Beli / KG)',
+                    substitution:
+                      calculatedIngredients
+                        .map((ing) => formatRupiah(ing.subtotalModal))
+                        .join(' + ') + ` = ${formatRupiah(totalCombinedRawModalRp)}`,
+                    resultLabel: 'Nilai Kita Bayar',
+                    resultValue: formatRupiah(totalCombinedRawModalRp),
+                    explanation: `Total uang kas yang dibayarkan ke penjual (${totalCombinedNetKg} kg).`,
+                    highlight: 'white',
+                  },
+                  {
+                    stepNumber: 5,
+                    title: 'Selisih Berat',
+                    formula: 'Selisih Berat = Netto Riil − Netto Bayar',
+                    substitution: `${totalCombinedRealNetKg} kg − ${totalCombinedNetKg} kg = ${totalBuyWeightProfitKg >= 0 ? '+' : ''}${totalBuyWeightProfitKg} kg`,
+                    resultLabel: 'Selisih Berat',
+                    resultValue: `${totalBuyWeightProfitKg >= 0 ? '+' : ''}${totalBuyWeightProfitKg} kg`,
+                    explanation: `Selisih berat fisik tembakau dibandingkan berat nota.`,
+                    highlight: totalBuyWeightProfitKg >= 0 ? 'amber' : 'red',
+                  },
+                  {
+                    stepNumber: 6,
+                    title: 'Weight Profit Beli',
+                    formula: 'Weight Profit Beli = Nilai Barang Riil − Nilai Kita Bayar',
+                    substitution: `${formatRupiah(totalCombinedRealValueRp)} − ${formatRupiah(totalCombinedRawModalRp)} = ${totalBuyWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(totalBuyWeightProfitRp)}`,
+                    resultLabel: 'Weight Profit Beli',
+                    resultValue: `${totalBuyWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(totalBuyWeightProfitRp)}`,
+                    explanation: `Keuntungan langsung dari selisih timbangan pembelian bahan.`,
                     highlight: totalBuyWeightProfitRp >= 0 ? 'amber' : 'red',
                   },
+                  ...calculatedIngredients.map((ing, i) => ({
+                    stepNumber: i + 7,
+                    title: `Bahan #${i + 1}: ${ing.name}`,
+                    formula: `Weight Profit = (Netto Riil − Netto Bayar) × Harga Beli`,
+                    substitution: `(${ing.realNetWeightKg} kg − ${ing.netWeightKg} kg) × ${formatRupiah(ing.pricePerKg)} = ${ing.purchaseWeightProfitKg >= 0 ? '+' : ''}${ing.purchaseWeightProfitKg} kg (${ing.purchaseWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(ing.purchaseWeightProfitRp)})`,
+                    resultLabel: `${ing.name}`,
+                    resultValue: `${ing.purchaseWeightProfitKg >= 0 ? '+' : ''}${ing.purchaseWeightProfitKg} kg (${ing.purchaseWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(ing.purchaseWeightProfitRp)})`,
+                    explanation: `Potongan nota ${ing.deductionKg} kg vs berat wadah riil ${ing.realPackagingMassKg} kg.`,
+                    highlight: (ing.purchaseWeightProfitKg >= 0 ? 'amber' : 'red') as 'amber' | 'red',
+                  })),
                 ],
-                conclusion: `Weight Profit Beli ${totalBuyWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(totalBuyWeightProfitRp)} berasal dari selisih antara Nilai Barang Riil (${formatRupiah(totalCombinedRealValueRp)}) dan Nilai Kita Bayar (${formatRupiah(totalCombinedRawModalRp)}).`,
+                conclusion: `Weight Profit Beli = ${formatRupiah(totalCombinedRealValueRp)} − ${formatRupiah(totalCombinedRawModalRp)} = ${totalBuyWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(totalBuyWeightProfitRp)}.`,
               });
             };
 
@@ -955,6 +1046,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                 badgeText: 'SIMULATOR LANGKAH 2 & 3: SETOR PABRIK & PROFIT',
                 coreFormula:
                   'Profit Bersih = Tagihan Nota Pabrik (Netto Tagih × Harga Pabrik) − Total Modal Bayar (Bahan + Kemasan/Press)',
+                appliedFormula: `Profit Bersih = ${formatRupiah(totalOmzetPabrik)} (${factoryNetBillableKg} kg × ${formatRupiah(factoryTargetPricePerKg)}) − ${formatRupiah(totalModalRiil)} = ${profitRiil >= 0 ? '+' : ''}${formatRupiah(profitRiil)} (${marginPercent.toFixed(1)}%)`,
                 steps: [
                   {
                     stepNumber: 1,
@@ -1103,6 +1195,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               badgeText: 'PANEL 1 KESIMPULAN • ASAL ANGKA TOTAL MODAL BAYAR',
               coreFormula:
                 'Total Modal Bayar = Modal Bayar Nota Bahan + (Jumlah Seri × (Ongkos Kemasan + Ongkos Press))',
+              appliedFormula: `Total Modal Bayar = ${formatRupiah(effectiveRawModalForSimulation)} + (${safePackageCount} Seri × (${formatRupiah(packagingCostPerUnit)} + ${formatRupiah(pressCostPerUnit)})) = ${formatRupiah(totalModalRiil)}`,
               steps: [
                 {
                   stepNumber: 1,
@@ -1165,6 +1258,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               badgeText: 'PANEL 2 KESIMPULAN • ASAL ANGKA WEIGHT PROFIT GABUNGAN',
               coreFormula:
                 'Total Weight Profit = Weight Profit Beli (Stok) + Selisih Timbangan Setor Pabrik',
+              appliedFormula: `Total Weight Profit = ${totalBuyWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(totalBuyWeightProfitRp)} + (${factoryWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(factoryWeightProfitRp)}) = ${combinedWpRp >= 0 ? '+' : ''}${formatRupiah(combinedWpRp)}`,
               steps: [
                 {
                   stepNumber: 1,
@@ -1226,6 +1320,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               badgeText: 'PANEL 3 KESIMPULAN • ASAL ANGKA HARGA MINIMAL BEP / KG',
               coreFormula:
                 'Harga Minimal BEP / KG = Total Modal Bayar ÷ Netto Diakui Pabrik',
+              appliedFormula: `Harga Minimal BEP / KG = ${formatRupiah(totalModalRiil)} ÷ ${factoryNetBillableKg} kg = ${formatRupiah(bepPricePerKg)}/kg`,
               steps: [
                 {
                   stepNumber: 1,
@@ -1277,6 +1372,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               badgeText: 'PANEL 4 KESIMPULAN • ASAL ANGKA TOTAL TAGIHAN NOTA PABRIK',
               coreFormula:
                 'Total Tagihan Nota Pabrik = Netto Tagih Pabrik × Target Harga Pabrik / KG',
+              appliedFormula: `Total Tagihan Nota Pabrik = ${factoryNetBillableKg} kg × ${formatRupiah(factoryTargetPricePerKg)}/kg = ${formatRupiah(totalOmzetPabrik)}`,
               steps: [
                 {
                   stepNumber: 1,
@@ -1328,6 +1424,7 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
             badgeText: 'PANEL 5 KESIMPULAN • ASAL ANGKA TOTAL PROFIT BERSIH',
             coreFormula:
               'Total Profit Bersih = Total Tagihan Nota Pabrik − Total Modal Bayar',
+            appliedFormula: `Total Profit Bersih = ${formatRupiah(totalOmzetPabrik)} − ${formatRupiah(totalModalRiil)} = ${profitRiil >= 0 ? '+' : ''}${formatRupiah(profitRiil)} (${marginPercent.toFixed(1)}%)`,
             steps: [
               {
                 stepNumber: 1,

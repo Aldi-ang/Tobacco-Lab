@@ -51,6 +51,7 @@ interface NavbarProps {
   hasUnreadPatch?: boolean;
   onExportData: () => void;
   onImportData: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onOpenRestoreModal?: () => void;
   onResetData: () => void;
   userEmail?: string | null;
   cloudSyncStatus?: 'offline' | 'syncing' | 'synced' | 'error';
@@ -74,6 +75,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   hasUnreadPatch = false,
   onExportData,
   onImportData,
+  onOpenRestoreModal,
   onResetData,
   userEmail = null,
   cloudSyncStatus = 'offline',
@@ -389,14 +391,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".json"
+                  accept=".json,application/json,text/plain,*/*"
                   onChange={onImportData}
                   className="hidden"
                   id="import-json-input"
                 />
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() =>
+                    onOpenRestoreModal ? onOpenRestoreModal() : fileInputRef.current?.click()
+                  }
                   className="h-8 w-8 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer shrink-0"
                   title="Restore Data JSON"
                   aria-label="Impor Data JSON"

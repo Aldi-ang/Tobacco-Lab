@@ -20,6 +20,7 @@ import { ArchitecturalBackground } from './components/ArchitecturalBackground';
 import { CloudLoginScreen } from './components/CloudLoginScreen';
 import { HistoryView } from './components/HistoryView';
 import { GoogleSheetsExportModal } from './components/GoogleSheetsExportModal';
+import { BackupRestoreModal, TobaccoBackupPayload } from './components/BackupRestoreModal';
 import {
   auth,
   db,
@@ -135,6 +136,7 @@ export default function App() {
   const [blendPrefilledIngredients, setBlendPrefilledIngredients] = useState<BlendIngredient[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isGoogleSheetsModalOpen, setIsGoogleSheetsModalOpen] = useState<boolean>(false);
+  const [backupModalMode, setBackupModalMode] = useState<'backup' | 'restore' | null>(null);
   const [stockInitialPanel, setStockInitialPanel] = useState<'raw' | 'rejected-finished'>('raw');
 
   // Firebase Auth & Real-Time Cloud Sync State
@@ -421,6 +423,7 @@ export default function App() {
       tobaccoId: tobacco.id,
       tobaccoName: tobacco.name,
       origin: tobacco.origin,
+      sellerName: tobacco.sellerName,
       usedNetKg: 25,
       percentageInBlend: 0,
       realCostPerNetKg: tobacco.realCostPerNetKg,
@@ -431,6 +434,7 @@ export default function App() {
       bitterRating: clampRating5(tobacco.bitterRating),
       burnRating: clampRating5(tobacco.burnRating ?? 4.5),
       sugarRating: clampRating5(tobacco.sugarRating ?? 4.0),
+      aromaRating: clampRating5(tobacco.aromaRating ?? 4.2),
       colorGrade: tobacco.colorGrade,
       characterNotes: tobacco.characterNotes,
     };
@@ -463,6 +467,7 @@ export default function App() {
           bitterRating: clampRating5(serial.weightedBitter),
           burnRating: clampRating5(serial.weightedBurn ?? 4.5),
           sugarRating: clampRating5(serial.weightedSugar ?? 4.0),
+          aromaRating: clampRating5(serial.weightedAroma ?? 4.2),
           colorGrade: serial.compositeColorGrade,
         },
       ]);
@@ -506,6 +511,7 @@ export default function App() {
                   bitter: firstMatch.weightedBitter,
                   burn: firstMatch.weightedBurn,
                   sugar: firstMatch.weightedSugar,
+                  aroma: firstMatch.weightedAroma ?? 4.2,
                   colorGrade: firstMatch.compositeColorGrade,
                   hppPerKg: firstMatch.hppPerNetKg,
                 },
@@ -672,6 +678,7 @@ export default function App() {
           bitter: avg((s) => s.weightedBitter),
           burn: avg((s) => s.weightedBurn ?? 4.5),
           sugar: avg((s) => s.weightedSugar ?? 4.0),
+          aroma: avg((s) => s.weightedAroma ?? 4.2),
           colorGrade: serialsInRoll[0].compositeColorGrade || roll.ratingsSnapshot.colorGrade,
           hppPerKg: avgHpp || roll.ratingsSnapshot.hppPerKg,
         },
@@ -799,29 +806,23 @@ export default function App() {
     showToast('Catatan Evaluasi & Komposisi (/5) berhasil disimpan!');
   };
 
+  const applyRestoredPayload = (parsed: TobaccoBackupPayload) => {
+    hasLocalUserMutationRef.current = true;
+    if (parsed.rawTobaccos && Array.isArray(parsed.rawTobaccos))
+      setRawTobaccos(parsed.rawTobaccos);
+    if (parsed.finishedBatches && Array.isArray(parsed.finishedBatches))
+      setFinishedBatches(parsed.finishedBatches);
+    if (parsed.rollSamples && Array.isArray(parsed.rollSamples))
+      setRollSamples(parsed.rollSamples);
+    if (parsed.packagingList && Array.isArray(parsed.packagingList))
+      setPackagingList(parsed.packagingList);
+    if (parsed.factoryList && Array.isArray(parsed.factoryList))
+      setFactoryList(parsed.factoryList);
+    showToast('Data berhasil diimpor & dipulihkan dari Backup JSON!');
+  };
+
   const handleExportData = () => {
-    const data = {
-      rawTobaccos,
-      finishedBatches,
-      rollSamples,
-      packagingList,
-      factoryList,
-      exportedAt: new Date().toISOString(),
-      version: '3.0',
-    };
-    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
-      JSON.stringify(data, null, 2)
-    )}`;
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', jsonString);
-    downloadAnchor.setAttribute(
-      'download',
-      `kretek_master_backup_${new Date().toISOString().split('T')[0]}.json`
-    );
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    showToast('Data berhasil diekspor ke file JSON.');
+    setBackupModalMode('backup');
   };
 
   const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -831,19 +832,8 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const parsed = JSON.parse(event.target?.result as string);
-        hasLocalUserMutationRef.current = true;
-        if (parsed.rawTobaccos && Array.isArray(parsed.rawTobaccos))
-          setRawTobaccos(parsed.rawTobaccos);
-        if (parsed.finishedBatches && Array.isArray(parsed.finishedBatches))
-          setFinishedBatches(parsed.finishedBatches);
-        if (parsed.rollSamples && Array.isArray(parsed.rollSamples))
-          setRollSamples(parsed.rollSamples);
-        if (parsed.packagingList && Array.isArray(parsed.packagingList))
-          setPackagingList(parsed.packagingList);
-        if (parsed.factoryList && Array.isArray(parsed.factoryList))
-          setFactoryList(parsed.factoryList);
-        showToast('Data berhasil diimpor dari file JSON!');
+        const parsed = JSON.parse(event.target?.result as string) as TobaccoBackupPayload;
+        applyRestoredPayload(parsed);
       } catch {
         showToast('Format file JSON tidak valid!');
       }
@@ -923,6 +913,7 @@ export default function App() {
           hasUnreadPatch={hasUnreadPatch}
           onExportData={handleExportData}
           onImportData={handleImportData}
+          onOpenRestoreModal={() => setBackupModalMode('restore')}
           onResetData={handleResetData}
           userEmail={currentUser?.email || null}
           cloudSyncStatus={cloudSyncStatus}
@@ -1008,6 +999,7 @@ export default function App() {
                 <RollArchiveView
                   rollSamples={rollSamples}
                   finishedBatches={finishedBatches}
+                  rawTobaccos={rawTobaccos}
                   packagingList={packagingList}
                   factoryList={factoryList}
                   onSelectRoll={(roll) => setSelectedRoll(roll)}
@@ -1016,6 +1008,7 @@ export default function App() {
                     setIsMasterModalOpen(true);
                   }}
                   onUpdateSerial={handleUpdateFinishedSerial}
+                  onUpdateSmokingTest={handleUpdateSmokingTest}
                   onRepriceSerial={handleRepriceSerial}
                   onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
                 />
@@ -1064,6 +1057,7 @@ export default function App() {
       <RollDetailModal
         roll={selectedRoll}
         finishedBatches={finishedBatches}
+        rawTobaccos={rawTobaccos}
         onClose={() => setSelectedRoll(null)}
         onUpdateSmokingTest={handleUpdateSmokingTest}
       />
@@ -1078,6 +1072,13 @@ export default function App() {
           setPackagingList([...packagingList, pkg]);
           showToast(`Jenis Packaging "${pkg.name}" berhasil didaftarkan!`);
         }}
+        onUpdatePackaging={(updatedPkg) => {
+          hasLocalUserMutationRef.current = true;
+          setPackagingList((prev) =>
+            prev.map((p) => (p.id === updatedPkg.id ? updatedPkg : p))
+          );
+          showToast(`Jenis Packaging "${updatedPkg.name}" berhasil diperbarui!`);
+        }}
         onDeletePackaging={(id) => {
           hasLocalUserMutationRef.current = true;
           setPackagingList(packagingList.filter((p) => p.id !== id));
@@ -1089,6 +1090,13 @@ export default function App() {
           setFactoryList([...factoryList, fac]);
           showToast(`Pabrik "${fac.name}" berhasil didaftarkan!`);
         }}
+        onUpdateFactory={(updatedFac) => {
+          hasLocalUserMutationRef.current = true;
+          setFactoryList((prev) =>
+            prev.map((f) => (f.id === updatedFac.id ? updatedFac : f))
+          );
+          showToast(`Data Pabrik "${updatedFac.name}" berhasil diperbarui!`);
+        }}
         onDeleteFactory={(id) => {
           hasLocalUserMutationRef.current = true;
           setFactoryList(factoryList.filter((f) => f.id !== id));
@@ -1099,6 +1107,30 @@ export default function App() {
           hasLocalUserMutationRef.current = true;
           setRollSamples([...rollSamples, roll]);
           showToast(`Gulungan Sampel "${roll.rollNumber}" berhasil dibuat!`);
+        }}
+        onUpdateRollSample={(updatedRoll) => {
+          hasLocalUserMutationRef.current = true;
+          setRollSamples((prev) =>
+            prev.map((r) => (r.id === updatedRoll.id ? updatedRoll : r))
+          );
+          setFinishedBatches((prev) =>
+            prev.map((ser) =>
+              ser.rollId === updatedRoll.id
+                ? {
+                    ...ser,
+                    rollNumber: updatedRoll.rollNumber,
+                    rollRackNumber: updatedRoll.rackLocation,
+                    targetFactory: updatedRoll.targetFactory,
+                  }
+                : ser
+            )
+          );
+          showToast(`Gulungan "${updatedRoll.rollNumber}" berhasil diperbarui!`);
+        }}
+        onDeleteRollSample={(id) => {
+          hasLocalUserMutationRef.current = true;
+          setRollSamples((prev) => prev.filter((r) => r.id !== id));
+          showToast('Gulungan Sampel dihapus.');
         }}
       />
 
@@ -1114,6 +1146,23 @@ export default function App() {
         finishedBatches={finishedBatches}
         rollSamples={rollSamples}
         userEmail={currentUser?.email || null}
+      />
+
+      <BackupRestoreModal
+        isOpen={backupModalMode !== null}
+        initialMode={backupModalMode || 'backup'}
+        onClose={() => setBackupModalMode(null)}
+        backupData={{
+          rawTobaccos,
+          finishedBatches,
+          rollSamples,
+          packagingList,
+          factoryList,
+          exportedAt: new Date().toISOString(),
+          version: CURRENT_APP_VERSION,
+        }}
+        onRestorePayload={applyRestoredPayload}
+        onShowToast={showToast}
       />
 
       <AnimatePresence>

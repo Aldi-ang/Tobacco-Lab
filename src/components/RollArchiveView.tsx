@@ -22,6 +22,7 @@ import {
   TobaccoGrade,
   PackagingMaster,
   FactoryMaster,
+  RawTobacco,
 } from '../types/tobacco';
 import {
   GRADE_LABELS,
@@ -39,15 +40,21 @@ import {
   CalcSymbolBadge,
 } from './CalculationDetailModal';
 import { EditFinishedSerialModal } from './EditFinishedSerialModal';
+import { RollCompositionAndEvaluationPanel } from './RollDetailModal';
 
 interface RollArchiveViewProps {
   rollSamples: TobaccoRollSample[];
   finishedBatches: FinishedTobaccoSerial[];
+  rawTobaccos?: RawTobacco[];
   packagingList?: PackagingMaster[];
   factoryList?: FactoryMaster[];
   onSelectRoll: (roll: TobaccoRollSample) => void;
   onOpenNewRollModal: () => void;
   onUpdateSerial?: (updated: FinishedTobaccoSerial) => void;
+  onUpdateSmokingTest?: (
+    rollId: string,
+    updatedTest: NonNullable<TobaccoRollSample['smokingTest']>
+  ) => void;
   onRepriceSerial: (
     serialId: string,
     updates: {
@@ -63,20 +70,20 @@ interface RollArchiveViewProps {
 export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
   rollSamples,
   finishedBatches,
+  rawTobaccos = [],
   packagingList = [],
   factoryList = [],
   onSelectRoll,
   onOpenNewRollModal,
   onUpdateSerial,
+  onUpdateSmokingTest,
   onRepriceSerial,
   onOpenGoogleSheetsModal,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeRollId, setActiveRollId] = useState<string | null>(null);
   const [editingSerial, setEditingSerial] = useState<FinishedTobaccoSerial | null>(null);
-  // Default to showing the Seri list in full screen when opening a Gulungan, with Nota toggleable
-  const [isNotaVisible, setIsNotaVisible] = useState<boolean>(false);
-  const [isSerialsVisible, setIsSerialsVisible] = useState<boolean>(true);
+  const [activeRollTab, setActiveRollTab] = useState<'SERI' | 'NOTA' | 'KOMPOSISI'>('SERI');
   const [sheetViewMode, setSheetViewMode] = useState<'personal' | 'factory' | 'both'>('personal');
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -100,9 +107,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
 
   const handleOpenRollCard = (roll: TobaccoRollSample) => {
     setActiveRollId(roll.id);
-    // Show each Nomor Seri immediately in the full-screen scroll view; keep Nota hidden until pressed
-    setIsSerialsVisible(true);
-    setIsNotaVisible(false);
+    setActiveRollTab('SERI');
   };
 
   const handleCopySheet = (
@@ -736,13 +741,13 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                   const tara = s.factoryDeductionKg;
                   const netto = Math.max(0, bruto - tara);
                   return {
-                    stepNumber: idx + 1,
-                    title: `Seri ${s.serialNumber} (${s.packaging.packagingType} • Grade ${s.compositeColorGrade})`,
+                    stepNumber: idx + 4,
+                    title: `Seri ${s.serialNumber}`,
                     formula: 'Netto Tagih = Berat Bruto − Potongan Tarra Pabrik',
                     substitution: `${bruto} kg − ${tara} kg = ${netto} kg`,
-                    resultLabel: 'Netto Tagih',
+                    resultLabel: `Seri ${s.serialNumber}`,
                     resultValue: `${netto} kg`,
-                    explanation: `Kemasan Seri ${s.serialNumber} memiliki Bruto ${bruto} kg dan dipotong tarra pabrik ${tara} kg menjadi ${netto} kg.`,
+                    explanation: `Kemasan ${s.packaging.packagingType} (Grade ${s.compositeColorGrade}): Bruto ${bruto} kg dipotong tarra ${tara} kg.`,
                     highlight: 'white' as const,
                   };
                 });
@@ -750,33 +755,55 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                 setCalcDetail({
                   title: `1. Total Keranjang & Netto (${activeSheetSerials.length} Seri • ${sumNetto} kg)`,
                   subtitle: `Gulungan ${activeRoll.rollNumber} • Total Bruto ${sumBruto} kg − Total Tarra ${sumTara} kg`,
-                  badgeText: 'PANEL 1 GULUNGAN • ASAL ANGKA TOTAL KERANJANG & NETTO',
+                  badgeText: 'PANEL 1 GULUNGAN • RUMUS TOTAL NETTO TAGIH',
                   coreFormula:
-                    'Total Netto Tagih = Σ (Berat Bruto Seri − Potongan Tarra Pabrik)',
-                  steps: seriSteps,
-                  summaryRows: [
+                    'Total Netto Tagih = Total Bruto − Total Potongan Tarra',
+                  appliedFormula: `Total Netto Tagih = ${sumBruto} kg − ${sumTara} kg = ${sumNetto} kg`,
+                  steps: [
                     {
-                      label: 'Total Bruto',
-                      value: `${sumBruto} kg (${activeSheetSerials.length} Seri)`,
+                      stepNumber: 1,
+                      title: 'Total Bruto',
+                      formula: 'Total Bruto = Σ Berat Bruto Seluruh Seri',
+                      substitution:
+                        activeSheetSerials
+                          .map((s) => `${s.packaging.grossWeightPerPackage} kg`)
+                          .join(' + ') + ` = ${sumBruto} kg`,
+                      resultLabel: 'Total Bruto',
+                      resultValue: `${sumBruto} kg`,
+                      explanation: `Jumlah berat kotor dari ${activeSheetSerials.length} Nomor Seri.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Total Potongan Tarra',
-                      value: `-${sumTara} kg`,
+                      stepNumber: 2,
+                      title: 'Total Potongan Tarra',
+                      formula: 'Total Potongan Tarra = Σ Potongan Tarra Pabrik per Seri',
+                      substitution:
+                        activeSheetSerials.map((s) => `${s.factoryDeductionKg} kg`).join(' + ') +
+                        ` = ${sumTara} kg`,
+                      resultLabel: 'Total Potongan Tarra',
+                      resultValue: `${sumTara} kg`,
+                      explanation: `Total potongan tarra pabrik untuk ${activeSheetSerials.length} Nomor Seri.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Total Netto Tagih',
-                      value: `${sumNetto} kg`,
+                      stepNumber: 3,
+                      title: 'Total Netto Tagih',
+                      formula: 'Total Netto Tagih = Total Bruto − Total Potongan Tarra',
+                      substitution: `${sumBruto} kg − ${sumTara} kg = ${sumNetto} kg`,
+                      resultLabel: 'Total Netto Tagih',
+                      resultValue: `${sumNetto} kg`,
+                      explanation: `Total berat bersih yang ditagihkan pada nota pabrik.`,
                       highlight: 'amber',
                     },
+                    ...seriSteps,
                   ],
-                  conclusion: `Angka ${activeSheetSerials.length} Seri (${sumNetto} kg) berasal dari penjumlahan Bruto ${sumBruto} kg dikurangi total potongan tarra pabrik ${sumTara} kg.`,
+                  conclusion: `Total Netto Tagih = ${sumBruto} kg − ${sumTara} kg = ${sumNetto} kg.`,
                 });
                 return;
               }
 
               if (focus === 'MODAL') {
+                const avgModalPerKg = sumNetto > 0 ? Math.round(sumInternalCost / sumNetto) : 0;
                 const seriSteps = activeSheetSerials.map((s, idx) => {
                   const bruto = s.packaging.grossWeightPerPackage;
                   const tara = s.factoryDeductionKg;
@@ -784,13 +811,13 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                   const costKg = Math.round(s.effectiveHppAfterTaraPerKg || s.hppPerNetKg);
                   const modalRp = Math.round(netto * costKg);
                   return {
-                    stepNumber: idx + 1,
-                    title: `Seri ${s.serialNumber} (${s.packaging.packagingType} • Grade ${s.compositeColorGrade})`,
+                    stepNumber: idx + 4,
+                    title: `Seri ${s.serialNumber}`,
                     formula: 'Jumlah Modal Seri = Netto Tagih × Harga Modal / KG',
                     substitution: `${netto} kg × ${formatRupiah(costKg)}/kg = ${formatRupiah(modalRp)}`,
-                    resultLabel: 'Modal Seri',
+                    resultLabel: `Seri ${s.serialNumber}`,
                     resultValue: formatRupiah(modalRp),
-                    explanation: `Modal produksi Seri ${s.serialNumber} untuk ${netto} kg dengan HPP ${formatRupiah(costKg)}/kg.`,
+                    explanation: `Modal produksi Seri ${s.serialNumber} (${netto} kg × ${formatRupiah(costKg)}/kg).`,
                     highlight: 'white' as const,
                   };
                 });
@@ -798,75 +825,108 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                 setCalcDetail({
                   title: `2. Total Modal Kita (${formatRupiah(sumInternalCost)})`,
                   subtitle: `Gulungan ${activeRoll.rollNumber} • ${activeSheetSerials.length} Seri Aktif (${sumNetto} kg)`,
-                  badgeText: 'PANEL 2 GULUNGAN • ASAL ANGKA TOTAL MODAL KITA',
+                  badgeText: 'PANEL 2 GULUNGAN • RUMUS TOTAL MODAL KITA',
                   coreFormula:
                     'Total Modal Kita = Σ (Netto Tagih Seri × Harga Modal / KG)',
-                  steps: seriSteps,
-                  summaryRows: [
+                  appliedFormula: `Total Modal Kita = ${sumNetto} kg × ${formatRupiah(avgModalPerKg)}/kg = ${formatRupiah(sumInternalCost)}`,
+                  steps: [
                     {
-                      label: 'Jumlah Seri Aktif',
-                      value: `${activeSheetSerials.length} Seri (${sumNetto} kg)`,
+                      stepNumber: 1,
+                      title: 'Total Netto Tagih',
+                      formula: 'Total Netto Tagih = Total Bruto − Total Potongan Tarra',
+                      substitution: `${sumBruto} kg − ${sumTara} kg = ${sumNetto} kg`,
+                      resultLabel: 'Total Netto Tagih',
+                      resultValue: `${sumNetto} kg`,
+                      explanation: `Total berat bersih seluruh ${activeSheetSerials.length} Seri.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Rata-Rata Modal / KG',
-                      value: `${formatRupiah(sumNetto > 0 ? Math.round(sumInternalCost / sumNetto) : 0)}/kg`,
+                      stepNumber: 2,
+                      title: 'Rata-Rata Modal/KG',
+                      formula: 'Rata-Rata Modal/KG = Total Modal Kita ÷ Total Netto Tagih',
+                      substitution: `${formatRupiah(sumInternalCost)} ÷ ${sumNetto} kg = ${formatRupiah(avgModalPerKg)}/kg`,
+                      resultLabel: 'Rata-Rata Modal/KG',
+                      resultValue: `${formatRupiah(avgModalPerKg)}/kg`,
+                      explanation: `Rata-rata harga pokok per kilogram tagih di gulungan ini.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Total Modal Kita',
-                      value: formatRupiah(sumInternalCost),
+                      stepNumber: 3,
+                      title: 'Total Modal Kita',
+                      formula: 'Total Modal Kita = Σ Jumlah Modal Seluruh Seri',
+                      substitution: `${activeSheetSerials.length} Seri = ${formatRupiah(sumInternalCost)}`,
+                      resultLabel: 'Total Modal Kita',
+                      resultValue: formatRupiah(sumInternalCost),
+                      explanation: `Total modal produksi seluruh Nomor Seri di gulungan ini.`,
                       highlight: 'amber',
                     },
+                    ...seriSteps,
                   ],
-                  conclusion: `Total Modal Kita sebesar ${formatRupiah(sumInternalCost)} berasal dari akumulasi modal produksi seluruh ${activeSheetSerials.length} Nomor Seri di dalam gulungan ini.`,
+                  conclusion: `Total Modal Kita = ${formatRupiah(sumInternalCost)}.`,
                 });
                 return;
               }
 
               if (focus === 'NOTA') {
+                const avgNotaPerKg = sumNetto > 0 ? Math.round(sumFactoryNota / sumNetto) : 0;
                 const seriSteps = activeSheetSerials.map((s, idx) => {
                   const bruto = s.packaging.grossWeightPerPackage;
                   const tara = s.factoryDeductionKg;
                   const netto = Math.max(0, bruto - tara);
                   const notaRp = Math.round(netto * s.factoryTargetPricePerKg);
                   return {
-                    stepNumber: idx + 1,
-                    title: `Seri ${s.serialNumber} (Grade ${s.compositeColorGrade})`,
+                    stepNumber: idx + 4,
+                    title: `Seri ${s.serialNumber}`,
                     formula: 'Jumlah Nota Pabrik = Netto Tagih × Harga Pabrik / KG',
                     substitution: `${netto} kg × ${formatRupiah(s.factoryTargetPricePerKg)}/kg = ${formatRupiah(notaRp)}`,
-                    resultLabel: 'Nota Seri',
+                    resultLabel: `Seri ${s.serialNumber}`,
                     resultValue: formatRupiah(notaRp),
                     explanation: `Tagihan nota pabrik untuk Seri ${s.serialNumber} (${netto} kg × ${formatRupiah(s.factoryTargetPricePerKg)}).`,
-                    highlight: 'amber' as const,
+                    highlight: 'white' as const,
                   };
                 });
 
                 setCalcDetail({
                   title: `3. Total Harga Pabrik / Nota (${formatRupiah(sumFactoryNota)})`,
                   subtitle: `Gulungan ${activeRoll.rollNumber} • Pabrik ${activeRoll.targetFactory} (${sumNetto} kg)`,
-                  badgeText: 'PANEL 3 GULUNGAN • ASAL ANGKA TOTAL HARGA PABRIK (NOTA)',
+                  badgeText: 'PANEL 3 GULUNGAN • RUMUS TOTAL HARGA PABRIK (NOTA)',
                   coreFormula:
-                    'Total Harga Pabrik (Nota) = Σ (Netto Tagih Seri × Harga Pabrik / KG)',
-                  steps: seriSteps,
-                  summaryRows: [
+                    'Total Harga Pabrik = Σ (Netto Tagih Seri × Harga Pabrik / KG)',
+                  appliedFormula: `Total Harga Pabrik = ${sumNetto} kg × ${formatRupiah(avgNotaPerKg)}/kg = ${formatRupiah(sumFactoryNota)}`,
+                  steps: [
                     {
-                      label: 'Total Netto Tagih',
-                      value: `${sumNetto} kg`,
+                      stepNumber: 1,
+                      title: 'Total Netto Tagih',
+                      formula: 'Total Netto Tagih = Total Bruto − Total Potongan Tarra',
+                      substitution: `${sumBruto} kg − ${sumTara} kg = ${sumNetto} kg`,
+                      resultLabel: 'Total Netto Tagih',
+                      resultValue: `${sumNetto} kg`,
+                      explanation: `Total berat bersih yang ditagihkan ke ${activeRoll.targetFactory}.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Rata-Rata Harga Pabrik',
-                      value: `${formatRupiah(sumNetto > 0 ? Math.round(sumFactoryNota / sumNetto) : 0)}/kg`,
+                      stepNumber: 2,
+                      title: 'Rata-Rata Harga Pabrik/KG',
+                      formula: 'Rata-Rata Harga Pabrik/KG = Total Harga Pabrik ÷ Total Netto Tagih',
+                      substitution: `${formatRupiah(sumFactoryNota)} ÷ ${sumNetto} kg = ${formatRupiah(avgNotaPerKg)}/kg`,
+                      resultLabel: 'Rata-Rata Harga Pabrik/KG',
+                      resultValue: `${formatRupiah(avgNotaPerKg)}/kg`,
+                      explanation: `Rata-rata harga jual pabrik per kilogram di gulungan ini.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Total Harga Pabrik (Nota)',
-                      value: formatRupiah(sumFactoryNota),
+                      stepNumber: 3,
+                      title: 'Total Harga Pabrik',
+                      formula: 'Total Harga Pabrik = Σ (Netto Tagih Seri × Harga Pabrik / KG)',
+                      substitution: `${activeSheetSerials.length} Seri = ${formatRupiah(sumFactoryNota)}`,
+                      resultLabel: 'Total Harga Pabrik',
+                      resultValue: formatRupiah(sumFactoryNota),
+                      explanation: `Total nilai tagihan nota pabrik untuk gulungan ini.`,
                       highlight: 'amber',
                     },
+                    ...seriSteps,
                   ],
-                  conclusion: `Total Harga Pabrik (Nota) sebesar ${formatRupiah(sumFactoryNota)} berasal dari penjumlahan tagihan nota seluruh ${activeSheetSerials.length} Nomor Seri (${sumNetto} kg).`,
+                  conclusion: `Total Harga Pabrik = ${formatRupiah(sumFactoryNota)}.`,
                 });
                 return;
               }
@@ -883,11 +943,11 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                   const wpKg = Number((s.factoryWeightProfitKg ?? netto - realNet).toFixed(2));
                   const wpRp = Math.round(wpKg * (s.factoryTargetPricePerKg || 0));
                   return {
-                    stepNumber: idx + 1,
-                    title: `Seri ${s.serialNumber} (${s.packaging.packagingType})`,
+                    stepNumber: idx + 4,
+                    title: `Seri ${s.serialNumber}`,
                     formula: 'Selisih Timbangan = (Netto Tagih − Tembakau Riil) × Harga Pabrik',
-                    substitution: `(${netto} kg − ${realNet} kg) = ${wpKg >= 0 ? '+' : ''}${wpKg} kg × ${formatRupiah(s.factoryTargetPricePerKg)} = ${wpRp >= 0 ? '+' : ''}${formatRupiah(wpRp)}`,
-                    resultLabel: 'Selisih Seri',
+                    substitution: `(${netto} kg − ${realNet} kg) × ${formatRupiah(s.factoryTargetPricePerKg)} = ${wpKg >= 0 ? '+' : ''}${wpKg} kg (${wpRp >= 0 ? '+' : ''}${formatRupiah(wpRp)})`,
+                    resultLabel: `Seri ${s.serialNumber}`,
                     resultValue: `${wpKg >= 0 ? '+' : ''}${wpKg} kg (${wpRp >= 0 ? '+' : ''}${formatRupiah(wpRp)})`,
                     explanation: `Bruto ${bruto} kg dengan potongan pabrik ${tara} kg vs isi tembakau fisik ${realNet} kg.`,
                     highlight: (wpKg >= 0 ? 'amber' : 'red') as 'amber' | 'red',
@@ -897,28 +957,44 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                 setCalcDetail({
                   title: `4. Selisih Timbangan Pabrik (${sumFactoryWeightProfitKg >= 0 ? '+' : ''}${sumFactoryWeightProfitKg} kg)`,
                   subtitle: `Gulungan ${activeRoll.rollNumber} • Nilai Selisih: ${sumFactoryWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(sumFactoryWeightProfitRp)}`,
-                  badgeText: 'PANEL 4 GULUNGAN • ASAL ANGKA SELISIH TIMBANGAN PABRIK',
+                  badgeText: 'PANEL 4 GULUNGAN • RUMUS SELISIH TIMBANGAN PABRIK',
                   coreFormula:
-                    'Selisih Timbangan Pabrik = Σ ((Netto Tagih − Tembakau Riil) × Harga Pabrik)',
-                  steps: seriSteps,
-                  summaryRows: [
+                    'Selisih Timbangan = Σ ((Netto Tagih − Tembakau Riil) × Harga Pabrik)',
+                  appliedFormula: `Selisih Timbangan = ${sumFactoryWeightProfitKg >= 0 ? '+' : ''}${sumFactoryWeightProfitKg} kg = ${sumFactoryWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(sumFactoryWeightProfitRp)}`,
+                  steps: [
                     {
-                      label: 'Total Netto Tagih Pabrik',
-                      value: `${sumNetto} kg`,
+                      stepNumber: 1,
+                      title: 'Total Netto Tagih',
+                      formula: 'Total Netto Tagih = Total Bruto − Total Potongan Tarra',
+                      substitution: `${sumBruto} kg − ${sumTara} kg = ${sumNetto} kg`,
+                      resultLabel: 'Total Netto Tagih',
+                      resultValue: `${sumNetto} kg`,
+                      explanation: `Total berat bersih yang diakui pabrik pada nota.`,
                       highlight: 'white',
                     },
                     {
-                      label: 'Total Selisih Berat',
-                      value: `${sumFactoryWeightProfitKg >= 0 ? '+' : ''}${sumFactoryWeightProfitKg} kg`,
+                      stepNumber: 2,
+                      title: 'Total Selisih Berat',
+                      formula: 'Total Selisih Berat = Σ (Netto Tagih Seri − Tembakau Riil Seri)',
+                      substitution: `${sumFactoryWeightProfitKg >= 0 ? '+' : ''}${sumFactoryWeightProfitKg} kg`,
+                      resultLabel: 'Total Selisih Berat',
+                      resultValue: `${sumFactoryWeightProfitKg >= 0 ? '+' : ''}${sumFactoryWeightProfitKg} kg`,
+                      explanation: `Total selisih berat kemasan dibanding potongan tarra pabrik.`,
                       highlight: sumFactoryWeightProfitKg >= 0 ? 'amber' : 'red',
                     },
                     {
-                      label: 'Nilai Selisih Timbangan',
-                      value: `${sumFactoryWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(sumFactoryWeightProfitRp)}`,
+                      stepNumber: 3,
+                      title: 'Nilai Selisih Timbangan',
+                      formula: 'Nilai Selisih = Σ (Selisih Berat Seri × Harga Pabrik)',
+                      substitution: `${sumFactoryWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(sumFactoryWeightProfitRp)}`,
+                      resultLabel: 'Nilai Selisih Timbangan',
+                      resultValue: `${sumFactoryWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(sumFactoryWeightProfitRp)}`,
+                      explanation: `Nilai Rupiah dari selisih timbangan setor pabrik.`,
                       highlight: sumFactoryWeightProfitRp >= 0 ? 'amber' : 'red',
                     },
+                    ...seriSteps,
                   ],
-                  conclusion: `Selisih Timbangan Pabrik sebesar ${sumFactoryWeightProfitKg >= 0 ? '+' : ''}${sumFactoryWeightProfitKg} kg (${sumFactoryWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(sumFactoryWeightProfitRp)}) berasal dari perbandingan antara Netto Tagih Pabrik dengan berat tembakau fisik riil di tiap keranjang.`,
+                  conclusion: `Selisih Timbangan Pabrik = ${sumFactoryWeightProfitKg >= 0 ? '+' : ''}${sumFactoryWeightProfitKg} kg (${sumFactoryWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(sumFactoryWeightProfitRp)}).`,
                 });
                 return;
               }
@@ -934,13 +1010,13 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                 const profitRp = notaRp - modalRp;
 
                 return {
-                  stepNumber: idx + 1,
-                  title: `Seri ${s.serialNumber} (Grade ${s.compositeColorGrade})`,
+                  stepNumber: idx + 4,
+                  title: `Seri ${s.serialNumber}`,
                   formula: 'Profit Seri = Jumlah Nota Pabrik − Jumlah Modal Kita',
                   substitution: `${formatRupiah(notaRp)} − ${formatRupiah(modalRp)} = ${profitRp >= 0 ? '+' : ''}${formatRupiah(profitRp)}`,
-                  resultLabel: 'Profit Seri',
+                  resultLabel: `Seri ${s.serialNumber}`,
                   resultValue: `${profitRp >= 0 ? '+' : ''}${formatRupiah(profitRp)}`,
-                  explanation: `Netto ${netto} kg dengan Harga Pabrik ${formatRupiah(s.factoryTargetPricePerKg)}/kg dikurangi Modal ${formatRupiah(costKg)}/kg.`,
+                  explanation: `Netto ${netto} kg × (Harga Pabrik ${formatRupiah(s.factoryTargetPricePerKg)} − Modal ${formatRupiah(costKg)}).`,
                   highlight: (profitRp >= 0 ? 'amber' : 'red') as 'amber' | 'red',
                 };
               });
@@ -948,28 +1024,44 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
               setCalcDetail({
                 title: `5. Profit Gulungan (${formatRupiah(totalNetProfit)})`,
                 subtitle: `Gulungan ${activeRoll.rollNumber} • Nota ${formatRupiah(sumFactoryNota)} − Modal ${formatRupiah(sumInternalCost)}`,
-                badgeText: 'PANEL 5 GULUNGAN • ASAL ANGKA PROFIT BERSIH GULUNGAN',
+                badgeText: 'PANEL 5 GULUNGAN • RUMUS PROFIT BERSIH GULUNGAN',
                 coreFormula:
                   'Profit Gulungan = Total Harga Pabrik (Nota) − Total Modal Kita',
-                steps: seriSteps,
-                summaryRows: [
+                appliedFormula: `Profit Gulungan = ${formatRupiah(sumFactoryNota)} − ${formatRupiah(sumInternalCost)} = ${totalNetProfit >= 0 ? '+' : ''}${formatRupiah(totalNetProfit)}`,
+                steps: [
                   {
-                    label: 'Total Harga Pabrik (Nota)',
-                    value: formatRupiah(sumFactoryNota),
+                    stepNumber: 1,
+                    title: 'Total Harga Pabrik (Nota)',
+                    formula: 'Total Harga Pabrik = Σ (Netto Tagih Seri × Harga Pabrik / KG)',
+                    substitution: `${sumNetto} kg (${activeSheetSerials.length} Seri) = ${formatRupiah(sumFactoryNota)}`,
+                    resultLabel: 'Total Harga Pabrik (Nota)',
+                    resultValue: formatRupiah(sumFactoryNota),
+                    explanation: `Total uang tagihan nota pabrik dari seluruh seri di gulungan ini.`,
                     highlight: 'white',
                   },
                   {
-                    label: 'Total Modal Kita',
-                    value: formatRupiah(sumInternalCost),
+                    stepNumber: 2,
+                    title: 'Total Modal Kita',
+                    formula: 'Total Modal Kita = Σ (Netto Tagih Seri × Harga Modal / KG)',
+                    substitution: `${sumNetto} kg (${activeSheetSerials.length} Seri) = ${formatRupiah(sumInternalCost)}`,
+                    resultLabel: 'Total Modal Kita',
+                    resultValue: formatRupiah(sumInternalCost),
+                    explanation: `Total modal produksi seluruh seri di gulungan ini.`,
                     highlight: 'white',
                   },
                   {
-                    label: 'PROFIT GULUNGAN',
-                    value: `${totalNetProfit >= 0 ? '+' : ''}${formatRupiah(totalNetProfit)}`,
+                    stepNumber: 3,
+                    title: 'Profit Gulungan',
+                    formula: 'Profit Gulungan = Total Harga Pabrik (Nota) − Total Modal Kita',
+                    substitution: `${formatRupiah(sumFactoryNota)} − ${formatRupiah(sumInternalCost)} = ${totalNetProfit >= 0 ? '+' : ''}${formatRupiah(totalNetProfit)}`,
+                    resultLabel: 'Profit Gulungan',
+                    resultValue: `${totalNetProfit >= 0 ? '+' : ''}${formatRupiah(totalNetProfit)}`,
+                    explanation: `Keuntungan bersih dari Gulungan ${activeRoll.rollNumber}.`,
                     highlight: totalNetProfit >= 0 ? 'amber' : 'red',
                   },
+                  ...seriSteps,
                 ],
-                conclusion: `Profit Gulungan sebesar ${formatRupiah(totalNetProfit)} berasal dari Total Harga Pabrik (Nota) ${formatRupiah(sumFactoryNota)} dikurangi Total Modal Kita ${formatRupiah(sumInternalCost)}.`,
+                conclusion: `Profit Gulungan = ${formatRupiah(sumFactoryNota)} − ${formatRupiah(sumInternalCost)} = ${formatRupiah(totalNetProfit)}.`,
               });
             };
 
@@ -1076,73 +1168,64 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                   </div>
                 </div>
 
-                {/* Locked Action Bar: Toggle Daftar Seri, Nota Sheet, Komposisi dan Evaluasi */}
-                <div className="flex flex-wrap items-center justify-between gap-2.5 bg-black/90 p-3 rounded-xl border border-zinc-800">
-                  <div className="flex flex-wrap items-center gap-2">
+                {/* Clear 3-Tab View Switcher inside Gulungan: 1. Daftar Seri, 2. Tabel Nota Sheet, 3. Komposisi Tembakau Per Grade */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-black/95 p-3 sm:p-4 rounded-2xl border-2 border-zinc-800">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 flex-1">
                     <button
                       type="button"
-                      title="Tampilkan / Sembunyikan Rincian Nomor Seri di Layar Penuh"
-                      onClick={() => setIsSerialsVisible((v) => !v)}
-                      className={`min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer border ${
-                        isSerialsVisible
-                          ? 'bg-black text-amber-400 border border-zinc-700'
-                          : 'bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white border-zinc-700'
+                      onClick={() => setActiveRollTab('SERI')}
+                      className={`min-h-11 px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer border-2 transition-all ${
+                        activeRollTab === 'SERI'
+                          ? 'bg-amber-500/20 text-amber-400 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                          : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-200 hover:text-white border-zinc-800'
                       }`}
                     >
-                      <Package className="w-4 h-4 text-zinc-300 shrink-0" />
-                      <span>
-                        {isSerialsVisible
-                          ? `Sembunyikan Seri (${allSerialsInRoll.length})`
-                          : `Lihat Semua Seri (${allSerialsInRoll.length})`}
-                      </span>
+                      <Package className="w-4 h-4 shrink-0" />
+                      <span>1. Daftar Seri ({allSerialsInRoll.length} Keranjang)</span>
                     </button>
 
                     <button
                       type="button"
-                      title="Tampilkan / Sembunyikan Tabel Nota Arsip Personal (Profit) & Nota Pabrik"
-                      onClick={() => setIsNotaVisible((v) => !v)}
-                      className={`min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer transition-colors ${
-                        isNotaVisible
-                          ? 'bg-black text-amber-400 border border-zinc-700'
-                          : 'btn-amber-outline'
+                      onClick={() => setActiveRollTab('NOTA')}
+                      className={`min-h-11 px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer border-2 transition-all ${
+                        activeRollTab === 'NOTA'
+                          ? 'bg-amber-500/20 text-amber-400 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                          : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-200 hover:text-white border-zinc-800'
                       }`}
                     >
                       <FileSpreadsheet className="w-4 h-4 shrink-0" />
-                      <span>{isNotaVisible ? 'Sembunyikan Nota' : 'Buka Nota Sheet'}</span>
+                      <span>2. Tabel Nota Sheet</span>
                     </button>
 
                     <button
                       type="button"
-                      title="Lihat Komposisi Daun & Evaluasi Grader Pabrik (/5)"
-                      onClick={() => onSelectRoll(activeRoll)}
-                      className="btn-amber-outline min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer"
+                      onClick={() => setActiveRollTab('KOMPOSISI')}
+                      className={`min-h-11 px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer border-2 transition-all ${
+                        activeRollTab === 'KOMPOSISI'
+                          ? 'bg-amber-500/20 text-amber-400 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                          : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-200 hover:text-white border-zinc-800'
+                      }`}
                     >
                       <Eye className="w-4 h-4 shrink-0" />
-                      <span>Komposisi dan Evaluasi</span>
+                      <span>3. Komposisi Tembakau Per Grade</span>
                     </button>
-
-                    {onOpenGoogleSheetsModal && (
-                      <button
-                        type="button"
-                        title="Transfer Langsung ke Google Sheets"
-                        onClick={onOpenGoogleSheetsModal}
-                        className="btn-amber-outline min-h-9 px-3.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <FileSpreadsheet className="w-4 h-4 shrink-0" />
-                        <span>Transfer Google Sheets</span>
-                      </button>
-                    )}
                   </div>
 
-                  {!isNotaVisible && (
-                    <span className="text-[11px] text-zinc-400">
-                      Klik <b className="text-white">Buka Nota Sheet</b> untuk menyalin Nota Personal / Pabrik ke Google Sheets
-                    </span>
+                  {onOpenGoogleSheetsModal && (
+                    <button
+                      type="button"
+                      title="Transfer Langsung ke Google Sheets"
+                      onClick={onOpenGoogleSheetsModal}
+                      className="btn-amber-outline min-h-11 px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                      <span>Transfer Google Sheets</span>
+                    </button>
                   )}
                 </div>
 
-                {/* Full-Screen Spacious Seri Grid with Direct Price & Grade Controls */}
-                {isSerialsVisible && (
+                {/* TAB 1: Full-Screen Spacious Seri Grid with Direct Price & Grade Controls */}
+                {activeRollTab === 'SERI' && (
                   <div className="bg-black p-3.5 sm:p-4 rounded-xl border border-zinc-800 space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <h3 className="text-xs sm:text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
@@ -1276,8 +1359,8 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                   </div>
                 )}
 
-                {/* Locked Nota Sheet Section (NO Slider inside — Clean Direct Buttons!) */}
-                {isNotaVisible && (
+                {/* TAB 2: Tabel Nota Sheet Section */}
+                {activeRollTab === 'NOTA' && (
                   <div className="space-y-4 pt-1">
                     <div className="flex flex-wrap items-center gap-2 p-2 rounded-xl bg-black border border-zinc-800">
                       <span className="text-[11px] font-bold text-zinc-400 px-2">
@@ -1366,6 +1449,23 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                       </div>
                     )}
                   </div>
+                )}
+
+                {/* TAB 3: Komposisi & Evaluasi Per Grade */}
+                {activeRollTab === 'KOMPOSISI' && (
+                  <RollCompositionAndEvaluationPanel
+                    roll={activeRoll}
+                    finishedBatches={finishedBatches}
+                    rawTobaccos={rawTobaccos}
+                    onUpdateSmokingTest={(rollId, updatedTest) => {
+                      if (onUpdateSmokingTest) {
+                        onUpdateSmokingTest(rollId, updatedTest);
+                      } else {
+                        onSelectRoll(activeRoll);
+                      }
+                    }}
+                    isEmbedded={true}
+                  />
                 )}
               </div>
             );
