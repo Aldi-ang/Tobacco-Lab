@@ -11,7 +11,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-export const CURRENT_APP_VERSION = 'v3.9.4';
+export const CURRENT_APP_VERSION = 'v4.0.2';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -30,11 +30,247 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v4.0.2',
+    date: '10 November 2026',
+    codename:
+      'Perbaikan Perhitungan Fee Perantara sebagai Biaya Tambahan (Netto × Fee) & Total Modal = Netto × (Harga + Fee)',
+    isLatest: true,
+    highlights:
+      'Memperbaiki rumus perhitungan Fee Perantara pada pembelian tembakau mentah agar dihitung murni sebagai Biaya Tambahan (Added Cost), bukan keuntungan: Netto = Bruto − Tarra, Biaya Fee = Netto × Fee/KG, dan Total Modal = Netto × (Harga Tembakau + Fee/KG). Contoh: 50 kg dengan potongan 10% + 2 kg menghasilkan Netto = 50 − 5 − 2 = 43 kg; dengan harga Rp 50.000/kg dan fee Rp 1.000/kg, maka Biaya Fee = 43 × Rp 1.000 = Rp 43.000 dan Total Modal = 43 × Rp 51.000 = Rp 2.193.000.',
+    changes: [
+      {
+        type: 'fix',
+        title: 'Fee Perantara Dihitung sebagai Biaya Tambahan: Netto × Fee/KG (Bukan Profit)',
+        description:
+          'Menghapus perhitungan "Untung Timbangan" yang keliru saat menambah fee dan menggantinya dengan rincian biaya yang akurat: Netto = Bruto − Tarra (misal 50 − 5 − 2 = 43 kg), Biaya Tambahan Fee = Netto × Fee (43 × Rp 1.000 = Rp 43.000).',
+      },
+      {
+        type: 'fix',
+        title: 'Total Harga Modal = Netto × (Harga Tembakau + Fee/KG)',
+        description:
+          'Jika harga tembakau Rp 50.000/kg dan fee Rp 1.000/kg, maka harga modal per kg otomatis menjadi Rp 51.000/kg dikalikan Netto (43 kg × Rp 51.000 = Rp 2.193.000).',
+      },
+      {
+        type: 'ui',
+        title: 'Tampilan 3 Kotak Rincian Biaya di Form, Kartu Gudang & Rumus ƒx',
+        description:
+          'Menampilkan 3 rincian jelas di seluruh panel: (1) Harga Tembakau Dasar (Netto × Harga), (2) Biaya Tambahan Fee (Netto × Fee), dan (3) Total Modal Kita Bayar (Netto × (Harga + Fee)).',
+      },
+    ],
+  },
+  {
+    version: 'v4.0.1',
+    date: '10 November 2026',
+    codename:
+      'Tombol Kunci Semua & Buka Semua di Edit, Panel Rapi per Bagian Tanpa Teks Tutorial Sempit, & Urutan Grade A, A+, B, B+ s/d F+',
+    highlights:
+      'Menambahkan tombol "Kunci Semua" dan "Buka Semua" pada panel Edit/Tambah Tembakau Mentah maupun Edit Seri, merapikan seluruh panel menjadi tab bagian yang fokus (tidak menumpuk terlalu banyak data di satu layar), menghapus teks tutorial/contoh yang memakan tempat di ruang sempit, serta memperbarui urutan Grade Tembakau menjadi A, A+, B, B+, C, C+, D, D+, E, E+, F, F+.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Tombol "Kunci Semua" & "Buka Semua" pada Panel Edit',
+        description:
+          'Menyediakan tombol "Kunci Semua" dan "Buka Semua" berdampingan di bagian atas panel Edit/Tambah Tembakau Mentah serta Edit Seri Jadi untuk mengunci atau membuka seluruh kolom sekaligus dengan 1 klik.',
+      },
+      {
+        type: 'ui',
+        title: 'Panel Lebih Rapi per Bagian & Bebas Teks Tutorial Sempit',
+        description:
+          'Membagi panel Edit Data Tembakau Mentah dan Edit Seri ke dalam tab bagian yang rapi (1. Data, Timbangan & Fee | 2. Grade & 6 Karakter | Semua) serta menghapus kotak/teks tutorial panjang yang menghabiskan ruang.',
+      },
+      {
+        type: 'feature',
+        title: 'Urutan Grade Tembakau A, A+, B, B+ s/d F+',
+        description:
+          'Memperbarui daftar dan urutan Grade Tembakau di seluruh aplikasi menjadi berurutan dari A, A+, B, B+, C, C+, D, D+, E, E+, F, hingga F+.',
+      },
+    ],
+  },
+  {
+    version: 'v4.0.0',
+    date: '10 November 2026',
+    codename:
+      'Revisi Pembulatan Potongan Tarra (Beli & Jual): Desimal .5 ke Atas Bulat Naik (Contoh: 58 kg Potongan 2 kg + 10% = 2 + 6 = 8 kg)',
+    highlights:
+      'Menyeragamkan aturan pembulatan potongan timbangan (Tarra) untuk Pembelian (Beli Bahan Mentah) maupun Penjualan/Setoran Pabrik (Jual Seri Gulungan & Simulator): setiap hasil hitungan persen tarra dan potongan yang bernilai desimal ≥ 0.5 otomatis dibulatkan ke atas menjadi bilangan bulat berikutnya (contoh: 10% dari 50–54 kg = 5 kg, namun 55–59 kg = 6 kg; Seri AK 1 58 kg dengan potongan 2 kg + 10% menghasilkan 2 kg + 6 kg = 8 kg).',
+    changes: [
+      {
+        type: 'fix',
+        title: 'Pembulatan Otomatis .5 ke Atas pada Potongan Persen (%) untuk Beli & Jual',
+        description:
+          'Setiap potongan persen (misal 10%) kini membulatkan nilai ≥ 0.5 ke atas: 10% dari 50 kg = 5 kg, sedangkan 55 kg s/d 59 kg (5.5 s/d 5.9) otomatis dibulatkan menjadi 6 kg potongan baik saat Beli Bahan Mentah maupun Jual/Setor Pabrik.',
+      },
+      {
+        type: 'feature',
+        title: 'Kalkulator Potongan Flat (KG) + Potongan (%) di Edit Seri & Rincian Rumus ƒx',
+        description:
+          'Contoh nyata: Seri AK 1 dengan Bruto 58 kg dan potongan 2 kg + 10% akan menghitung 10% × 58 kg = 5.8 kg (dibulatkan ke atas menjadi 6 kg) + 2 kg = Total Potongan 8 kg (bukan 7.8 kg), sehingga Netto Tagih menjadi 50 kg.',
+      },
+      {
+        type: 'ui',
+        title: 'Sinkronisasi Pembulatan pada Simulator Tarra, Racik Campuran & Data Tersimpan',
+        description:
+          'Seluruh modul (Tambah/Edit Barang, Racik Campuran, Edit Seri, Simulator Tarra, dan Rincian Rumus ƒx) kini menampilkan proses pembulatan secara transparan (misal: 5.8 kg → dibulatkan 6 kg).',
+      },
+    ],
+  },
+  {
+    version: 'v3.9.9',
+    date: '10 November 2026',
+    codename:
+      'Fitur Multi-Fee Pencari Barang / Perantara per KG (Bisa >1 Orang) & Auto-Remember Nama Agen di Tambah Barang',
+    highlights:
+      'Menambahkan fitur "Fee Pencari Barang / Perantara" per kilogram (Rp/kg) pada panel Tambah/Edit Barang yang dapat ditambahkan lebih dari 1 orang (misal Pak Yohan Rp 1.000/kg + Bu Menik Rp 1.000/kg = +Rp 2.000/kg khusus untuk barang tersebut), lengkap dengan memori otomatis (Auto-Remember) untuk Nama Agen/Perantara.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Tambah Lebih dari 1 Fee Perantara / Pencari Barang per KG (Rp/kg)',
+        description:
+          'Memungkinkan penambahan 1 atau lebih orang pencari barang/perantara pada setiap stok tembakau mentah, di mana masing-masing orang memiliki nominal fee per kg yang otomatis dijumlahkan ke harga per kg khusus untuk barang tersebut saja (misal Pak Yohan Rp 1.000/kg + Bu Menik Rp 1.000/kg = tambahan +Rp 2.000/kg).',
+      },
+      {
+        type: 'feature',
+        title: 'Auto-Remember Nama Agen / Pencari Barang',
+        description:
+          'Setiap nama agen/perantara yang pernah diinput otomatis diingat oleh aplikasi dan muncul sebagai teks bayangan (shadow), saran ketik otomatis (autocomplete), serta tombol klik cepat "+ Nama Agen" agar tidak perlu mengetik ulang.',
+      },
+      {
+        type: 'ui',
+        title: 'Rincian Rumus ƒx & Kartu Stok Menampilkan Breakdown Fee Perantara',
+        description:
+          'Kartu stok mentah, detail barang, serta rincian rumus ƒx (Paid Value, Real Value, dan Weight Profit) otomatis menampilkan rincian harga beli dasar ditambah daftar fee perantara per kg.',
+      },
+    ],
+  },
+  {
+    version: 'v3.9.8',
+    date: '10 November 2026',
+    codename:
+      'Panel Tambah Barang Sistem Dicicil: Textbox Kosong Berbayang (Shadow), Auto-Ingat Nama Tembakau & Penjual, Parameter Default 0 & Kunci Edit per Kolom',
+    highlights:
+      'Merombak panel Tambah Barang agar mendukung penginputan bertahap (dicicil): seluruh kotak isian dimulai dalam keadaan kosong dengan teks bayangan (shadow placeholder), otomatis mengingat Nama Tembakau & Nama Penjual terakhir, seluruh parameter karakter dimulai dari 0 (0.0/5), serta setiap kolom dilengkapi tombol Kunci/Buka Edit (terbuka secara default) dan indikator Kosong vs Terisi.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Seluruh Textbox Kosong dengan Teks Bayangan (Shadow Placeholder) & Indikator Kosong/Terisi',
+        description:
+          'Saat membuka Tambah Barang, seluruh kotak teks dan angka dimulai dalam keadaan kosong (tidak terisi angka awal) namun menampilkan teks bayangan (shadow) sebagai contoh, dilengkapi penanda "Kosong" vs "Terisi" serta garis putus-putus pada data yang belum diisi agar mudah dicicil.',
+      },
+      {
+        type: 'feature',
+        title: 'Auto-Remember Nama Tembakau & Nama Penjual / Pengepul',
+        description:
+          'Otomatis mengingat riwayat Nama Tembakau dan Nama Penjual yang pernah diinput dan menampilkannya sebagai bayangan (shadow), saran ketik otomatis (autocomplete), serta tombol klik cepat (Ingat Cepat) di bawah kolom.',
+      },
+      {
+        type: 'feature',
+        title: 'Parameter Karakter Default 0 (0.0/5) & Tombol Kunci/Buka Edit per Kolom (Unlocked by Default)',
+        description:
+          'Seluruh 6 parameter karakter (Power, Impact, Bitter, Burn, Sugar, Aroma) dimulai dari nilai 0 secara default, dan setiap textbox maupun parameter memiliki tombol Kunci/Buka (terbuka secara default) serta tombol "Kunci yang Sudah Terisi" agar data yang sudah diinput aman saat mencicil data barang berikutnya.',
+      },
+    ],
+  },
+  {
+    version: 'v3.9.7',
+    date: '10 November 2026',
+    codename:
+      'Status Diterima/Accepted & Status Bayar Terpisah (Cair vs Belum Cair), Grafik Total Gulungan & Per Pabrik, serta UI Transfer Google Sheets Ringkas',
+    highlights:
+      'Memisahkan status penerimaan barang menjadi "Diterima / Accepted" dengan status pembayaran terpisah yaitu "Cair (Paid)" dan "Belum Cair (Not Paid)", mengganti grafik per gulungan menjadi Grafik Total Semua Gulungan & Per Pabrik (baik di aplikasi maupun di Google Sheets), serta menghapus kotak hasil transfer yang besar menjadi notifikasi sementara dengan tombol pintasan kecil untuk membuka Google Sheets.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Pemisahan Status "Diterima / Accepted" dengan Status Pembayaran "Cair (Paid)" vs "Belum Cair (Not Paid)"',
+        description:
+          'Mengubah label "Terima Cair / Diterima Cair" menjadi "Diterima / Accepted", serta menambahkan status pembayaran tersendiri yaitu "Cair (Paid)" dan "Belum Cair (Not Paid)" pada tiap Nomor Seri, filter Status Barang, dan menu Riwayat.',
+      },
+      {
+        type: 'feature',
+        title: 'Grafik Perbandingan untuk Total Semua Gulungan & Per Pabrik (Menggantikan Grafik Per Gulungan)',
+        description:
+          'Mengganti grafik lama yang menampilkan per gulungan menjadi Grafik Total Semua Gulungan beserta perbandingan Per Pabrik Tujuan (mis. CELLO MUNTILAN, PT Gudang Garam Tbk - Kediri) baik di menu Riwayat aplikasi maupun pada grafik otomatis di Google Sheets.',
+      },
+      {
+        type: 'ui',
+        title: 'Penghapusan Panel Besar Hasil Transfer & Tombol Kecil Redirect Google Sheets',
+        description:
+          'Menghapus kotak besar "Transfer ke Google Sheets Berhasil!" agar tidak memakan tempat, menggantinya dengan status sementara (auto-hide toast/strip) dan tombol link kecil "Buka di Sheets" yang hemat ruang.',
+      },
+    ],
+  },
+  {
+    version: 'v3.9.6',
+    date: '10 November 2026',
+    codename:
+      'Memori Nama & Link Spreadsheet Khusus Akun Google Pribadi, Tabel Google Sheets Rapi (2 Sel Vertikal & Text-Wrap), Grafik Profit & Tombol CSV',
+    highlights:
+      'Aplikasi kini otomatis mengingat Nama File & Link Google Spreadsheet secara privat khusus untuk Akun Google yang sedang login (terkunci per email Google sehingga tidak dapat dilihat atau diedit oleh orang lain/mode tamu). Dilengkapi perbaikan otomatis format tabel Google Sheets (2 sel vertikal, Text-Wrap, ukuran kolom & garis tabel), Grafik Perbandingan Pendapatan, Modal, Profit & Reject, serta penataan tombol Salin & Unduh CSV.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Memori Nama & Link Google Spreadsheet Khusus Akun Google yang Sama (Privasi Terkunci)',
+        description:
+          'Menyimpan dan mengisi ulang otomatis Nama File Spreadsheet serta Link Spreadsheet yang terhubung secara eksklusif ketika menggunakan Akun Google yang sama. Jika belum login Google atau berbeda akun, data nama & link spreadsheet disembunyikan sepenuhnya agar orang lain tidak dapat melihat atau mengeditnya.',
+      },
+      {
+        type: 'fix',
+        title: 'Perbaikan Otomatis Format Tabel Google Sheets (2 Sel Vertikal, Text-Wrap & Garis Tabel)',
+        description:
+          'Menerapkan format otomatis Google Sheets API (wrapStrategy: WRAP, penggabungan sel judul, 2 sel vertikal atas-bawah untuk informasi Gulungan/Pabrik/Tanggal, lebar kolom otomatis, serta garis bingkai tabel penuh) baik saat Membuat Sheet Baru maupun Update Sheet yang Ada sehingga seluruh kata terlihat utuh sekaligus.',
+      },
+      {
+        type: 'feature',
+        title: 'Grafik Perbandingan Profit vs Pendapatan (Nota), Modal & Reject (Di Aplikasi & Google Sheets)',
+        description:
+          'Menambahkan visualisasi Grafik Perbandingan Pendapatan Nota, Modal Produksi, Profit Bersih, dan Nilai Reject/Loss langsung di menu Riwayat serta membuat Tab khusus "Ringkasan & Grafik Profit" berisi grafik batang otomatis di dalam Google Sheets.',
+      },
+      {
+        type: 'ui',
+        title: 'Penataan Rapi Tombol Salin & Unduh CSV pada Modal Google Sheets',
+        description:
+          'Menyusun ulang bagian Alternatif Cepat menjadi 2 kartu simetris dengan tombol "Unduh CSV" tepat di bawah tombol "Salin Riwayat Nota" dan "Salin Status Seri" agar rapi di layar HP maupun desktop.',
+      },
+    ],
+  },
+  {
+    version: 'v3.9.5',
+    date: '9 November 2026',
+    codename:
+      'Filter Pabrik Dinamis pada Angka Riwayat, Penggabungan Fitur Gulungan & Status Barang (Tombol Kirim ke Pabrik), Istilah Menunggu Pabrik & Simulator Slide-Down di Header Atas',
+    highlights:
+      '4 Kartu Ringkasan Angka di menu Riwayat kini otomatis mengikuti filter pilihan Pabrik & pencarian, penyatuan seluruh fitur lengkap antara menu Gulungan (masih di gudang kita) dan Status Barang (sudah dikirim ke pabrik) lengkap dengan tombol "Kirim ke Pabrik", penggantian istilah "QC" menjadi "Menunggu Pabrik", serta pemindahan Simulator ke tombol animasi di bar atas layar.',
+    changes: [
+      {
+        type: 'feature',
+        title: '4 Angka Utama di Menu Riwayat Otomatis Mengikuti Filter Pilihan Pabrik',
+        description:
+          'Saat memilih "Semua Pabrik", kartu Total Nilai Nota, Diterima & Uang Cair, Nilai Menunggu Pabrik, serta Total Profit Bersih menampilkan total keseluruhan. Saat memilih pabrik tertentu (mis. PT Gudang Garam Tbk - Kediri), keempat angka beserta rincian rumus ƒx otomatis menghitung khusus pabrik tersebut.',
+      },
+      {
+        type: 'feature',
+        title: 'Penyatuan Fitur Lengkap Gulungan & Status Barang + Tombol "Kirim ke Pabrik"',
+        description:
+          'Menghilangkan input ganda dengan menyatukan seluruh fitur lengkap (Gulungan 3D, 5 Panel Rumus, Daftar Seri Terima Cair/Reject, Tabel Nota Sheet, dan Komposisi Per Grade). Menu Gulungan menampilkan gulungan yang masih di gudang kita dengan tombol "Kirim ke Pabrik →" untuk memindahkannya ke menu Status Barang.',
+      },
+      {
+        type: 'ui',
+        title: 'Penggantian Istilah "QC" Menjadi "Menunggu Pabrik" / "Status Pabrik"',
+        description:
+          'Mengganti seluruh istilah "Menunggu QC" dan "Status QC" menjadi kata yang lebih familiar yaitu "Menunggu Pabrik" dan "Status Pabrik" di seluruh aplikasi.',
+      },
+      {
+        type: 'ui',
+        title: 'Simulator Dipindahkan ke Header Atas Layar dengan Animasi Slide-Down',
+        description:
+          'Memindahkan menu Simulator keluar dari bar navigasi utama ke tombol "Simulator" di bagian atas layar (dilengkapi laci modal animasi slide-down yang rapi di HP maupun desktop) agar navigasi utama lebih lega.',
+      },
+    ],
+  },
+  {
     version: 'v3.9.4',
     date: '9 November 2026',
     codename:
       'Auto-Slide ke Form Edit, Ringkasan Komposisi Grade Poin-per-Poin (+Harga/KG), Huruf & Tombol Besar Ramah HP & Parameter Karakter Tetap',
-    isLatest: true,
     highlights:
       'Kemudahan otomatis geser layar ke atas (Auto-Slide) setiap menekan tombol Edit, format baru Ringkasan Komposisi Grade poin per poin lengkap dengan persentase, berat KG, dan harga per KG, ukuran tombol & teks yang jauh lebih besar dan mudah dibaca di HP, serta penguncian parameter karakter campuran Gulungan menjadi tetap (hanya menyisakan input Nama Grader & Tanggal Evaluasi).',
     changes: [

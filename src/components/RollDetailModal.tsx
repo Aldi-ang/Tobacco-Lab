@@ -15,7 +15,7 @@ import {
   TobaccoGrade,
   RawTobacco,
 } from '../types/tobacco';
-import { GRADE_LABELS, formatRupiah, clampRating5 } from '../utils/tobaccoMath';
+import { GRADE_LABELS, TOBACCO_GRADE_ORDER, formatRupiah, clampRating5 } from '../utils/tobaccoMath';
 
 export interface GradeCompositionGroup {
   grade: TobaccoGrade;
@@ -123,7 +123,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
   );
 
   // Build Per-Grade Composition Groups from the Serials in this Gulungan
-  const gradeOrder: TobaccoGrade[] = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'E'];
+  const gradeOrder: TobaccoGrade[] = TOBACCO_GRADE_ORDER;
 
   const buildGradeGroups = (): GradeCompositionGroup[] => {
     if (serialsInRoll.length === 0) {

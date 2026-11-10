@@ -17,12 +17,16 @@ import {
   FactoryMaster,
   TobaccoGrade,
   SerialFactoryStatus,
+  SerialPaymentStatus,
 } from '../types/tobacco';
 import {
-  GRADE_LABELS,
+  TOBACCO_GRADE_ORDER,
   formatRupiah,
   clampRating5,
   formatSerialLineage,
+  calculateTaraDeduction,
+  roundHalfUpKg,
+  formatTaraFormula,
 } from '../utils/tobaccoMath';
 import { NumericInput } from './NumericInput';
 
@@ -42,6 +46,7 @@ type LockableFieldKey =
   | 'recipeName'
   | 'targetFactory'
   | 'factoryStatus'
+  | 'paymentStatus'
   | 'packagingType'
   | 'brutoKg'
   | 'packagingMassKg'
@@ -61,6 +66,7 @@ const ALL_LOCKABLE_KEYS: LockableFieldKey[] = [
   'recipeName',
   'targetFactory',
   'factoryStatus',
+  'paymentStatus',
   'packagingType',
   'brutoKg',
   'packagingMassKg',
@@ -74,6 +80,8 @@ const ALL_LOCKABLE_KEYS: LockableFieldKey[] = [
   'aroma',
 ];
 
+type SerialEditTab = 'main' | 'weights' | 'character' | 'all';
+
 export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = ({
   serial,
   rollSamples,
@@ -82,6 +90,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
   onClose,
   onSave,
 }) => {
+  const [activeTab, setActiveTab] = useState<SerialEditTab>('main');
   const [serialNumber, setSerialNumber] = useState('');
   const [recipeName, setRecipeName] = useState('');
   const [rollId, setRollId] = useState('');
@@ -89,9 +98,12 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
   const [packagingType, setPackagingType] = useState('');
   const [grade, setGrade] = useState<TobaccoGrade>('D');
   const [factoryStatus, setFactoryStatus] = useState<SerialFactoryStatus>('PENDING');
+  const [paymentStatus, setPaymentStatus] = useState<SerialPaymentStatus>('BELUM_CAIR');
 
   const [brutoKg, setBrutoKg] = useState(0);
   const [packagingMassKg, setPackagingMassKg] = useState(0);
+  const [taraFlatKg, setTaraFlatKg] = useState(0);
+  const [taraPercent, setTaraPercent] = useState(0);
   const [taraKg, setTaraKg] = useState(0);
 
   const [hppPerNetKg, setHppPerNetKg] = useState(0);
@@ -111,15 +123,34 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
 
   useEffect(() => {
     if (!serial) return;
-    const gross = serial.packaging.grossWeightPerPackage || 0;
-    const tara = serial.factoryDeductionKg || 0;
-    const realNet =
+    setActiveTab('main');
+    const gross = roundHalfUpKg(serial.packaging.grossWeightPerPackage || 0);
+    const tara = roundHalfUpKg(serial.factoryDeductionKg || 0);
+    const realNet = roundHalfUpKg(
       serial.packaging.netTobaccoWeightKg ??
-      serial.totalBlendNetKg ??
-      Math.max(0, gross - (serial.packaging.packagingMassKg ?? tara));
-    const pkgMass =
-      serial.packaging.packagingMassKg ??
-      Number(Math.max(0, gross - realNet).toFixed(2));
+        serial.totalBlendNetKg ??
+        Math.max(0, gross - (serial.packaging.packagingMassKg ?? tara))
+    );
+    const pkgMass = roundHalfUpKg(
+      serial.packaging.packagingMassKg ?? Math.max(0, gross - realNet)
+    );
+    const matchedPkg = packagingList.find(
+      (p) => p.name === (serial.packaging.packagingType || 'KRJ MUNTILAN')
+    );
+    const initPercent = Number(
+      serial.packaging.factoryTaraFormula?.percent ?? matchedPkg?.taraPercent ?? 0
+    );
+    const initFlat = roundHalfUpKg(
+      serial.packaging.factoryTaraFormula?.flatKg ??
+        (initPercent > 0 ? (matchedPkg?.taraFlatKg ?? 0) : tara)
+    );
+    const computedTara =
+      initPercent > 0
+        ? calculateTaraDeduction(gross, {
+            percent: initPercent,
+            flatKg: initFlat,
+          }).deductionKg
+        : tara;
 
     setSerialNumber(serial.serialNumber);
     setRecipeName(serial.recipeName || '');
@@ -128,9 +159,12 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
     setPackagingType(serial.packaging.packagingType || 'KRJ MUNTILAN');
     setGrade(serial.compositeColorGrade || 'D');
     setFactoryStatus(serial.factoryStatus || 'PENDING');
+    setPaymentStatus(serial.paymentStatus || 'BELUM_CAIR');
     setBrutoKg(gross);
     setPackagingMassKg(pkgMass);
-    setTaraKg(tara);
+    setTaraFlatKg(initFlat);
+    setTaraPercent(initPercent);
+    setTaraKg(computedTara);
     setHppPerNetKg(Math.round(serial.effectiveHppAfterTaraPerKg || serial.hppPerNetKg || 0));
     setFactoryPricePerKg(serial.factoryTargetPricePerKg || 0);
     setPower(clampRating5(serial.weightedPower));
@@ -140,9 +174,8 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
     setSugar(clampRating5(serial.weightedSugar ?? 4.0));
     setAroma(clampRating5(serial.weightedAroma ?? 4.2));
 
-    // Reset all locks whenever a serial is opened
     setUnlockedFields({});
-  }, [serial, rollSamples]);
+  }, [serial, rollSamples, packagingList]);
 
   if (!serial) return null;
 
@@ -155,18 +188,16 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
     }));
   };
 
-  const allUnlocked = ALL_LOCKABLE_KEYS.every((k) => unlockedFields[k]);
+  const handleLockAll = () => {
+    setUnlockedFields({});
+  };
 
-  const handleToggleAllLocks = () => {
-    if (allUnlocked) {
-      setUnlockedFields({});
-    } else {
-      const next: Partial<Record<LockableFieldKey, boolean>> = {};
-      ALL_LOCKABLE_KEYS.forEach((k) => {
-        next[k] = true;
-      });
-      setUnlockedFields(next);
-    }
+  const handleUnlockAll = () => {
+    const next: Partial<Record<LockableFieldKey, boolean>> = {};
+    ALL_LOCKABLE_KEYS.forEach((k) => {
+      next[k] = true;
+    });
+    setUnlockedFields(next);
   };
 
   const renderFieldLabel = (label: string, fieldKey: LockableFieldKey, centered = false) => {
@@ -197,12 +228,12 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
           {unlocked ? (
             <>
               <Unlock className="w-2.5 h-2.5 text-amber-400" />
-              {!centered && <span>Terbuka</span>}
+              {!centered && <span>Buka</span>}
             </>
           ) : (
             <>
               <Lock className="w-2.5 h-2.5 text-zinc-400" />
-              {!centered && <span>Terkunci</span>}
+              {!centered && <span>Kunci</span>}
             </>
           )}
         </button>
@@ -219,9 +250,15 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
     } ${extra}`;
   };
 
-  const realNetTobaccoKg = Number(Math.max(0, brutoKg - packagingMassKg).toFixed(2));
-  const billableNetKg = Number(Math.max(0, brutoKg - taraKg).toFixed(2));
-  const weightProfitKg = Number((billableNetKg - realNetTobaccoKg).toFixed(2));
+  const roundedBrutoKg = roundHalfUpKg(brutoKg);
+  const roundedPackagingMassKg = roundHalfUpKg(packagingMassKg);
+  const roundedTaraKg = roundHalfUpKg(taraKg);
+  const rawPercentPart = Number(((roundedBrutoKg * (taraPercent || 0)) / 100).toFixed(2));
+  const roundedPercentPart = roundHalfUpKg(rawPercentPart);
+
+  const realNetTobaccoKg = Math.max(0, roundHalfUpKg(roundedBrutoKg - roundedPackagingMassKg));
+  const billableNetKg = Math.max(0, roundHalfUpKg(roundedBrutoKg - roundedTaraKg));
+  const weightProfitKg = roundHalfUpKg(billableNetKg - realNetTobaccoKg);
   const weightProfitRp = Math.round(weightProfitKg * factoryPricePerKg);
   const totalModalRp = Math.round(billableNetKg * hppPerNetKg);
   const totalNotaRp = Math.round(billableNetKg * factoryPricePerKg);
@@ -229,15 +266,51 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
   const marginPercent =
     totalNotaRp > 0 ? Number(((profitRp / totalNotaRp) * 100).toFixed(2)) : 0;
 
+  const recomputeTaraFromRule = (nextBruto: number, nextFlat: number, nextPercent: number) => {
+    const calc = calculateTaraDeduction(roundHalfUpKg(nextBruto), {
+      percent: nextPercent || 0,
+      flatKg: roundHalfUpKg(nextFlat || 0),
+    });
+    setTaraKg(calc.deductionKg);
+  };
+
+  const handleBrutoChange = (nextBruto: number) => {
+    const cleanBruto = roundHalfUpKg(nextBruto);
+    setBrutoKg(cleanBruto);
+    if (taraPercent > 0 || taraFlatKg > 0) {
+      recomputeTaraFromRule(cleanBruto, taraFlatKg, taraPercent);
+    }
+  };
+
+  const handleTaraFlatChange = (nextFlat: number) => {
+    const cleanFlat = roundHalfUpKg(nextFlat);
+    setTaraFlatKg(cleanFlat);
+    recomputeTaraFromRule(brutoKg, cleanFlat, taraPercent);
+  };
+
+  const handleTaraPercentChange = (nextPercent: number) => {
+    setTaraPercent(nextPercent);
+    recomputeTaraFromRule(brutoKg, taraFlatKg, nextPercent);
+  };
+
+  const handleDirectTaraChange = (nextTara: number) => {
+    const cleanTara = roundHalfUpKg(nextTara);
+    setTaraKg(cleanTara);
+    if (taraPercent === 0) {
+      setTaraFlatKg(cleanTara);
+    }
+  };
+
   const handleSelectPackagingPreset = (pkgName: string) => {
     setPackagingType(pkgName);
     const found = packagingList.find((p) => p.name === pkgName);
     if (found) {
-      setPackagingMassKg(found.packagingMassKg);
-      const calcTara = Number(
-        ((brutoKg * (found.taraPercent || 0)) / 100 + (found.taraFlatKg || 0)).toFixed(2)
-      );
-      setTaraKg(calcTara);
+      setPackagingMassKg(roundHalfUpKg(found.packagingMassKg));
+      const pPercent = found.taraPercent || 0;
+      const pFlat = roundHalfUpKg(found.taraFlatKg || 0);
+      setTaraPercent(pPercent);
+      setTaraFlatKg(pFlat);
+      recomputeTaraFromRule(brutoKg, pFlat, pPercent);
     }
   };
 
@@ -270,6 +343,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
       targetFactory: targetFactory.trim() || matchedRoll?.targetFactory || serial.targetFactory,
       compositeColorGrade: grade,
       factoryStatus,
+      paymentStatus,
       totalBlendNetKg: realNetTobaccoKg,
       hppPerNetKg: Math.round(hppPerNetKg),
       effectiveHppAfterTaraPerKg: Math.round(hppPerNetKg),
@@ -277,11 +351,22 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
       packaging: {
         ...serial.packaging,
         packagingType: packagingType.trim() || 'KRJ MUNTILAN',
-        packagingMassKg,
+        packagingMassKg: roundedPackagingMassKg,
         netTobaccoWeightKg: realNetTobaccoKg,
-        grossWeightPerPackage: brutoKg,
+        grossWeightPerPackage: roundedBrutoKg,
+        factoryTaraFormula: {
+          ...(serial.packaging.factoryTaraFormula || {
+            pricingBasis: 'NET_WEIGHT',
+          }),
+          rawFormula:
+            taraPercent > 0
+              ? formatTaraFormula(taraPercent, taraFlatKg)
+              : `${roundedTaraKg} kg`,
+          percent: taraPercent || 0,
+          flatKg: taraPercent > 0 ? roundHalfUpKg(taraFlatKg) : roundedTaraKg,
+        },
       },
-      factoryDeductionKg: taraKg,
+      factoryDeductionKg: roundedTaraKg,
       factoryNetBillableKg: billableNetKg,
       factoryWeightProfitKg: weightProfitKg,
       factoryWeightProfitRp: weightProfitRp,
@@ -317,48 +402,36 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
           onClick={(e) => e.stopPropagation()}
           className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden"
         >
-          {/* Compact Modal Header */}
-          <div className="px-4 py-3 border-b border-zinc-800 bg-black flex items-center justify-between gap-2">
+          {/* Compact Modal Header with Explicit Kunci Semua & Buka Semua */}
+          <div className="px-4 py-3 border-b border-zinc-800 bg-black flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <span className="p-1.5 rounded-lg bg-zinc-950 border border-amber-500/70 text-amber-400 shrink-0">
                 <Edit3 className="w-4 h-4" />
               </span>
-              <div className="min-w-0">
-                <h2 className="text-xs sm:text-sm font-black text-white truncate">
-                  Edit Seri Jadi — SERI {formatSerialLineage(serial)}
-                </h2>
-                <p className="text-[10px] text-zinc-400 truncate">
-                  Harga Pabrik siap diedit • Tekan ikon gembok untuk mengubah kolom lain
-                </p>
-              </div>
+              <h2 className="text-xs sm:text-sm font-black text-white truncate">
+                Edit Seri — SERI {formatSerialLineage(serial)}
+              </h2>
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
-                onClick={handleToggleAllLocks}
-                title={
-                  allUnlocked
-                    ? 'Kunci kembali semua kolom tetap'
-                    : 'Buka kunci semua kolom untuk diedit'
-                }
-                className={`h-7 px-2.5 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer transition-all ${
-                  allUnlocked
-                    ? 'bg-black text-amber-400 border border-amber-500/80'
-                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700'
-                }`}
+                onClick={handleLockAll}
+                className="h-7 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/50 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                title="Kunci semua kolom"
               >
-                {allUnlocked ? (
-                  <>
-                    <Unlock className="w-3 h-3 text-amber-400" />
-                    <span>Kunci Semua</span>
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-3 h-3 text-zinc-400" />
-                    <span>Buka Semua</span>
-                  </>
-                )}
+                <Lock className="w-3 h-3" />
+                <span>Kunci Semua</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleUnlockAll}
+                className="h-7 px-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                title="Buka semua kolom"
+              >
+                <Unlock className="w-3 h-3" />
+                <span>Buka Semua</span>
               </button>
 
               <button
@@ -371,283 +444,390 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
             </div>
           </div>
 
+          {/* Section Switcher Bar */}
+          <div className="px-4 py-2 bg-zinc-950 border-b border-zinc-800/90 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1 bg-black p-1 rounded-xl border border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setActiveTab('main')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                  activeTab === 'main'
+                    ? 'bg-amber-500 text-black font-black'
+                    : 'text-zinc-300 hover:text-white'
+                }`}
+              >
+                1. Harga &amp; Status
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('weights')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                  activeTab === 'weights'
+                    ? 'bg-amber-500 text-black font-black'
+                    : 'text-zinc-300 hover:text-white'
+                }`}
+              >
+                2. Timbangan ({billableNetKg} kg)
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('character')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                  activeTab === 'character'
+                    ? 'bg-amber-500 text-black font-black'
+                    : 'text-zinc-300 hover:text-white'
+                }`}
+              >
+                3. Karakter (/5)
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('all')}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                  activeTab === 'all'
+                    ? 'bg-zinc-800 text-amber-400 border border-amber-500/50'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                Semua
+              </button>
+            </div>
+
+            <span
+              className={`font-mono font-black text-xs ${
+                profitRp >= 0 ? 'text-amber-400' : 'text-red-400'
+              }`}
+            >
+              Profit: {profitRp >= 0 ? '+' : ''}
+              {formatRupiah(profitRp)} ({marginPercent}%)
+            </span>
+          </div>
+
           <form
             onSubmit={handleSubmit}
-            className="p-3.5 sm:p-4 overflow-y-auto flex-1 space-y-3.5 text-xs"
+            className="p-3.5 sm:p-4 overflow-y-auto flex-1 space-y-3 text-xs"
           >
-            {/* Primary Unlocked Field at Top: Harga Pabrik & Live Profit */}
-            <div className="bg-black p-3 rounded-xl border-2 border-amber-500/70 space-y-2.5 shadow-[0_4px_0_0_#18181b]">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-                  Harga Pabrik & Profit Seri (Aktif Diedit)
-                </span>
-                <span
-                  className={`font-mono font-black text-xs ${
-                    profitRp >= 0 ? 'text-amber-400' : 'text-red-400'
-                  }`}
-                >
-                  Profit: {profitRp >= 0 ? '+' : ''}
-                  {formatRupiah(profitRp)} ({marginPercent}%)
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <div className="flex items-center justify-between gap-1 mb-1">
-                    <label className="text-[10px] font-black text-white uppercase">
-                      Harga Pabrik / KG (Rp)
-                    </label>
-                    <span className="px-1.5 py-0.5 rounded bg-zinc-900 text-amber-400 border border-amber-500/50 text-[9px] font-mono font-bold">
-                      Terbuka Otomatis
+            {/* TAB 1: Harga Pabrik & Identitas */}
+            {(activeTab === 'main' || activeTab === 'all') && (
+              <div className="space-y-3">
+                <div className="bg-black p-3 rounded-xl border border-amber-500/60 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <DollarSign className="w-3.5 h-3.5 text-amber-400" />
+                      Harga Pabrik &amp; Modal
+                    </span>
+                    <span className="text-[10px] font-mono text-zinc-300">
+                      Nota ({billableNetKg} kg): <b className="text-amber-400">{formatRupiah(totalNotaRp)}</b>
                     </span>
                   </div>
-                  <NumericInput
-                    value={factoryPricePerKg}
-                    onChange={setFactoryPricePerKg}
-                    autoFocus
-                    className="w-full h-9 px-3 bg-zinc-950 border-2 border-amber-500/80 focus:border-amber-400 rounded-lg text-white font-mono font-black text-sm focus:outline-hidden"
-                  />
-                  <span className="text-[10px] font-mono text-zinc-300 mt-1 block">
-                    Jumlah Nota Pabrik ({billableNetKg} kg):{' '}
-                    <b className="text-amber-400">{formatRupiah(totalNotaRp)}</b>
-                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <label className="text-[10px] font-black text-white uppercase">
+                          Harga Pabrik / KG (Rp)
+                        </label>
+                      </div>
+                      <NumericInput
+                        value={factoryPricePerKg}
+                        onChange={setFactoryPricePerKg}
+                        autoFocus
+                        className="w-full h-9 px-3 bg-zinc-950 border border-amber-500/80 focus:border-amber-400 rounded-lg text-white font-mono font-black text-sm focus:outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      {renderFieldLabel('Modal HPP / KG (Rp)', 'hppPerNetKg')}
+                      <NumericInput
+                        value={hppPerNetKg}
+                        onChange={setHppPerNetKg}
+                        disabled={!isUnlocked('hppPerNetKg')}
+                        className={`${getLockedInputClass('hppPerNetKg', 'font-mono font-bold')} h-9`}
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  {renderFieldLabel('Harga Modal HPP / KG (Rp)', 'hppPerNetKg')}
-                  <NumericInput
-                    value={hppPerNetKg}
-                    onChange={setHppPerNetKg}
-                    disabled={!isUnlocked('hppPerNetKg')}
-                    className={`${getLockedInputClass('hppPerNetKg', 'font-mono font-bold')} h-9`}
-                  />
-                  <span className="text-[10px] font-mono text-zinc-400 mt-1 block">
-                    Jumlah Modal Produksi: <b className="text-white">{formatRupiah(totalModalRp)}</b>
-                  </span>
-                </div>
-              </div>
-            </div>
+                <div className="bg-black p-3 rounded-xl border border-zinc-800 space-y-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div>
+                      {renderFieldLabel('Nomor Seri', 'serialNumber')}
+                      <input
+                        type="text"
+                        value={serialNumber}
+                        onChange={(e) => setSerialNumber(e.target.value)}
+                        disabled={!isUnlocked('serialNumber')}
+                        className={getLockedInputClass('serialNumber', 'font-mono font-black')}
+                        required
+                      />
+                    </div>
 
-            {/* Section 1: Identity, Roll & Status (Locked by Default) */}
-            <div className="bg-black p-3 rounded-xl border border-zinc-800 space-y-2.5">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div>
-                  {renderFieldLabel('Nomor Seri', 'serialNumber')}
-                  <input
-                    type="text"
-                    value={serialNumber}
-                    onChange={(e) => setSerialNumber(e.target.value)}
-                    disabled={!isUnlocked('serialNumber')}
-                    className={getLockedInputClass('serialNumber', 'font-mono font-black')}
-                    required
-                  />
-                </div>
+                    <div>
+                      {renderFieldLabel('Grade', 'grade')}
+                      <select
+                        value={grade}
+                        onChange={(e) => setGrade(e.target.value as TobaccoGrade)}
+                        disabled={!isUnlocked('grade')}
+                        className={getLockedInputClass('grade', 'font-bold')}
+                      >
+                        {TOBACCO_GRADE_ORDER.map((g) => (
+                          <option key={g} value={g}>
+                            Grade {g}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div>
-                  {renderFieldLabel('Grade Warna', 'grade')}
-                  <select
-                    value={grade}
-                    onChange={(e) => setGrade(e.target.value as TobaccoGrade)}
-                    disabled={!isUnlocked('grade')}
-                    className={getLockedInputClass('grade', 'font-bold')}
-                  >
-                    {(Object.keys(GRADE_LABELS) as TobaccoGrade[]).map((g) => (
-                      <option key={g} value={g}>
-                        Grade {g}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    <div className="col-span-2">
+                      {renderFieldLabel('Gulungan Terkait', 'rollId')}
+                      <select
+                        value={rollId}
+                        disabled={!isUnlocked('rollId')}
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+                          setRollId(nextId);
+                          const r = rollSamples.find((item) => item.id === nextId);
+                          if (r) {
+                            setTargetFactory(r.targetFactory);
+                            setRecipeName(r.recipeName);
+                          }
+                        }}
+                        className={getLockedInputClass('rollId', 'font-bold')}
+                      >
+                        {rollSamples.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.rollNumber} — {r.recipeName} ({r.targetFactory})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
 
-                <div className="col-span-2">
-                  {renderFieldLabel('Gulungan Terkait', 'rollId')}
-                  <select
-                    value={rollId}
-                    disabled={!isUnlocked('rollId')}
-                    onChange={(e) => {
-                      const nextRollId = e.target.value;
-                      setRollId(nextRollId);
-                      const foundRoll = rollSamples.find((r) => r.id === nextRollId);
-                      if (foundRoll) {
-                        setTargetFactory(foundRoll.targetFactory);
-                        if (!recipeName) setRecipeName(foundRoll.recipeName);
-                      }
-                    }}
-                    className={getLockedInputClass('rollId', 'font-bold')}
-                  >
-                    {rollSamples.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.rollNumber} — {r.recipeName} ({r.targetFactory})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      {renderFieldLabel('Label Setoran / Campuran', 'recipeName')}
+                      <input
+                        type="text"
+                        value={recipeName}
+                        onChange={(e) => setRecipeName(e.target.value)}
+                        disabled={!isUnlocked('recipeName')}
+                        className={getLockedInputClass('recipeName')}
+                      />
+                    </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <div>
-                  {renderFieldLabel('Nama Racikan', 'recipeName')}
-                  <input
-                    type="text"
-                    value={recipeName}
-                    onChange={(e) => setRecipeName(e.target.value)}
-                    disabled={!isUnlocked('recipeName')}
-                    className={getLockedInputClass('recipeName', 'font-semibold')}
-                  />
-                </div>
-
-                <div>
-                  {renderFieldLabel('Pabrik Tujuan', 'targetFactory')}
-                  <input
-                    type="text"
-                    list="edit-seri-factory-list"
-                    value={targetFactory}
-                    onChange={(e) => setTargetFactory(e.target.value)}
-                    disabled={!isUnlocked('targetFactory')}
-                    className={getLockedInputClass('targetFactory', 'font-semibold')}
-                  />
-                  <datalist id="edit-seri-factory-list">
-                    {factoryList.map((f) => (
-                      <option key={f.id} value={f.name} />
-                    ))}
-                  </datalist>
-                </div>
-
-                <div>
-                  {renderFieldLabel('Status QC', 'factoryStatus')}
-                  <select
-                    value={factoryStatus}
-                    onChange={(e) => setFactoryStatus(e.target.value as SerialFactoryStatus)}
-                    disabled={!isUnlocked('factoryStatus')}
-                    className={getLockedInputClass('factoryStatus', 'font-bold')}
-                  >
-                    <option value="PENDING">Menunggu QC</option>
-                    <option value="ACCEPTED_CAIR">Terima Cair</option>
-                    <option value="REJECTED_STOCK">Reject (Stok Jadi)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Section 2: Packaging & Timbangan (Locked by Default) */}
-            <div className="bg-black p-3 rounded-xl border border-zinc-800 space-y-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
-                  <Scale className="w-3.5 h-3.5 text-zinc-400" />
-                  Timbangan Kemasan & Tarra (Terkunci Default)
-                </span>
-                <span className="font-mono text-[11px] text-zinc-300">
-                  Tagih: <b className="text-white">{billableNetKg} kg</b> • Riil:{' '}
-                  <b className="text-white">{realNetTobaccoKg} kg</b>
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div>
-                  {renderFieldLabel('Kemasan', 'packagingType')}
-                  {packagingList.length > 0 ? (
-                    <select
-                      value={packagingType}
-                      disabled={!isUnlocked('packagingType')}
-                      onChange={(e) => handleSelectPackagingPreset(e.target.value)}
-                      className={getLockedInputClass('packagingType', 'font-bold')}
-                    >
-                      {!packagingList.some((p) => p.name === packagingType) && (
-                        <option value={packagingType}>{packagingType}</option>
+                    <div>
+                      {renderFieldLabel('Pabrik Tujuan', 'targetFactory')}
+                      {factoryList.length > 0 ? (
+                        <select
+                          value={targetFactory}
+                          onChange={(e) => setTargetFactory(e.target.value)}
+                          disabled={!isUnlocked('targetFactory')}
+                          className={getLockedInputClass('targetFactory', 'font-bold')}
+                        >
+                          {!factoryList.some((f) => f.name === targetFactory) && (
+                            <option value={targetFactory}>{targetFactory}</option>
+                          )}
+                          {factoryList.map((f) => (
+                            <option key={f.id} value={f.name}>
+                              {f.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={targetFactory}
+                          onChange={(e) => setTargetFactory(e.target.value)}
+                          disabled={!isUnlocked('targetFactory')}
+                          className={getLockedInputClass('targetFactory')}
+                        />
                       )}
-                      {packagingList.map((p) => (
-                        <option key={p.id} value={p.name}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={packagingType}
-                      disabled={!isUnlocked('packagingType')}
-                      onChange={(e) => setPackagingType(e.target.value)}
-                      className={getLockedInputClass('packagingType', 'font-bold')}
-                    />
-                  )}
-                </div>
+                    </div>
+                  </div>
 
-                <div>
-                  {renderFieldLabel('Bruto (KG)', 'brutoKg')}
-                  <NumericInput
-                    value={brutoKg}
-                    onChange={setBrutoKg}
-                    disabled={!isUnlocked('brutoKg')}
-                    className={getLockedInputClass('brutoKg', 'font-mono font-bold')}
-                  />
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      {renderFieldLabel('Status Pabrik', 'factoryStatus')}
+                      <select
+                        value={factoryStatus}
+                        onChange={(e) => setFactoryStatus(e.target.value as SerialFactoryStatus)}
+                        disabled={!isUnlocked('factoryStatus')}
+                        className={getLockedInputClass('factoryStatus', 'font-bold')}
+                      >
+                        <option value="PENDING">Menunggu Pabrik</option>
+                        <option value="ACCEPTED_CAIR">Diterima / Accepted</option>
+                        <option value="REJECTED_STOCK">Reject (Masuk Stok Jadi)</option>
+                      </select>
+                    </div>
 
-                <div>
-                  {renderFieldLabel('Wadah (KG)', 'packagingMassKg')}
-                  <NumericInput
-                    value={packagingMassKg}
-                    onChange={setPackagingMassKg}
-                    disabled={!isUnlocked('packagingMassKg')}
-                    className={getLockedInputClass('packagingMassKg', 'font-mono font-bold')}
-                  />
-                </div>
-
-                <div>
-                  {renderFieldLabel('Tarra (KG)', 'taraKg')}
-                  <NumericInput
-                    value={taraKg}
-                    onChange={setTaraKg}
-                    disabled={!isUnlocked('taraKg')}
-                    className={getLockedInputClass('taraKg', 'font-mono font-bold')}
-                  />
+                    <div>
+                      {renderFieldLabel('Status Pembayaran', 'paymentStatus')}
+                      <select
+                        value={paymentStatus}
+                        onChange={(e) => setPaymentStatus(e.target.value as SerialPaymentStatus)}
+                        disabled={!isUnlocked('paymentStatus')}
+                        className={getLockedInputClass('paymentStatus', 'font-bold')}
+                      >
+                        <option value="BELUM_CAIR">Belum Cair (Not Paid)</option>
+                        <option value="CAIR">Cair (Paid)</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Section 4: 6 Karakteristik (/5) (Locked by Default) */}
-            <div className="bg-black p-3 rounded-xl border border-zinc-800 space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
-                <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                6 Karakteristik Rasa (/5) (Terkunci Default)
-              </span>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {(
-                  [
-                    { label: 'Power', key: 'power' as LockableFieldKey, val: power, set: setPower },
-                    { label: 'Impact', key: 'impact' as LockableFieldKey, val: impact, set: setImpact },
-                    { label: 'Bitter', key: 'bitter' as LockableFieldKey, val: bitter, set: setBitter },
-                    { label: 'Burn', key: 'burn' as LockableFieldKey, val: burn, set: setBurn },
-                    { label: 'Sugar', key: 'sugar' as LockableFieldKey, val: sugar, set: setSugar },
-                    { label: 'Aroma', key: 'aroma' as LockableFieldKey, val: aroma, set: setAroma },
-                  ]
-                ).map((item) => {
-                  const unlocked = isUnlocked(item.key);
-                  return (
-                    <div key={item.label}>
-                      {renderFieldLabel(item.label, item.key, true)}
+            {/* TAB 2: Packaging & Timbangan */}
+            {(activeTab === 'weights' || activeTab === 'all') && (
+              <div className="bg-black p-3 rounded-xl border border-zinc-800 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
+                    <Scale className="w-3.5 h-3.5 text-zinc-400" />
+                    Timbangan &amp; Tarra
+                  </span>
+                  <span className="font-mono text-[11px] text-zinc-300">
+                    Tagih: <b className="text-white">{billableNetKg} kg</b> • Riil:{' '}
+                    <b className="text-white">{realNetTobaccoKg} kg</b>
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div>
+                    {renderFieldLabel('Kemasan', 'packagingType')}
+                    {packagingList.length > 0 ? (
+                      <select
+                        value={packagingType}
+                        disabled={!isUnlocked('packagingType')}
+                        onChange={(e) => handleSelectPackagingPreset(e.target.value)}
+                        className={getLockedInputClass('packagingType', 'font-bold')}
+                      >
+                        {!packagingList.some((p) => p.name === packagingType) && (
+                          <option value={packagingType}>{packagingType}</option>
+                        )}
+                        {packagingList.map((p) => (
+                          <option key={p.id} value={p.name}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={packagingType}
+                        disabled={!isUnlocked('packagingType')}
+                        onChange={(e) => setPackagingType(e.target.value)}
+                        className={getLockedInputClass('packagingType', 'font-bold')}
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    {renderFieldLabel('Bruto (KG)', 'brutoKg')}
+                    <NumericInput
+                      value={brutoKg}
+                      onChange={handleBrutoChange}
+                      disabled={!isUnlocked('brutoKg')}
+                      className={getLockedInputClass('brutoKg', 'font-mono font-bold')}
+                    />
+                  </div>
+
+                  <div>
+                    {renderFieldLabel('Wadah (KG)', 'packagingMassKg')}
+                    <NumericInput
+                      value={packagingMassKg}
+                      onChange={(v) => setPackagingMassKg(roundHalfUpKg(v))}
+                      disabled={!isUnlocked('packagingMassKg')}
+                      className={getLockedInputClass('packagingMassKg', 'font-mono font-bold')}
+                    />
+                  </div>
+
+                  <div>
+                    {renderFieldLabel('Total Tarra (KG)', 'taraKg')}
+                    <NumericInput
+                      value={taraKg}
+                      onChange={handleDirectTaraChange}
+                      disabled={!isUnlocked('taraKg')}
+                      className={getLockedInputClass('taraKg', 'font-mono font-bold')}
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-zinc-900 grid grid-cols-2 sm:grid-cols-3 gap-2.5 items-end">
+                  <div>
+                    {renderFieldLabel('Potongan Flat (KG)', 'taraKg')}
+                    <NumericInput
+                      value={taraFlatKg}
+                      onChange={handleTaraFlatChange}
+                      disabled={!isUnlocked('taraKg')}
+                      className={getLockedInputClass('taraKg', 'font-mono font-bold')}
+                    />
+                  </div>
+                  <div>
+                    {renderFieldLabel('Potongan (%)', 'taraKg')}
+                    <NumericInput
+                      value={taraPercent}
+                      onChange={handleTaraPercentChange}
+                      disabled={!isUnlocked('taraKg')}
+                      className={getLockedInputClass('taraKg', 'font-mono font-bold')}
+                    />
+                  </div>
+                  <div className="col-span-2 sm:col-span-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-zinc-300">
+                    {taraPercent > 0 ? (
+                      <b className="text-amber-400">
+                        {roundHalfUpKg(taraFlatKg)} kg + {taraPercent}% ({rawPercentPart} →{' '}
+                        {roundedPercentPart} kg) = {roundedTaraKg} kg
+                      </b>
+                    ) : (
+                      <span>
+                        Total Tarra: <b className="text-amber-400">{roundedTaraKg} kg</b>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: 6 Karakteristik (/5) */}
+            {(activeTab === 'character' || activeTab === 'all') && (
+              <div className="bg-black p-3 rounded-xl border border-zinc-800 space-y-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                  6 Karakteristik Rasa (/5)
+                </span>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {(
+                    [
+                      { key: 'power' as LockableFieldKey, lbl: 'Power', val: power, set: setPower },
+                      { key: 'impact' as LockableFieldKey, lbl: 'Impact', val: impact, set: setImpact },
+                      { key: 'bitter' as LockableFieldKey, lbl: 'Bitter', val: bitter, set: setBitter },
+                      { key: 'burn' as LockableFieldKey, lbl: 'Burn', val: burn, set: setBurn },
+                      { key: 'sugar' as LockableFieldKey, lbl: 'Sugar', val: sugar, set: setSugar },
+                      { key: 'aroma' as LockableFieldKey, lbl: 'Aroma', val: aroma, set: setAroma },
+                    ] as const
+                  ).map((item) => (
+                    <div key={item.lbl} className="text-center">
+                      {renderFieldLabel(item.lbl, item.key, true)}
                       <NumericInput
                         value={item.val}
                         onChange={(v) => item.set(clampRating5(v))}
-                        disabled={!unlocked}
-                        className={`w-full h-10 px-1.5 rounded-lg text-center font-mono font-black text-base sm:text-lg text-amber-400 transition-all focus:outline-hidden ${
-                          unlocked
-                            ? 'bg-zinc-950 border-2 border-amber-500/80 focus:border-amber-400'
-                            : 'bg-zinc-950 border border-zinc-700 cursor-not-allowed select-none'
-                        }`}
+                        disabled={!isUnlocked(item.key)}
+                        className={getLockedInputClass(
+                          item.key,
+                          'text-center font-mono font-black !px-1.5'
+                        )}
                       />
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Footer Actions */}
-            <div className="pt-2 border-t border-zinc-800 flex items-center justify-end gap-2">
+            {/* Compact Footer Actions */}
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-zinc-800">
               <button
                 type="button"
                 onClick={onClose}
-                className="h-9 px-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-bold cursor-pointer"
+                className="h-9 px-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 font-bold text-xs cursor-pointer"
               >
                 Batal
               </button>
@@ -655,8 +835,8 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                 type="submit"
                 className="btn-amber-outline h-9 px-4 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer"
               >
-                <Save className="w-3.5 h-3.5 text-amber-400" />
-                <span>Simpan Perubahan Seri</span>
+                <Save className="w-3.5 h-3.5" />
+                <span>Simpan Perubahan</span>
               </button>
             </div>
           </form>

@@ -262,7 +262,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
             </span>
             {status === 'ACCEPTED_CAIR' && (
               <span className="inline-flex items-center gap-0.5 text-amber-400 font-black text-[9px] shrink-0">
-                <DollarSign className="w-2.5 h-2.5" /> Cair
+                <DollarSign className="w-2.5 h-2.5" /> Diterima ({batch.paymentStatus === 'CAIR' ? 'Cair' : 'Blm Cair'})
               </span>
             )}
             {status === 'REJECTED_STOCK' && (

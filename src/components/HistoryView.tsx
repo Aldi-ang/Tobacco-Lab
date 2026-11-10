@@ -18,6 +18,9 @@ import {
   Eye,
   EyeOff,
   Pencil,
+  BarChart3,
+  TrendingUp,
+  DollarSign,
 } from 'lucide-react';
 import {
   FactoryMaster,
@@ -68,7 +71,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [editingSerial, setEditingSerial] = useState<FinishedTobaccoSerial | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<
-    'ALL' | 'ACCEPTED_CAIR' | 'PENDING' | 'REJECTED_STOCK' | 'RENAMED_LINEAGE'
+    | 'ALL'
+    | 'ACCEPTED_CAIR'
+    | 'PAID_CAIR'
+    | 'UNPAID_BELUM_CAIR'
+    | 'PENDING'
+    | 'REJECTED_STOCK'
+    | 'RENAMED_LINEAGE'
   >('ALL');
   const [factoryFilter, setFactoryFilter] = useState<string>('ALL');
   const [expandedNotaRollIds, setExpandedNotaRollIds] = useState<Record<string, boolean>>(() => {
@@ -80,6 +89,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   >({});
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
+  const [showProfitChart, setShowProfitChart] = useState<boolean>(true);
 
   const factories = [
     'ALL',
@@ -91,14 +101,79 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     ),
   ];
 
-  // Aggregate global KPI metrics
-  const cairBatches = finishedBatches.filter((b) => b.factoryStatus === 'ACCEPTED_CAIR');
-  const pendingBatches = finishedBatches.filter(
-    (b) => (b.factoryStatus || 'PENDING') === 'PENDING'
+  const activeFactoryLabel =
+    factoryFilter === 'ALL' ? 'Semua Pabrik' : factoryFilter;
+
+  const q = searchTerm.trim().toLowerCase();
+
+  // Filter rolls & serials for top KPI cards based on factoryFilter and searchTerm ("sort menu bottom")
+  const kpiRolls = rollSamples.filter((r) => {
+    if (factoryFilter !== 'ALL' && r.targetFactory !== factoryFilter) return false;
+    if (!q) return true;
+    const serialsInRoll = finishedBatches.filter(
+      (b) => b.rollId === r.id || (!b.rollId && b.rollNumber === r.rollNumber)
+    );
+    return (
+      r.rollNumber.toLowerCase().includes(q) ||
+      r.recipeName.toLowerCase().includes(q) ||
+      r.targetFactory.toLowerCase().includes(q) ||
+      serialsInRoll.some(
+        (s) =>
+          s.serialNumber.toLowerCase().includes(q) ||
+          formatSerialLineage(s).toLowerCase().includes(q)
+      )
+    );
+  });
+
+  const kpiBatches = finishedBatches.filter((b) => {
+    const parentRoll = rollSamples.find(
+      (r) => r.id === b.rollId || (!b.rollId && r.rollNumber === b.rollNumber)
+    );
+    const effectiveFactory = b.targetFactory || parentRoll?.targetFactory || '';
+    const matchesCurrentFactory =
+      factoryFilter === 'ALL' ||
+      effectiveFactory === factoryFilter ||
+      b.previousFactory === factoryFilter;
+    if (!matchesCurrentFactory) return false;
+    if (!q) return true;
+    return (
+      b.serialNumber.toLowerCase().includes(q) ||
+      formatSerialLineage(b).toLowerCase().includes(q) ||
+      b.recipeName.toLowerCase().includes(q) ||
+      effectiveFactory.toLowerCase().includes(q) ||
+      (b.rollNumber || '').toLowerCase().includes(q) ||
+      (b.previousRollNumber || '').toLowerCase().includes(q)
+    );
+  });
+
+  // Aggregate dynamic KPI metrics following the selected factory & search filter
+  const cairBatches = kpiBatches.filter(
+    (b) =>
+      b.factoryStatus === 'ACCEPTED_CAIR' &&
+      (factoryFilter === 'ALL' || b.targetFactory === factoryFilter)
   );
-  const rejectedBatches = finishedBatches.filter((b) => b.factoryStatus === 'REJECTED_STOCK');
-  const renamedBatches = finishedBatches.filter(
+  const paidAcceptedBatches = cairBatches.filter((b) => b.paymentStatus === 'CAIR');
+  const unpaidAcceptedBatches = cairBatches.filter((b) => b.paymentStatus !== 'CAIR');
+
+  const pendingBatches = kpiBatches.filter(
+    (b) =>
+      (b.factoryStatus || 'PENDING') === 'PENDING' &&
+      (factoryFilter === 'ALL' || b.targetFactory === factoryFilter)
+  );
+  const rejectedBatches = kpiBatches.filter(
+    (b) =>
+      b.factoryStatus === 'REJECTED_STOCK' &&
+      (factoryFilter === 'ALL' ||
+        b.targetFactory === factoryFilter ||
+        b.previousFactory === factoryFilter)
+  );
+  const renamedBatches = kpiBatches.filter(
     (b) => hasSerialLineage(b) || (b.transferHistory && b.transferHistory.length > 0)
+  );
+
+  // Billable serials for the selected factory (excludes serials that were only rejected from another factory)
+  const billableKpiBatches = kpiBatches.filter(
+    (b) => factoryFilter === 'ALL' || b.targetFactory === factoryFilter
   );
 
   const getSerialNotaRp = (s: FinishedTobaccoSerial) => {
@@ -112,10 +187,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     return Math.round(s.totalProductionCost || netto * modalKg);
   };
 
-  const totalAllNotaRp = finishedBatches.reduce((sum, s) => sum + getSerialNotaRp(s), 0);
+  const totalAllNotaRp = billableKpiBatches.reduce((sum, s) => sum + getSerialNotaRp(s), 0);
   const totalCairRp = cairBatches.reduce((sum, s) => sum + getSerialNotaRp(s), 0);
+  const totalPaidCairRp = paidAcceptedBatches.reduce((sum, s) => sum + getSerialNotaRp(s), 0);
+  const totalUnpaidAcceptedRp = unpaidAcceptedBatches.reduce(
+    (sum, s) => sum + getSerialNotaRp(s),
+    0
+  );
   const totalPendingRp = pendingBatches.reduce((sum, s) => sum + getSerialNotaRp(s), 0);
-  const totalProfitRp = finishedBatches.reduce(
+  const totalProfitRp = billableKpiBatches.reduce(
     (sum, s) => sum + (getSerialNotaRp(s) - getSerialModalRp(s)),
     0
   );
@@ -125,23 +205,23 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   ) => {
     if (focus === 'TOTAL_NOTA') {
       setCalcDetail({
-        title: `1. Total Nilai Seluruh Nota Gulungan (${finishedBatches.length} Seri)`,
-        subtitle: `Dari ${rollSamples.length} Gulungan Terdaftar`,
+        title: `1. Total Nilai Nota — ${activeFactoryLabel} (${billableKpiBatches.length} Seri)`,
+        subtitle: `Dari ${kpiRolls.length} Gulungan (${activeFactoryLabel})`,
         badgeText: 'RIWAYAT NOTA • RUMUS TOTAL TAGIHAN NOTA',
         coreFormula: 'Total Tagihan Nota = Σ (Netto Tagih Seri × Harga Pabrik / KG)',
-        appliedFormula: `Total Tagihan Nota (${finishedBatches.length} Seri) = ${formatRupiah(totalAllNotaRp)}`,
+        appliedFormula: `Total Tagihan Nota (${billableKpiBatches.length} Seri • ${activeFactoryLabel}) = ${formatRupiah(totalAllNotaRp)}`,
         steps: [
           {
             stepNumber: 1,
             title: 'Total Tagihan Nota',
             formula: 'Total Tagihan Nota = Σ (Netto Tagih Seri × Harga Pabrik / KG)',
-            substitution: `${finishedBatches.length} Seri (${rollSamples.length} Gulungan) = ${formatRupiah(totalAllNotaRp)}`,
+            substitution: `${billableKpiBatches.length} Seri (${kpiRolls.length} Gulungan • ${activeFactoryLabel}) = ${formatRupiah(totalAllNotaRp)}`,
             resultLabel: 'Total Tagihan Nota',
             resultValue: formatRupiah(totalAllNotaRp),
-            explanation: `Total nilai seluruh nota dari ${finishedBatches.length} Nomor Seri.`,
+            explanation: `Total nilai nota dari ${billableKpiBatches.length} Nomor Seri untuk ${activeFactoryLabel}.`,
             highlight: 'amber',
           },
-          ...finishedBatches.map((s, idx) => {
+          ...billableKpiBatches.map((s, idx) => {
             const netto = Math.max(0, s.packaging.grossWeightPerPackage - s.factoryDeductionKg);
             const nota = getSerialNotaRp(s);
             return {
@@ -156,65 +236,66 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             };
           }),
         ],
-        conclusion: `Total Tagihan Nota = ${formatRupiah(totalAllNotaRp)}.`,
+        conclusion: `Total Tagihan Nota (${activeFactoryLabel}) = ${formatRupiah(totalAllNotaRp)}.`,
       });
       return;
     }
 
     if (focus === 'CAIR_VALUE') {
       setCalcDetail({
-        title: `2. Total Nilai Terima Cair (${cairBatches.length} Seri Diterima)`,
-        subtitle: 'Uang Nota Pabrik yang Sudah Cair',
-        badgeText: 'RIWAYAT CAIR • RUMUS TOTAL UANG CAIR',
-        coreFormula: 'Total Uang Cair = Σ (Netto Tagih × Harga Pabrik) untuk Seri ACCEPTED',
-        appliedFormula: `Total Uang Cair (${cairBatches.length} Seri ACCEPTED) = ${formatRupiah(totalCairRp)}`,
+        title: `2. Total Nilai Diterima / Accepted — ${activeFactoryLabel} (${cairBatches.length} Seri)`,
+        subtitle: `Total Nota Seri yang Diterima Pabrik (Cair: ${formatRupiah(totalPaidCairRp)} • Belum Cair: ${formatRupiah(totalUnpaidAcceptedRp)})`,
+        badgeText: 'RIWAYAT DITERIMA / ACCEPTED • CAIR VS BELUM CAIR',
+        coreFormula: 'Total Diterima = Σ (Netto Tagih × Harga Pabrik) untuk Seri DITERIMA / ACCEPTED',
+        appliedFormula: `Total Diterima (${cairBatches.length} Seri) = ${formatRupiah(totalCairRp)} (Cair: ${formatRupiah(totalPaidCairRp)} + Belum Cair: ${formatRupiah(totalUnpaidAcceptedRp)})`,
         steps: [
           {
             stepNumber: 1,
-            title: 'Total Uang Cair',
-            formula: 'Total Uang Cair = Σ Nota Seri berstatus ACCEPTED',
-            substitution: `${cairBatches.length} Seri ACCEPTED = ${formatRupiah(totalCairRp)}`,
-            resultLabel: 'Total Uang Cair',
+            title: 'Total Nilai Diterima / Accepted',
+            formula: 'Total Diterima = Σ Nota Seri berstatus DITERIMA / ACCEPTED',
+            substitution: `${cairBatches.length} Seri DITERIMA (${activeFactoryLabel}) = ${formatRupiah(totalCairRp)}`,
+            resultLabel: 'Total Diterima / Accepted',
             resultValue: formatRupiah(totalCairRp),
-            explanation: `Total uang yang telah cair dari ${cairBatches.length} Nomor Seri yang diterima pabrik.`,
+            explanation: `Terdiri dari ${paidAcceptedBatches.length} Seri Sudah Cair (${formatRupiah(totalPaidCairRp)}) dan ${unpaidAcceptedBatches.length} Seri Belum Cair (${formatRupiah(totalUnpaidAcceptedRp)}).`,
             highlight: 'amber',
           },
           ...cairBatches.map((s, idx) => {
             const netto = Math.max(0, s.packaging.grossWeightPerPackage - s.factoryDeductionKg);
             const nota = getSerialNotaRp(s);
+            const payLabel = s.paymentStatus === 'CAIR' ? 'CAIR (Paid)' : 'BELUM CAIR (Not Paid)';
             return {
               stepNumber: idx + 2,
-              title: `Seri ${formatSerialLineage(s)}`,
-              formula: `Uang Cair = Netto Tagih × Harga Pabrik`,
+              title: `Seri ${formatSerialLineage(s)} (${payLabel})`,
+              formula: `Nilai Diterima = Netto Tagih × Harga Pabrik`,
               substitution: `${netto} kg × ${formatRupiah(s.factoryTargetPricePerKg)} = ${formatRupiah(nota)}`,
               resultLabel: `Seri ${formatSerialLineage(s)}`,
               resultValue: formatRupiah(nota),
-              explanation: `Gulungan ${s.rollNumber || '-'} • Pabrik ${s.targetFactory}.`,
+              explanation: `Gulungan ${s.rollNumber || '-'} • Pabrik ${s.targetFactory} • Status Bayar: ${payLabel}.`,
               highlight: 'white' as const,
             };
           }),
         ],
-        conclusion: `Total Uang Cair = ${formatRupiah(totalCairRp)}.`,
+        conclusion: `Total Diterima / Accepted (${activeFactoryLabel}) = ${formatRupiah(totalCairRp)} (Sudah Cair: ${formatRupiah(totalPaidCairRp)} | Belum Cair: ${formatRupiah(totalUnpaidAcceptedRp)}).`,
       });
       return;
     }
 
     if (focus === 'PENDING_VALUE') {
       setCalcDetail({
-        title: `3. Total Nilai Menunggu QC (${pendingBatches.length} Seri Pending)`,
-        subtitle: 'Tagihan Seri yang Sedang Diperiksa Pabrik',
-        badgeText: 'RIWAYAT PENDING • RUMUS MENUNGGU QC',
-        coreFormula: 'Total Menunggu QC = Σ (Netto Tagih × Harga Pabrik) untuk Seri PENDING',
-        appliedFormula: `Total Menunggu QC (${pendingBatches.length} Seri PENDING) = ${formatRupiah(totalPendingRp)}`,
+        title: `3. Nilai Menunggu Pabrik — ${activeFactoryLabel} (${pendingBatches.length} Seri)`,
+        subtitle: `Tagihan Seri yang Sedang Diperiksa Pabrik (${activeFactoryLabel})`,
+        badgeText: 'RIWAYAT PENDING • RUMUS MENUNGGU PABRIK',
+        coreFormula: 'Total Menunggu Pabrik = Σ (Netto Tagih × Harga Pabrik) untuk Seri MENUNGGU PABRIK',
+        appliedFormula: `Total Menunggu Pabrik (${pendingBatches.length} Seri • ${activeFactoryLabel}) = ${formatRupiah(totalPendingRp)}`,
         steps: [
           {
             stepNumber: 1,
-            title: 'Total Menunggu QC',
-            formula: 'Total Menunggu QC = Σ Nota Seri berstatus PENDING',
-            substitution: `${pendingBatches.length} Seri PENDING = ${formatRupiah(totalPendingRp)}`,
-            resultLabel: 'Total Menunggu QC',
+            title: 'Total Menunggu Pabrik',
+            formula: 'Total Menunggu Pabrik = Σ Nota Seri berstatus MENUNGGU PABRIK',
+            substitution: `${pendingBatches.length} Seri (${activeFactoryLabel}) = ${formatRupiah(totalPendingRp)}`,
+            resultLabel: 'Total Menunggu Pabrik',
             resultValue: formatRupiah(totalPendingRp),
-            explanation: `Total tagihan dari ${pendingBatches.length} Nomor Seri yang sedang menunggu hasil QC pabrik.`,
+            explanation: `Total tagihan dari ${pendingBatches.length} Nomor Seri yang sedang menunggu keputusan pabrik (${activeFactoryLabel}).`,
             highlight: 'amber',
           },
           ...pendingBatches.map((s, idx) => {
@@ -232,38 +313,38 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             };
           }),
         ],
-        conclusion: `Total Menunggu QC = ${formatRupiah(totalPendingRp)}.`,
+        conclusion: `Total Menunggu Pabrik (${activeFactoryLabel}) = ${formatRupiah(totalPendingRp)}.`,
       });
       return;
     }
 
     // TOTAL_PROFIT
-    const totalAllModalRp = finishedBatches.reduce((acc, s) => acc + getSerialModalRp(s), 0);
+    const totalAllModalRp = billableKpiBatches.reduce((acc, s) => acc + getSerialModalRp(s), 0);
     setCalcDetail({
-      title: `4. Total Profit Bersih Keseluruhan (${finishedBatches.length} Seri)`,
-      subtitle: 'Selisih Total Tagihan Nota Pabrik dikurangi Total Modal Produksi',
+      title: `4. Total Profit Bersih — ${activeFactoryLabel} (${billableKpiBatches.length} Seri)`,
+      subtitle: `Selisih Total Tagihan Nota dikurangi Total Modal Produksi (${activeFactoryLabel})`,
       badgeText: 'RIWAYAT PROFIT • RUMUS PROFIT BERSIH',
       coreFormula: 'Total Profit = Total Tagihan Nota − Total Modal Produksi',
-      appliedFormula: `Total Profit = ${formatRupiah(totalAllNotaRp)} − ${formatRupiah(totalAllModalRp)} = ${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)}`,
+      appliedFormula: `Total Profit (${activeFactoryLabel}) = ${formatRupiah(totalAllNotaRp)} − ${formatRupiah(totalAllModalRp)} = ${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)}`,
       steps: [
         {
           stepNumber: 1,
           title: 'Total Tagihan Nota',
           formula: 'Total Tagihan Nota = Σ (Netto Tagih Seri × Harga Pabrik / KG)',
-          substitution: `${finishedBatches.length} Seri = ${formatRupiah(totalAllNotaRp)}`,
+          substitution: `${billableKpiBatches.length} Seri (${activeFactoryLabel}) = ${formatRupiah(totalAllNotaRp)}`,
           resultLabel: 'Total Tagihan Nota',
           resultValue: formatRupiah(totalAllNotaRp),
-          explanation: `Total nilai tagihan nota seluruh ${finishedBatches.length} Nomor Seri.`,
+          explanation: `Total nilai tagihan nota dari ${billableKpiBatches.length} Nomor Seri (${activeFactoryLabel}).`,
           highlight: 'white',
         },
         {
           stepNumber: 2,
           title: 'Total Modal Produksi',
           formula: 'Total Modal Produksi = Σ (Netto Tagih Seri × Harga Modal / KG)',
-          substitution: `${finishedBatches.length} Seri = ${formatRupiah(totalAllModalRp)}`,
+          substitution: `${billableKpiBatches.length} Seri (${activeFactoryLabel}) = ${formatRupiah(totalAllModalRp)}`,
           resultLabel: 'Total Modal Produksi',
           resultValue: formatRupiah(totalAllModalRp),
-          explanation: `Total modal produksi seluruh ${finishedBatches.length} Nomor Seri.`,
+          explanation: `Total modal produksi dari ${billableKpiBatches.length} Nomor Seri (${activeFactoryLabel}).`,
           highlight: 'white',
         },
         {
@@ -273,10 +354,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           substitution: `${formatRupiah(totalAllNotaRp)} − ${formatRupiah(totalAllModalRp)} = ${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)}`,
           resultLabel: 'Total Profit',
           resultValue: `${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)}`,
-          explanation: `Total keuntungan bersih dari seluruh Nomor Seri.`,
+          explanation: `Total keuntungan bersih dari ${activeFactoryLabel}.`,
           highlight: totalProfitRp >= 0 ? 'amber' : 'red',
         },
-        ...finishedBatches.map((s, idx) => {
+        ...billableKpiBatches.map((s, idx) => {
           const nota = getSerialNotaRp(s);
           const modal = getSerialModalRp(s);
           const profit = nota - modal;
@@ -292,7 +373,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           };
         }),
       ],
-      conclusion: `Total Profit = ${formatRupiah(totalAllNotaRp)} − ${formatRupiah(totalAllModalRp)} = ${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)}.`,
+      conclusion: `Total Profit (${activeFactoryLabel}) = ${formatRupiah(totalAllNotaRp)} − ${formatRupiah(totalAllModalRp)} = ${totalProfitRp >= 0 ? '+' : ''}${formatRupiah(totalProfitRp)}.`,
     });
   };
 
@@ -378,7 +459,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         ? true
         : statusFilter === 'RENAMED_LINEAGE'
           ? hasSerialLineage(b) || (b.transferHistory && b.transferHistory.length > 0)
-          : st === statusFilter;
+          : statusFilter === 'PAID_CAIR'
+            ? st === 'ACCEPTED_CAIR' && b.paymentStatus === 'CAIR'
+            : statusFilter === 'UNPAID_BELUM_CAIR'
+              ? st === 'ACCEPTED_CAIR' && b.paymentStatus !== 'CAIR'
+              : st === statusFilter;
     const matchFactory =
       factoryFilter === 'ALL' ||
       b.targetFactory === factoryFilter ||
@@ -410,14 +495,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   label: '1. Riwayat Nota Gulungan',
                   fullLabel: '1. Riwayat Nota Gulungan yang Dikirim ke Pabrik',
                   icon: <Scroll className="w-3.5 h-3.5" />,
-                  badge: rollSamples.length,
+                  badge: kpiRolls.length,
                 },
                 {
                   id: 'seri-status',
                   label: '2. Data Status Semua Seri',
                   fullLabel: '2. Data Status Semua Seri & Riwayat Ganti Seri (AK 1 -> AL 1)',
                   icon: <History className="w-3.5 h-3.5" />,
-                  badge: finishedBatches.length,
+                  badge: kpiBatches.length,
                 },
               ]}
             />
@@ -433,7 +518,23 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           </button>
         </div>
 
-        {/* 4 Summary KPI Panels with ƒx Symbol Badges */}
+        {/* Active Factory Filter Indicator if filtered */}
+        {factoryFilter !== 'ALL' && (
+          <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-zinc-950 border border-amber-500/50 text-xs">
+            <span className="text-zinc-300">
+              Menampilkan khusus Pabrik: <b className="text-amber-400">{factoryFilter}</b>
+            </span>
+            <button
+              type="button"
+              onClick={() => setFactoryFilter('ALL')}
+              className="text-amber-400 hover:underline font-bold cursor-pointer"
+            >
+              Tampilkan Semua Pabrik
+            </button>
+          </div>
+        )}
+
+        {/* 4 Summary KPI Panels with ƒx Symbol Badges (Follows Selected Factory!) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-zinc-800/90">
           <button
             type="button"
@@ -442,15 +543,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           >
             <div className="flex items-center justify-between gap-1">
               <span className="text-[10px] font-bold uppercase text-zinc-400 truncate">
-                1. Total Nilai Nota ({rollSamples.length} Gulungan)
+                1. Total Nilai Nota ({kpiRolls.length} Gulungan)
               </span>
               <CalcSymbolBadge />
             </div>
             <div className="font-mono font-black text-white text-sm sm:text-base">
               {formatRupiah(totalAllNotaRp)}
             </div>
-            <div className="text-[10px] font-mono text-zinc-400">
-              Total {finishedBatches.length} Nomor Seri Terdaftar
+            <div className="text-[10px] font-mono text-zinc-400 truncate">
+              {billableKpiBatches.length} Seri Aktif • {activeFactoryLabel}
             </div>
           </button>
 
@@ -461,15 +562,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           >
             <div className="flex items-center justify-between gap-1">
               <span className="text-[10px] font-bold uppercase text-amber-300 truncate">
-                2. Diterima &amp; Uang Cair
+                2. Diterima / Accepted ({cairBatches.length} Seri)
               </span>
               <CalcSymbolBadge />
             </div>
             <div className="font-mono font-black text-amber-400 text-sm sm:text-base">
               {formatRupiah(totalCairRp)}
             </div>
-            <div className="text-[10px] font-mono text-zinc-400">
-              {cairBatches.length} Seri Cair • {rejectedBatches.length} Seri di Stok Reject
+            <div className="text-[10px] font-mono text-zinc-400 truncate">
+              Cair: <b className="text-amber-300">{paidAcceptedBatches.length}</b> • Belum Cair:{' '}
+              <b className="text-white">{unpaidAcceptedBatches.length}</b> • Reject:{' '}
+              <b className="text-red-400">{rejectedBatches.length}</b>
             </div>
           </button>
 
@@ -480,7 +583,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           >
             <div className="flex items-center justify-between gap-1">
               <span className="text-[10px] font-bold uppercase text-zinc-300 truncate">
-                3. Nilai Menunggu QC
+                3. Nilai Menunggu Pabrik
               </span>
               <CalcSymbolBadge />
             </div>
@@ -488,7 +591,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               {formatRupiah(totalPendingRp)}
             </div>
             <div className="text-[10px] font-mono text-zinc-400">
-              {pendingBatches.length} Seri Menunggu QC • {renamedBatches.length} Seri Ganti/Pindah
+              {pendingBatches.length} Seri Menunggu Pabrik • {renamedBatches.length} Seri Ganti/Pindah
             </div>
           </button>
 
@@ -511,10 +614,295 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               {totalProfitRp >= 0 ? '+' : ''}
               {formatRupiah(totalProfitRp)}
             </div>
-            <div className="text-[10px] font-mono text-zinc-400">
-              Σ (Nota Pabrik − Modal Produksi)
+            <div className="text-[10px] font-mono text-zinc-400 truncate">
+              Σ (Nota − Modal) • {activeFactoryLabel}
             </div>
           </button>
+        </div>
+
+        {/* Interactive Visual Graph: Total Semua Gulungan & Per Pabrik (Replaces Per-Gulungan Graph) */}
+        <div className="pt-2.5 border-t border-zinc-800/90 space-y-2.5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/50 flex items-center justify-center text-amber-400 shrink-0">
+                <BarChart3 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                  <span>Grafik Total Semua Gulungan &amp; Per Pabrik</span>
+                </h3>
+                <p className="text-[11px] text-zinc-400">
+                  Perbandingan Pendapatan (Nota), Modal, Profit Bersih &amp; Reject untuk <b className="text-amber-400">Total Semua Gulungan</b> &amp; <b className="text-white">Per Pabrik Tujuan</b>
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowProfitChart((prev) => !prev)}
+              className="h-8 px-3 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-zinc-700 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              {showProfitChart ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <span>{showProfitChart ? 'Sembunyikan Grafik' : 'Tampilkan Grafik'}</span>
+            </button>
+          </div>
+
+          {showProfitChart && (
+            <div className="bg-black p-3.5 sm:p-4 rounded-xl border border-zinc-800 space-y-3">
+              {/* Legend */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-zinc-900 text-[11px]">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="inline-flex items-center gap-1.5 font-bold text-zinc-200">
+                    <span className="w-3 h-3 rounded-xs bg-blue-500 inline-block" />
+                    Pendapatan (Nota Pabrik)
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 font-bold text-zinc-300">
+                    <span className="w-3 h-3 rounded-xs bg-zinc-500 inline-block" />
+                    Modal Produksi
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 font-bold text-amber-400">
+                    <span className="w-3 h-3 rounded-xs bg-amber-400 inline-block" />
+                    Profit Bersih
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 font-bold text-red-400">
+                    <span className="w-3 h-3 rounded-xs bg-red-500 inline-block" />
+                    Nilai Reject / Loss
+                  </span>
+                </div>
+                <span className="font-mono text-[10px] text-zinc-400">
+                  Margin Total:{' '}
+                  <b className="text-amber-400">
+                    {totalAllNotaRp > 0
+                      ? `${((totalProfitRp / totalAllNotaRp) * 100).toFixed(1)}%`
+                      : '0%'}
+                  </b>
+                </span>
+              </div>
+
+              {/* Total Gulungan & Per Pabrik Bar Comparison */}
+              {(() => {
+                // Build Per-Pabrik groups + 1 "TOTAL SEMUA GULUNGAN" summary card
+                const factoryNamesList = Array.from(
+                  new Set([
+                    ...rollSamples.map((r) => r.targetFactory),
+                    ...finishedBatches.map((b) => b.targetFactory),
+                  ])
+                ).filter(Boolean);
+
+                const perFactoryMetrics = factoryNamesList
+                  .filter((fac) => factoryFilter === 'ALL' || fac === factoryFilter)
+                  .map((facName) => {
+                    const facRolls = rollSamples.filter((r) => r.targetFactory === facName);
+                    const facActiveSerials = finishedBatches.filter(
+                      (b) => b.targetFactory === facName && b.factoryStatus !== 'REJECTED_STOCK'
+                    );
+                    const facAllCurrentSerials = finishedBatches.filter(
+                      (b) => b.targetFactory === facName
+                    );
+                    const facRejectedSerials = finishedBatches.filter(
+                      (b) =>
+                        (b.targetFactory === facName && b.factoryStatus === 'REJECTED_STOCK') ||
+                        (b.previousFactory === facName && b.targetFactory !== facName)
+                    );
+
+                    const notaRp = facAllCurrentSerials.reduce(
+                      (sum, s) => sum + getSerialNotaRp(s),
+                      0
+                    );
+                    const modalRp = facAllCurrentSerials.reduce(
+                      (sum, s) => sum + getSerialModalRp(s),
+                      0
+                    );
+                    const profitRp = notaRp - modalRp;
+                    const acceptedSerials = facAllCurrentSerials.filter(
+                      (s) => s.factoryStatus === 'ACCEPTED_CAIR'
+                    );
+                    const acceptedRp = acceptedSerials.reduce(
+                      (sum, s) => sum + getSerialNotaRp(s),
+                      0
+                    );
+                    const rejectRp = facRejectedSerials.reduce(
+                      (sum, s) => sum + getSerialNotaRp(s),
+                      0
+                    );
+                    const marginPct =
+                      notaRp > 0 ? Number(((profitRp / notaRp) * 100).toFixed(1)) : 0;
+
+                    return {
+                      id: `FACTORY_${facName}`,
+                      isTotal: false,
+                      title: facName,
+                      subtitle: `${facRolls.length} Gulungan • ${facActiveSerials.length} Seri Aktif`,
+                      notaRp,
+                      modalRp,
+                      profitRp,
+                      acceptedRp,
+                      rejectRp,
+                      marginPct,
+                    };
+                  });
+
+                const totalRollCount = kpiRolls.length;
+                const totalSeriCount = billableKpiBatches.length;
+                const totalModalAll = billableKpiBatches.reduce(
+                  (sum, s) => sum + getSerialModalRp(s),
+                  0
+                );
+                const totalRejectAll = rejectedBatches.reduce(
+                  (sum, s) => sum + getSerialNotaRp(s),
+                  0
+                );
+                const totalMarginAll =
+                  totalAllNotaRp > 0
+                    ? Number(((totalProfitRp / totalAllNotaRp) * 100).toFixed(1))
+                    : 0;
+
+                const chartItems = [
+                  {
+                    id: 'TOTAL_ALL_GULUNGAN',
+                    isTotal: true,
+                    title: 'TOTAL SEMUA GULUNGAN',
+                    subtitle: `${totalRollCount} Gulungan • ${totalSeriCount} Seri (${activeFactoryLabel})`,
+                    notaRp: totalAllNotaRp,
+                    modalRp: totalModalAll,
+                    profitRp: totalProfitRp,
+                    acceptedRp: totalCairRp,
+                    rejectRp: totalRejectAll,
+                    marginPct: totalMarginAll,
+                  },
+                  ...perFactoryMetrics,
+                ];
+
+                const maxVal = Math.max(
+                  1,
+                  ...chartItems.map((m) =>
+                    Math.max(m.notaRp, m.modalRp, Math.abs(m.profitRp), m.rejectRp)
+                  )
+                );
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {chartItems.map((m) => {
+                      const notaPct =
+                        m.notaRp > 0 ? Math.max(4, Math.round((m.notaRp / maxVal) * 100)) : 0;
+                      const modalPct =
+                        m.modalRp > 0 ? Math.max(4, Math.round((m.modalRp / maxVal) * 100)) : 0;
+                      const profitPct =
+                        m.profitRp !== 0
+                          ? Math.max(4, Math.round((Math.abs(m.profitRp) / maxVal) * 100))
+                          : 0;
+                      const rejectPct =
+                        m.rejectRp > 0 ? Math.max(4, Math.round((m.rejectRp / maxVal) * 100)) : 0;
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`p-3 rounded-xl bg-zinc-950 border space-y-2.5 ${
+                            m.isTotal
+                              ? 'border-amber-500/80 shadow-[0_0_16px_rgba(245,158,11,0.12)]'
+                              : 'border-zinc-800'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span
+                                  className={`px-2 py-0.5 rounded font-mono font-black text-[10px] border ${
+                                    m.isTotal
+                                      ? 'bg-amber-500 text-black border-amber-400'
+                                      : 'bg-black text-amber-400 border-amber-500/60'
+                                  }`}
+                                >
+                                  {m.isTotal ? 'TOTAL GULUNGAN' : 'PER PABRIK'}
+                                </span>
+                                <span className="font-extrabold text-white text-xs sm:text-sm truncate">
+                                  {m.title}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-zinc-400 mt-0.5">{m.subtitle}</div>
+                            </div>
+
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono font-black text-xs border shrink-0 ${
+                                m.profitRp >= 0
+                                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/50'
+                                  : 'bg-red-950/60 text-red-300 border-red-700/60'
+                              }`}
+                            >
+                              <TrendingUp className="w-3 h-3" />
+                              {m.marginPct}%
+                            </span>
+                          </div>
+
+                          {/* Horizontal Visual Bars */}
+                          <div className="space-y-1.5 font-mono text-[11px]">
+                            <div className="space-y-0.5">
+                              <div className="flex justify-between text-zinc-300">
+                                <span>Pendapatan (Nota):</span>
+                                <b className="text-white">{formatRupiah(m.notaRp)}</b>
+                              </div>
+                              <div className="w-full h-2.5 bg-black rounded-full overflow-hidden border border-zinc-800">
+                                <div
+                                  className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                                  style={{ width: `${notaPct}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-0.5">
+                              <div className="flex justify-between text-zinc-400">
+                                <span>Modal Produksi:</span>
+                                <b className="text-zinc-200">{formatRupiah(m.modalRp)}</b>
+                              </div>
+                              <div className="w-full h-2.5 bg-black rounded-full overflow-hidden border border-zinc-800">
+                                <div
+                                  className="h-full bg-zinc-500 rounded-full transition-all duration-500"
+                                  style={{ width: `${modalPct}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-0.5">
+                              <div className="flex justify-between text-amber-300">
+                                <span>Profit Bersih:</span>
+                                <b className={m.profitRp >= 0 ? 'text-amber-400' : 'text-red-400'}>
+                                  {m.profitRp >= 0 ? '+' : ''}
+                                  {formatRupiah(m.profitRp)}
+                                </b>
+                              </div>
+                              <div className="w-full h-2.5 bg-black rounded-full overflow-hidden border border-zinc-800">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-500 ${
+                                    m.profitRp >= 0 ? 'bg-amber-400' : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${profitPct}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {m.rejectRp > 0 && (
+                              <div className="space-y-0.5">
+                                <div className="flex justify-between text-red-300">
+                                  <span>Nilai Reject / Pindah:</span>
+                                  <b className="text-red-400">{formatRupiah(m.rejectRp)}</b>
+                                </div>
+                                <div className="w-full h-2 bg-black rounded-full overflow-hidden border border-zinc-800">
+                                  <div
+                                    className="h-full bg-red-500 rounded-full transition-all duration-500"
+                                    style={{ width: `${rejectPct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
       </div>
 
@@ -552,9 +940,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         {activeSegment === 'seri-status' && (
           <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-zinc-900">
             {[
-              { id: 'ALL', label: `Semua Seri (${finishedBatches.length})` },
-              { id: 'ACCEPTED_CAIR', label: `Terima Cair (${cairBatches.length})` },
-              { id: 'PENDING', label: `Menunggu QC (${pendingBatches.length})` },
+              { id: 'ALL', label: `Semua Seri (${kpiBatches.length})` },
+              { id: 'ACCEPTED_CAIR', label: `Diterima / Accepted (${cairBatches.length})` },
+              { id: 'PAID_CAIR', label: `Cair / Paid (${paidAcceptedBatches.length})` },
+              { id: 'UNPAID_BELUM_CAIR', label: `Belum Cair / Not Paid (${unpaidAcceptedBatches.length})` },
+              { id: 'PENDING', label: `Menunggu Pabrik (${pendingBatches.length})` },
               { id: 'REJECTED_STOCK', label: `Reject di Gudang (${rejectedBatches.length})` },
               {
                 id: 'RENAMED_LINEAGE',
@@ -677,10 +1067,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                       {/* Status Badges */}
                       <div className="flex items-center gap-2 flex-wrap text-[11px] font-mono pt-0.5">
                         <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-amber-400">
-                          Terima Cair: <b>{cairCount}</b>
+                          Diterima / Accepted: <b>{cairCount}</b>
                         </span>
                         <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-white">
-                          Menunggu QC: <b>{pendingCount}</b>
+                          Menunggu Pabrik: <b>{pendingCount}</b>
                         </span>
                         <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-300">
                           Riwayat Reject/Pindah: <b>{rejectCount}</b>
@@ -876,7 +1266,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                                         </span>
                                       ) : s.factoryStatus === 'ACCEPTED_CAIR' ? (
                                         <span className="px-2 py-0.5 rounded bg-black text-amber-400 border border-amber-500 font-black">
-                                          ACCEPTED
+                                          DITERIMA ({s.paymentStatus === 'CAIR' ? 'CAIR' : 'BELUM CAIR'})
                                         </span>
                                       ) : s.factoryStatus === 'REJECTED_STOCK' ? (
                                         <span className="px-2 py-0.5 rounded bg-zinc-900 text-white border border-zinc-600 font-bold">
@@ -884,7 +1274,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                                         </span>
                                       ) : (
                                         <span className="px-2 py-0.5 rounded bg-zinc-950 text-zinc-300 border border-zinc-700">
-                                          MENUNGGU QC
+                                          MENUNGGU PABRIK
                                         </span>
                                       )}
                                     </td>
@@ -1058,7 +1448,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                               {status === 'ACCEPTED_CAIR' ? (
                                 <>
                                   <CheckCircle2 className="w-3 h-3 text-amber-400" />
-                                  <span>ACCEPTED</span>
+                                  <span>DITERIMA / ACCEPTED</span>
                                 </>
                               ) : status === 'REJECTED_STOCK' ? (
                                 <>
@@ -1068,10 +1458,35 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                               ) : (
                                 <>
                                   <Clock className="w-3 h-3 text-amber-400" />
-                                  <span>MENUNGGU QC</span>
+                                  <span>MENUNGGU PABRIK</span>
                                 </>
                               )}
                             </span>
+                            {status === 'ACCEPTED_CAIR' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!onUpdateSerial) return;
+                                  const nextPayment =
+                                    s.paymentStatus === 'CAIR' ? 'BELUM_CAIR' : 'CAIR';
+                                  onUpdateSerial({
+                                    ...s,
+                                    paymentStatus: nextPayment,
+                                  });
+                                }}
+                                title="Klik untuk ubah status bayar: Cair (Paid) / Belum Cair (Not Paid)"
+                                className={`px-2 py-1 rounded-lg font-mono font-black text-[10px] border inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                                  s.paymentStatus === 'CAIR'
+                                    ? 'bg-amber-500 text-black border-amber-400'
+                                    : 'bg-zinc-950 text-zinc-300 border-zinc-700 hover:border-amber-500/60'
+                                }`}
+                              >
+                                <DollarSign className="w-3 h-3" />
+                                <span>
+                                  {s.paymentStatus === 'CAIR' ? 'CAIR (PAID)' : 'BELUM CAIR'}
+                                </span>
+                              </button>
+                            )}
                           </div>
                         </div>
 

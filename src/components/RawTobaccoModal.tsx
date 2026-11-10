@@ -1,8 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Info, Check, UserCheck } from 'lucide-react';
-import { RawTobacco, TobaccoGrade, PackagingMaster } from '../types/tobacco';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  GRADE_LABELS,
+  X,
+  Sparkles,
+  Check,
+  UserCheck,
+  Lock,
+  Unlock,
+  Plus,
+  Trash2,
+  Users,
+} from 'lucide-react';
+import { RawTobacco, TobaccoGrade, PackagingMaster, AgentFeeItem } from '../types/tobacco';
+import {
+  TOBACCO_GRADE_ORDER,
   calculateRawTobaccoCost,
   formatRupiah,
   formatTaraFormula,
@@ -18,12 +28,92 @@ import {
   buildRawTobaccoCalcDetail,
 } from './CalculationDetailModal';
 
+const REMEMBERED_TOBACCO_NAMES_KEY = 'tobacco_lab_remembered_tobacco_names_v1';
+const REMEMBERED_SELLER_NAMES_KEY = 'tobacco_lab_remembered_seller_names_v1';
+const REMEMBERED_AGENT_NAMES_KEY = 'tobacco_lab_remembered_agent_names_v1';
+
+function loadStringListFromStorage(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.map((v) => String(v || '').trim()).filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStringToStorageList(key: string, value: string, existing: string[]): string[] {
+  const clean = (value || '').trim();
+  if (!clean) return existing;
+  const next = [
+    clean,
+    ...existing.filter((item) => item.toLowerCase() !== clean.toLowerCase()),
+  ].slice(0, 25);
+  try {
+    localStorage.setItem(key, JSON.stringify(next));
+  } catch {
+    // ignore storage errors
+  }
+  return next;
+}
+
+type RawLockableFieldKey =
+  | 'name'
+  | 'origin'
+  | 'sellerName'
+  | 'lotNumber'
+  | 'purchaseDate'
+  | 'packagingType'
+  | 'pricePerKgPurchase'
+  | 'agentFees'
+  | 'grossWeightKg'
+  | 'packagingMassKg'
+  | 'flatKgTara'
+  | 'percentTara'
+  | 'powerRating'
+  | 'impactRating'
+  | 'bitterRating'
+  | 'burnRating'
+  | 'sugarRating'
+  | 'aromaRating'
+  | 'colorGrade'
+  | 'characterNotes';
+
+const ALL_RAW_FIELD_KEYS: RawLockableFieldKey[] = [
+  'name',
+  'origin',
+  'sellerName',
+  'lotNumber',
+  'purchaseDate',
+  'packagingType',
+  'pricePerKgPurchase',
+  'agentFees',
+  'grossWeightKg',
+  'packagingMassKg',
+  'flatKgTara',
+  'percentTara',
+  'powerRating',
+  'impactRating',
+  'bitterRating',
+  'burnRating',
+  'sugarRating',
+  'aromaRating',
+  'colorGrade',
+  'characterNotes',
+];
+
+type RawModalSectionTab = 'main' | 'character' | 'all';
+
 interface RawTobaccoModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (tobacco: RawTobacco) => void;
   editingTobacco: RawTobacco | null;
   packagingList: PackagingMaster[];
+  existingTobaccos?: RawTobacco[];
 }
 
 export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
@@ -32,97 +122,361 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
   onSave,
   editingTobacco,
   packagingList,
+  existingTobaccos = [],
 }) => {
+  const [activeSection, setActiveSection] = useState<RawModalSectionTab>('main');
+
+  // All textboxes empty by default (with shadow placeholders) & all parameters 0 by default
   const [name, setName] = useState('');
-  const [origin, setOrigin] = useState('Temanggung');
+  const [origin, setOrigin] = useState('');
   const [sellerName, setSellerName] = useState('');
   const [lotNumber, setLotNumber] = useState('');
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [purchaseDate, setPurchaseDate] = useState('');
 
-  const [grossWeightKg, setGrossWeightKg] = useState<number>(50);
-  const [packagingMassKg, setPackagingMassKg] = useState<number>(2);
-  const [pricePerKgPurchase, setPricePerKgPurchase] = useState<number>(80000);
-  const [percentTara, setPercentTara] = useState<number>(10);
-  const [flatKgTara, setFlatKgTara] = useState<number>(2);
-  const [packagingType, setPackagingType] = useState('KARUNG GONI (10% + 2)');
+  const [grossWeightKg, setGrossWeightKg] = useState<number>(0);
+  const [packagingMassKg, setPackagingMassKg] = useState<number>(0);
+  const [pricePerKgPurchase, setPricePerKgPurchase] = useState<number>(0);
+  const [agentFees, setAgentFees] = useState<AgentFeeItem[]>([]);
+  const [percentTara, setPercentTara] = useState<number>(0);
+  const [flatKgTara, setFlatKgTara] = useState<number>(0);
+  const [packagingType, setPackagingType] = useState('');
   const [taraNotes, setTaraNotes] = useState('');
   const [additionalCost, setAdditionalCost] = useState<number>(0);
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
 
-  const [powerRating, setPowerRating] = useState<number>(4.0);
-  const [impactRating, setImpactRating] = useState<number>(4.0);
-  const [bitterRating, setBitterRating] = useState<number>(2.5);
-  const [burnRating, setBurnRating] = useState<number>(4.5);
-  const [sugarRating, setSugarRating] = useState<number>(4.0);
-  const [aromaRating, setAromaRating] = useState<number>(4.2);
-  const [colorGrade, setColorGrade] = useState<TobaccoGrade>('D+');
+  // 6 sensory parameters default to 0
+  const [powerRating, setPowerRating] = useState<number>(0);
+  const [impactRating, setImpactRating] = useState<number>(0);
+  const [bitterRating, setBitterRating] = useState<number>(0);
+  const [burnRating, setBurnRating] = useState<number>(0);
+  const [sugarRating, setSugarRating] = useState<number>(0);
+  const [aromaRating, setAromaRating] = useState<number>(0);
+  const [colorGrade, setColorGrade] = useState<TobaccoGrade>('D');
   const [characterNotes, setCharacterNotes] = useState('');
 
+  // Auto-remembered Tobacco Names, Seller Names & Agent (Fee) Names
+  const [storedTobaccoNames, setStoredTobaccoNames] = useState<string[]>(() =>
+    loadStringListFromStorage(REMEMBERED_TOBACCO_NAMES_KEY)
+  );
+  const [storedSellerNames, setStoredSellerNames] = useState<string[]>(() =>
+    loadStringListFromStorage(REMEMBERED_SELLER_NAMES_KEY)
+  );
+  const [storedAgentNames, setStoredAgentNames] = useState<string[]>(() =>
+    loadStringListFromStorage(REMEMBERED_AGENT_NAMES_KEY)
+  );
+
+  // Lock state: UNLOCKED by default (`lockedMap[key] = false`), user can lock/unlock any field or all at once
+  const [lockedMap, setLockedMap] = useState<Partial<Record<RawLockableFieldKey, boolean>>>({});
+
+  const rememberedTobaccoNames = useMemo(() => {
+    const combined = [
+      ...storedTobaccoNames,
+      ...existingTobaccos.map((t) => (t.name || '').trim()).filter(Boolean),
+    ];
+    const seen = new Set<string>();
+    return combined.filter((item) => {
+      const lower = item.toLowerCase();
+      if (seen.has(lower)) return false;
+      seen.add(lower);
+      return true;
+    });
+  }, [storedTobaccoNames, existingTobaccos]);
+
+  const rememberedSellerNames = useMemo(() => {
+    const combined = [
+      ...storedSellerNames,
+      ...existingTobaccos
+        .map((t) => (t.sellerName || t.taraFormula?.sellerName || '').trim())
+        .filter(Boolean),
+    ];
+    const seen = new Set<string>();
+    return combined.filter((item) => {
+      const lower = item.toLowerCase();
+      if (seen.has(lower)) return false;
+      seen.add(lower);
+      return true;
+    });
+  }, [storedSellerNames, existingTobaccos]);
+
+  const rememberedAgentNames = useMemo(() => {
+    const fromExistingFees = existingTobaccos.flatMap((t) =>
+      Array.isArray(t.agentFees)
+        ? t.agentFees.map((f) => (f.agentName || '').trim()).filter(Boolean)
+        : []
+    );
+    const combined = [
+      ...storedAgentNames,
+      ...fromExistingFees,
+      ...rememberedSellerNames,
+    ];
+    const seen = new Set<string>();
+    return combined.filter((item) => {
+      const lower = item.toLowerCase();
+      if (seen.has(lower)) return false;
+      seen.add(lower);
+      return true;
+    });
+  }, [storedAgentNames, existingTobaccos, rememberedSellerNames]);
+
   useEffect(() => {
+    setStoredTobaccoNames(loadStringListFromStorage(REMEMBERED_TOBACCO_NAMES_KEY));
+    setStoredSellerNames(loadStringListFromStorage(REMEMBERED_SELLER_NAMES_KEY));
+    setStoredAgentNames(loadStringListFromStorage(REMEMBERED_AGENT_NAMES_KEY));
+    setActiveSection('main');
+
     if (editingTobacco) {
-      setName(editingTobacco.name);
-      setOrigin(editingTobacco.origin);
+      setName(editingTobacco.name || '');
+      setOrigin(editingTobacco.origin || '');
       setSellerName(editingTobacco.sellerName || editingTobacco.taraFormula.sellerName || '');
-      setLotNumber(editingTobacco.lotNumber);
-      setPurchaseDate(editingTobacco.purchaseDate);
-      setGrossWeightKg(editingTobacco.grossWeightKg);
+      setLotNumber(editingTobacco.lotNumber || '');
+      setPurchaseDate(editingTobacco.purchaseDate || '');
+      setGrossWeightKg(editingTobacco.grossWeightKg || 0);
       setPackagingMassKg(
         editingTobacco.packagingMassKg ??
           editingTobacco.taraFormula.packagingMassKg ??
-          editingTobacco.taraFormula.flatKg ??
-          3
+          0
       );
-      setPricePerKgPurchase(editingTobacco.pricePerKgPurchase);
-      setPercentTara(editingTobacco.taraFormula.percent);
-      setFlatKgTara(editingTobacco.taraFormula.flatKg);
-      setPackagingType(editingTobacco.taraFormula.packagingType || 'KRJ MUNTILAN');
+      setPricePerKgPurchase(editingTobacco.pricePerKgPurchase || 0);
+      setAgentFees(
+        Array.isArray(editingTobacco.agentFees)
+          ? editingTobacco.agentFees.map((f) => ({
+              id: f.id || `fee-${Math.random().toString(36).slice(2, 8)}`,
+              agentName: f.agentName || '',
+              feePerKg: Number(f.feePerKg) || 0,
+            }))
+          : []
+      );
+      setPercentTara(editingTobacco.taraFormula.percent || 0);
+      setFlatKgTara(editingTobacco.taraFormula.flatKg || 0);
+      setPackagingType(editingTobacco.taraFormula.packagingType || '');
       setTaraNotes(editingTobacco.taraFormula.notes || '');
       setAdditionalCost(editingTobacco.additionalPurchaseCost || 0);
-      setPowerRating(clampRating5(editingTobacco.powerRating));
-      setImpactRating(clampRating5(editingTobacco.impactRating));
-      setBitterRating(clampRating5(editingTobacco.bitterRating));
-      setBurnRating(clampRating5(editingTobacco.burnRating ?? 4.5));
-      setSugarRating(clampRating5(editingTobacco.sugarRating ?? 4.0));
-      setAromaRating(clampRating5(editingTobacco.aromaRating ?? 4.2));
-      setColorGrade(editingTobacco.colorGrade);
+      setPowerRating(clampRating5(editingTobacco.powerRating || 0));
+      setImpactRating(clampRating5(editingTobacco.impactRating || 0));
+      setBitterRating(clampRating5(editingTobacco.bitterRating || 0));
+      setBurnRating(clampRating5(editingTobacco.burnRating ?? 0));
+      setSugarRating(clampRating5(editingTobacco.sugarRating ?? 0));
+      setAromaRating(clampRating5(editingTobacco.aromaRating ?? 0));
+      setColorGrade(editingTobacco.colorGrade || 'D');
       setCharacterNotes(editingTobacco.characterNotes || '');
+
+      const restoredLocks: Partial<Record<RawLockableFieldKey, boolean>> = {};
+      if (Array.isArray(editingTobacco.lockedFields)) {
+        editingTobacco.lockedFields.forEach((k) => {
+          restoredLocks[k as RawLockableFieldKey] = true;
+        });
+      }
+      setLockedMap(restoredLocks);
     } else {
-      const defaultPkg = packagingList[0];
-      setName('Tembakau Muntilan Super');
-      setOrigin('Muntilan');
-      setSellerName('Pengepul Muntilan (Tara Eksklusif)');
-      setLotNumber(`LOT-BAHAN-${Math.floor(100 + Math.random() * 900)}`);
-      setPurchaseDate(new Date().toISOString().split('T')[0]);
-      setGrossWeightKg(50);
-      setPackagingMassKg(defaultPkg?.packagingMassKg ?? 3);
-      setPricePerKgPurchase(80000);
-      setPercentTara(defaultPkg?.taraPercent ?? 0);
-      setFlatKgTara(defaultPkg?.taraFlatKg ?? 3);
-      setPackagingType(defaultPkg?.name || 'KRJ MUNTILAN');
-      setTaraNotes('Tara eksklusif seri/penjual. Netto Bayar = Bruto - Potongan Nota.');
+      setName('');
+      setOrigin('');
+      setSellerName('');
+      setLotNumber('');
+      setPurchaseDate('');
+      setGrossWeightKg(0);
+      setPackagingMassKg(0);
+      setPricePerKgPurchase(0);
+      setAgentFees([]);
+      setPercentTara(0);
+      setFlatKgTara(0);
+      setPackagingType('');
+      setTaraNotes('');
       setAdditionalCost(0);
-      setPowerRating(4.0);
-      setImpactRating(4.0);
-      setBitterRating(2.5);
-      setBurnRating(4.5);
-      setSugarRating(4.0);
-      setAromaRating(4.2);
-      setColorGrade('D+');
-      setCharacterNotes(
-        'Pegangan lemas berurat, gagang sedang, warna matang grade D+, burn & aroma bagus.'
-      );
+      setPowerRating(0);
+      setImpactRating(0);
+      setBitterRating(0);
+      setBurnRating(0);
+      setSugarRating(0);
+      setAromaRating(0);
+      setColorGrade('D');
+      setCharacterNotes('');
+      setLockedMap({});
     }
   }, [editingTobacco, isOpen]);
 
   if (!isOpen) return null;
 
+  const isLocked = (key: RawLockableFieldKey) => !!lockedMap[key];
+
+  const toggleLock = (key: RawLockableFieldKey) => {
+    setLockedMap((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const handleLockAllFields = () => {
+    const nextLocks: Partial<Record<RawLockableFieldKey, boolean>> = {};
+    ALL_RAW_FIELD_KEYS.forEach((k) => {
+      nextLocks[k] = true;
+    });
+    setLockedMap(nextLocks);
+  };
+
+  const handleUnlockAllFields = () => {
+    setLockedMap({});
+  };
+
+  // Handlers for Agent Fees (Multiple persons, per KG)
+  const handleAddAgentFeeRow = (prefillName = '') => {
+    if (isLocked('agentFees')) return;
+    setAgentFees((prev) => [
+      ...prev,
+      {
+        id: `fee-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        agentName: prefillName,
+        feePerKg: 0,
+      },
+    ]);
+  };
+
+  const handleUpdateAgentFeeRow = (
+    id: string,
+    updates: Partial<Pick<AgentFeeItem, 'agentName' | 'feePerKg'>>
+  ) => {
+    if (isLocked('agentFees')) return;
+    setAgentFees((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, ...updates } : row))
+    );
+  };
+
+  const handleRemoveAgentFeeRow = (id: string) => {
+    if (isLocked('agentFees')) return;
+    setAgentFees((prev) => prev.filter((row) => row.id !== id));
+  };
+
+  const isFieldEmpty = (key: RawLockableFieldKey): boolean => {
+    switch (key) {
+      case 'name':
+        return !name.trim();
+      case 'origin':
+        return !origin.trim();
+      case 'sellerName':
+        return !sellerName.trim();
+      case 'lotNumber':
+        return !lotNumber.trim();
+      case 'purchaseDate':
+        return !purchaseDate.trim();
+      case 'packagingType':
+        return !packagingType.trim();
+      case 'pricePerKgPurchase':
+        return !pricePerKgPurchase || pricePerKgPurchase <= 0;
+      case 'agentFees':
+        return (
+          agentFees.length === 0 ||
+          agentFees.every((f) => !f.agentName.trim() && (!f.feePerKg || f.feePerKg <= 0))
+        );
+      case 'grossWeightKg':
+        return !grossWeightKg || grossWeightKg <= 0;
+      case 'packagingMassKg':
+        return !packagingMassKg || packagingMassKg <= 0;
+      case 'flatKgTara':
+        return !flatKgTara || flatKgTara <= 0;
+      case 'percentTara':
+        return !percentTara || percentTara <= 0;
+      case 'powerRating':
+        return !powerRating || powerRating <= 0;
+      case 'impactRating':
+        return !impactRating || impactRating <= 0;
+      case 'bitterRating':
+        return !bitterRating || bitterRating <= 0;
+      case 'burnRating':
+        return !burnRating || burnRating <= 0;
+      case 'sugarRating':
+        return !sugarRating || sugarRating <= 0;
+      case 'aromaRating':
+        return !aromaRating || aromaRating <= 0;
+      case 'colorGrade':
+        return false;
+      case 'characterNotes':
+        return !characterNotes.trim();
+      default:
+        return false;
+    }
+  };
+
+  const trackableKeys: RawLockableFieldKey[] = [
+    'name',
+    'origin',
+    'sellerName',
+    'lotNumber',
+    'purchaseDate',
+    'packagingType',
+    'pricePerKgPurchase',
+    'grossWeightKg',
+    'packagingMassKg',
+    'flatKgTara',
+    'percentTara',
+    'powerRating',
+    'impactRating',
+    'bitterRating',
+    'burnRating',
+    'sugarRating',
+    'aromaRating',
+    'characterNotes',
+  ];
+
+  const emptyCount = trackableKeys.filter((k) => isFieldEmpty(k)).length;
+  const filledCount = trackableKeys.length - emptyCount;
+
+  const renderFieldLabel = (
+    labelText: string,
+    key: RawLockableFieldKey,
+    icon?: React.ReactNode
+  ) => {
+    const locked = isLocked(key);
+    return (
+      <div className="flex items-center justify-between gap-1.5 mb-1">
+        <label className="text-[11px] font-bold text-zinc-200 flex items-center gap-1 truncate">
+          {icon}
+          <span className="truncate">{labelText}</span>
+        </label>
+        <button
+          type="button"
+          onClick={() => toggleLock(key)}
+          title={locked ? `Buka kunci ${labelText}` : `Kunci ${labelText}`}
+          className={`h-5 px-1.5 rounded border text-[9px] font-mono font-bold inline-flex items-center gap-1 cursor-pointer transition-all shrink-0 ${
+            locked
+              ? 'bg-amber-500/15 text-amber-300 border-amber-500/60'
+              : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border-zinc-800'
+          }`}
+        >
+          {locked ? (
+            <>
+              <Lock className="w-2.5 h-2.5 text-amber-400" />
+              <span>Terkunci</span>
+            </>
+          ) : (
+            <>
+              <Unlock className="w-2.5 h-2.5 text-zinc-400" />
+              <span>Buka</span>
+            </>
+          )}
+        </button>
+      </div>
+    );
+  };
+
+  const getTextboxClass = (key: RawLockableFieldKey, extra = '') => {
+    const locked = isLocked(key);
+    const empty = isFieldEmpty(key);
+    if (locked) {
+      return `w-full h-9 px-3 bg-zinc-900/60 border border-amber-500/40 rounded-lg text-zinc-300 placeholder-zinc-600 cursor-not-allowed opacity-80 text-xs ${extra}`;
+    }
+    if (empty) {
+      return `w-full h-9 px-3 bg-black border border-dashed border-amber-500/45 focus:border-solid focus:border-amber-400 rounded-lg text-white placeholder-zinc-500 focus:outline-hidden text-xs ${extra}`;
+    }
+    return `w-full h-9 px-3 bg-zinc-950 border border-zinc-700 focus:border-amber-400 rounded-lg text-white placeholder-zinc-500 focus:outline-hidden text-xs ${extra}`;
+  };
+
   const handleSelectPackaging = (pkgName: string) => {
+    if (isLocked('packagingType')) return;
     setPackagingType(pkgName);
     const found = packagingList.find((p) => p.name === pkgName);
     if (found) {
-      setPackagingMassKg(found.packagingMassKg);
-      setPercentTara(found.taraPercent);
-      setFlatKgTara(found.taraFlatKg);
+      if (!isLocked('packagingMassKg')) setPackagingMassKg(found.packagingMassKg);
+      if (!isLocked('percentTara')) setPercentTara(found.taraPercent);
+      if (!isLocked('flatKgTara')) setFlatKgTara(found.taraFlatKg);
       if (found.notes) setTaraNotes(found.notes);
     }
   };
@@ -131,12 +485,13 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
     grossWeightKg: Number(grossWeightKg) || 0,
     pricePerKgPurchase: Number(pricePerKgPurchase) || 0,
     realPackagingMassKg: Number(packagingMassKg) || 0,
+    agentFees,
     taraFormula: {
       rawFormula: formatTaraFormula(percentTara, flatKgTara),
       percent: Number(percentTara) || 0,
       flatKg: Number(flatKgTara) || 0,
       pricingBasis: 'NET_WEIGHT',
-      packagingType,
+      packagingType: packagingType || 'Belum Dipilih',
       packagingMassKg: Number(packagingMassKg) || 0,
       sellerName,
     },
@@ -147,12 +502,13 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
     setCalcDetail(
       buildRawTobaccoCalcDetail({
         name: name || 'Bahan Tembakau Mentah',
-        packagingType,
+        packagingType: packagingType || 'Standar',
         grossWeightKg: Number(grossWeightKg) || 0,
         realPackagingMassKg: Number(packagingMassKg) || 0,
         percentTara: Number(percentTara) || 0,
         flatKgTara: Number(flatKgTara) || 0,
         pricePerKg: Number(pricePerKgPurchase) || 0,
+        agentFees,
         additionalCost: Number(additionalCost) || 0,
         focus,
       })
@@ -161,27 +517,78 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
 
+    const finalName =
+      name.trim() ||
+      rememberedTobaccoNames[0] ||
+      'Tembakau Mentah';
+    const finalSeller = sellerName.trim();
+
+    const cleanedAgentFees: AgentFeeItem[] = agentFees
+      .map((f, idx) => ({
+        id: f.id || `fee-${Date.now()}-${idx}`,
+        agentName: f.agentName.trim() || (Number(f.feePerKg) > 0 ? `Perantara #${idx + 1}` : ''),
+        feePerKg: Math.max(0, Number(f.feePerKg) || 0),
+      }))
+      .filter((f) => f.agentName !== '' || f.feePerKg > 0);
+
+    if (name.trim()) {
+      const updatedNames = saveStringToStorageList(
+        REMEMBERED_TOBACCO_NAMES_KEY,
+        name.trim(),
+        storedTobaccoNames
+      );
+      setStoredTobaccoNames(updatedNames);
+    }
+    if (finalSeller) {
+      const updatedSellers = saveStringToStorageList(
+        REMEMBERED_SELLER_NAMES_KEY,
+        finalSeller,
+        storedSellerNames
+      );
+      setStoredSellerNames(updatedSellers);
+    }
+    if (cleanedAgentFees.length > 0) {
+      let currentAgentList = [...storedAgentNames];
+      cleanedAgentFees.forEach((f) => {
+        if (f.agentName && !f.agentName.startsWith('Perantara #')) {
+          currentAgentList = saveStringToStorageList(
+            REMEMBERED_AGENT_NAMES_KEY,
+            f.agentName,
+            currentAgentList
+          );
+        }
+      });
+      setStoredAgentNames(currentAgentList);
+    }
+
+    const activeLockedFields = ALL_RAW_FIELD_KEYS.filter((k) => !!lockedMap[k]);
     const rawFormula = formatTaraFormula(percentTara, flatKgTara);
+    const todayStr = new Date().toISOString().split('T')[0];
+
     const updated: RawTobacco = {
       id: editingTobacco ? editingTobacco.id : `tbk-raw-${Date.now()}`,
-      name: name.trim(),
-      origin: origin.trim(),
-      sellerName: sellerName.trim(),
-      lotNumber: lotNumber.trim() || `LOT-BAHAN-${Date.now()}`,
-      purchaseDate,
+      name: finalName,
+      origin: origin.trim() || 'Belum Diisi',
+      sellerName: finalSeller,
+      lotNumber:
+        lotNumber.trim() ||
+        (editingTobacco?.lotNumber ? editingTobacco.lotNumber : `LOT-BAHAN-${Math.floor(100 + Math.random() * 900)}`),
+      purchaseDate: purchaseDate.trim() || todayStr,
       grossWeightKg: Number(grossWeightKg) || 0,
       packagingMassKg: Number(packagingMassKg) || 0,
       pricePerKgPurchase: Number(pricePerKgPurchase) || 0,
+      agentFees: cleanedAgentFees,
+      totalAgentFeePerKg: calculation.totalAgentFeePerKg,
+      totalAgentFeeRp: calculation.totalAgentFeeRp,
       taraFormula: {
         rawFormula,
         percent: Number(percentTara) || 0,
         flatKg: Number(flatKgTara) || 0,
         pricingBasis: 'NET_WEIGHT',
-        packagingType,
+        packagingType: packagingType.trim() || 'Belum Dipilih',
         packagingMassKg: Number(packagingMassKg) || 0,
-        sellerName: sellerName.trim(),
+        sellerName: finalSeller,
         notes: taraNotes,
       },
       additionalPurchaseCost: Number(additionalCost) || 0,
@@ -195,7 +602,9 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       purchaseWeightProfitRp: calculation.purchaseWeightProfitRp,
       effectiveCostPerRealKg: calculation.effectiveCostPerRealKg,
       currentStockNetKg: editingTobacco
-        ? editingTobacco.currentStockNetKg
+        ? calculation.realNetWeightKg > 0
+          ? calculation.realNetWeightKg
+          : editingTobacco.currentStockNetKg
         : calculation.realNetWeightKg,
       powerRating: Number(powerRating) || 0,
       impactRating: Number(impactRating) || 0,
@@ -204,473 +613,744 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       sugarRating: Number(sugarRating) || 0,
       aromaRating: Number(aromaRating) || 0,
       colorGrade,
-      characterNotes,
+      characterNotes: characterNotes.trim(),
+      lockedFields: activeLockedFields,
     };
 
     onSave(updated);
     onClose();
   };
 
+  const shadowNamePlaceholder = rememberedTobaccoNames[0] || 'Nama tembakau...';
+  const shadowSellerPlaceholder = rememberedSellerNames[0] || 'Nama penjual / pengepul...';
+  const shadowAgentPlaceholder = rememberedAgentNames[0] || 'Nama agen...';
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden">
-        <div className="px-5 py-4 border-b border-zinc-800 bg-black flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-black text-amber-400 border border-zinc-700">
-              <Sparkles className="w-5 h-5 stroke-[2.2]" />
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4">
+      <div className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden">
+        {/* Compact Modal Header with Kunci Semua & Buka Semua */}
+        <div className="px-4 py-3 border-b border-zinc-800 bg-black flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-1.5 rounded-lg bg-zinc-950 text-amber-400 border border-zinc-700 shrink-0">
+              <Sparkles className="w-4 h-4 stroke-[2.2]" />
             </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-extrabold text-white">
-                {editingTobacco ? 'Edit Data Tembakau Mentah' : 'Tambah Bahan Tembakau & Kalkulasi Weight Profit'}
+            <div className="min-w-0">
+              <h2 className="text-xs sm:text-sm font-black text-white truncate">
+                {editingTobacco ? 'Edit Data Tembakau Mentah' : 'Tambah Tembakau Mentah'}
               </h2>
-              <p className="text-xs text-zinc-400">
-                Netto Bayar (Nota) vs Netto Riil (Sebenarnya) • Perbandingan Paid Value vs Real Value (Weight Profit)
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors"
-            aria-label="Tutup modal"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-6 flex-1 text-sm">
-          <div>
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-200 mb-3">
-              1. Identitas Tembakau & Penjual (Tara Khusus Penjual/Seri)
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2 flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-white whitespace-nowrap truncate mb-1">
-                  Nama Tembakau / Rajangan *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Contoh: Tembakau Muntilan Super"
-                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700 text-xs sm:text-sm"
-                />
-              </div>
-
-              <div className="flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-white whitespace-nowrap truncate mb-1">
-                  Daerah Asal Tembakau *
-                </label>
-                <select
-                  value={origin}
-                  onChange={(e) => setOrigin(e.target.value)}
-                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white focus:outline-hidden focus:border-zinc-700 text-xs sm:text-sm"
-                >
-                  <option value="Temanggung">Temanggung (Sumbing/Sindoro)</option>
-                  <option value="Muntilan">Muntilan / Magelang</option>
-                  <option value="Madura">Madura (Pamekasan/Sumenep)</option>
-                  <option value="Boyolali">Boyolali (Selo/Cepogo)</option>
-                  <option value="Lombok">Lombok (Timur/Galep)</option>
-                  <option value="Weleri">Weleri / Kendal</option>
-                  <option value="Jember">Jember (Na-Oogst/Kasturi)</option>
-                  <option value="Lainnya">Lainnya</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col">
-                <label className="h-5 flex items-center gap-1 text-xs font-bold text-white whitespace-nowrap truncate mb-1">
-                  <UserCheck className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-                  <span>Nama Penjual / Pengepul</span>
-                </label>
-                <input
-                  type="text"
-                  value={sellerName}
-                  onChange={(e) => setSellerName(e.target.value)}
-                  placeholder="Misal: H. Daryono (Tara Khusus)"
-                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-zinc-700"
-                />
-              </div>
-
-              <div className="flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-white whitespace-nowrap truncate mb-1">
-                  Nomor Seri / Lot Beli
-                </label>
-                <input
-                  type="text"
-                  value={lotNumber}
-                  onChange={(e) => setLotNumber(e.target.value)}
-                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white font-mono font-bold text-xs focus:outline-hidden focus:border-zinc-700"
-                />
-              </div>
-
-              <div className="flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-white whitespace-nowrap truncate mb-1">
-                  Tanggal Beli
-                </label>
-                <input
-                  type="date"
-                  value={purchaseDate}
-                  onChange={(e) => setPurchaseDate(e.target.value)}
-                  className="w-full h-10 px-3 bg-black border border-zinc-800 rounded-xl text-white text-xs focus:outline-hidden focus:border-zinc-700"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-black p-4 rounded-xl border border-zinc-800 space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-200">
-                2. Perhitungan Timbangan Nota (Paid Value) vs Berat Sebenarnya (Real Value & Weight Profit)
-              </h3>
-              <span className="text-[11px] text-zinc-400 font-mono">
-                Modal Bayar = Netto Nota × Harga Beli
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-white whitespace-nowrap truncate mb-1">
-                  Pilih Jenis Kemasan (Otomatis Isi Wadah & Tarra)
-                </label>
-                <select
-                  value={packagingType}
-                  onChange={(e) => handleSelectPackaging(e.target.value)}
-                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white text-xs font-bold focus:outline-hidden focus:border-zinc-700"
-                >
-                  {packagingList.map((pkg) => (
-                    <option key={pkg.id} value={pkg.name}>
-                      {pkg.name} — Wadah Riil: {pkg.packagingMassKg}kg | Potongan Nota:{' '}
-                      {formatTaraFormula(pkg.taraPercent, pkg.taraFlatKg)}
-                    </option>
-                  ))}
-                </select>
-                <p className="h-4 flex items-center text-[10px] text-zinc-400 truncate mt-1">
-                  Otomatis memuat berat wadah asli & rumus tarra
-                </p>
-              </div>
-
-              <div className="flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-white whitespace-nowrap truncate mb-1">
-                  Harga Beli / KG (Rp) *
-                </label>
-                <NumericInput
-                  required
-                  value={pricePerKgPurchase}
-                  onChange={setPricePerKgPurchase}
-                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold text-sm focus:outline-hidden focus:border-zinc-700"
-                />
-                <p className="h-4 flex items-center text-[10px] text-zinc-200 font-mono truncate mt-1">
-                  Harga per KG: {formatRupiah(pricePerKgPurchase)}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-white whitespace-nowrap truncate mb-1">
-                  Berat Bruto (KG) *
-                </label>
-                <div className="relative">
-                  <NumericInput
-                    required
-                    value={grossWeightKg}
-                    onChange={setGrossWeightKg}
-                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold text-sm focus:outline-hidden focus:border-zinc-700"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs pointer-events-none">
-                    kg
-                  </span>
-                </div>
-                <p className="h-4 flex items-center text-[10px] text-zinc-400 truncate mt-1">
-                  Misal: 50 kg
-                </p>
-              </div>
-
-              <div className="flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-zinc-200 whitespace-nowrap truncate mb-1">
-                  Wadah Riil (KG) *
-                </label>
-                <div className="relative">
-                  <NumericInput
-                    value={packagingMassKg}
-                    onChange={setPackagingMassKg}
-                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-zinc-700 rounded-xl text-zinc-200 font-mono font-bold text-sm focus:outline-hidden focus:border-white/70"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs pointer-events-none">
-                    kg
-                  </span>
-                </div>
-                <p className="h-4 flex items-center text-[10px] text-zinc-200 truncate mt-1">
-                  Berat wadah asli (mis. 2kg)
-                </p>
-              </div>
-
-              <div className="flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-zinc-200 whitespace-nowrap truncate mb-1">
-                  Tarra Flat Nota (KG) *
-                </label>
-                <div className="relative">
-                  <NumericInput
-                    value={flatKgTara}
-                    onChange={setFlatKgTara}
-                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-zinc-800 rounded-xl text-white font-mono font-bold text-sm focus:outline-hidden focus:border-zinc-700"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs pointer-events-none">
-                    kg
-                  </span>
-                </div>
-                <p className="h-4 flex items-center text-[10px] text-zinc-400 truncate mt-1">
-                  Potongan kg nota
-                </p>
-              </div>
-
-              <div className="flex flex-col">
-                <label className="h-5 flex items-center text-xs font-bold text-white whitespace-nowrap truncate mb-1">
-                  Tarra Persen Nota (%)
-                </label>
-                <div className="relative">
-                  <NumericInput
-                    value={percentTara}
-                    onChange={setPercentTara}
-                    className="w-full h-10 px-3 pr-8 bg-zinc-950 border border-zinc-700 rounded-xl text-white font-mono font-bold text-sm focus:outline-hidden focus:border-zinc-700"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs pointer-events-none">
-                    %
-                  </span>
-                </div>
-                <p className="h-4 flex items-center text-[10px] text-zinc-400 truncate mt-1">
-                  Misal: 10% (untuk 10%+2)
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-zinc-950 border border-zinc-700 rounded-xl p-4 space-y-3.5">
-              <div className="flex items-center justify-between text-xs font-bold text-amber-400 flex-wrap gap-2">
-                <span className="flex items-center gap-1.5">
-                  <Info className="w-4 h-4 text-zinc-300 shrink-0" />
-                  <span>Perbandingan Nilai Bayar (Nota) vs Nilai Barang Riil (Real Value)</span>
+              <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-400">
+                <span>
+                  Terisi: <b className="text-white">{filledCount}</b>/{trackableKeys.length}
                 </span>
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-zinc-400">
-                  <CalcSymbolBadge />
-                  <span>Simbol penanda rincian rumus</span>
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
-                <button
-                  type="button"
-                  onClick={() => handleOpenStepByStep('PAID_VALUE')}
-                  className="text-left group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
-                >
-                  <div className="space-y-1.5 w-full">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-zinc-400 uppercase font-extrabold truncate">
-                        1. Hitungan Nota (Paid Value)
-                      </span>
-                      <CalcSymbolBadge />
-                    </div>
-                    <div className="flex justify-between items-center text-xs gap-2">
-                      <span className="text-zinc-400">Potongan Nota:</span>
-                      <b className="font-mono text-white">
-                        -{calculation.deductionKg} kg ({formatTaraFormula(percentTara, flatKgTara)})
-                      </b>
-                    </div>
-                    <div className="flex justify-between items-center text-xs gap-2">
-                      <span className="text-zinc-400">Netto Bayar:</span>
-                      <b className="font-mono text-white">{calculation.netWeightKg} kg</b>
-                    </div>
-                  </div>
-                  <div className="w-full pt-2 border-t border-zinc-900 flex justify-between items-center text-xs">
-                    <span className="text-zinc-300 font-bold">Total Kita Bayar:</span>
-                    <b className="font-mono text-white text-sm">
-                      {formatRupiah(calculation.totalModalAsal)}
-                    </b>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenStepByStep('REAL_VALUE')}
-                  className="text-left group bg-black p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
-                >
-                  <div className="space-y-1.5 w-full">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-zinc-200 uppercase font-extrabold truncate">
-                        2. Berat & Nilai Riil (Real Value)
-                      </span>
-                      <CalcSymbolBadge />
-                    </div>
-                    <div className="flex justify-between items-center text-xs gap-2">
-                      <span className="text-zinc-400">Potongan Wadah Riil:</span>
-                      <b className="font-mono text-zinc-200">-{calculation.realPackagingMassKg} kg</b>
-                    </div>
-                    <div className="flex justify-between items-center text-xs gap-2">
-                      <span className="text-zinc-400">Netto Riil Sebenarnya:</span>
-                      <b className="font-mono text-white">{calculation.realNetWeightKg} kg</b>
-                    </div>
-                  </div>
-                  <div className="w-full pt-2 border-t border-zinc-900 flex justify-between items-center text-xs">
-                    <span className="text-zinc-200 font-bold">
-                      Nilai Riil ({calculation.realNetWeightKg}×Harga):
-                    </span>
-                    <b className="font-mono text-zinc-200 text-sm">
-                      {formatRupiah(calculation.realStockValueRp)}
-                    </b>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenStepByStep('WEIGHT_PROFIT')}
-                  className="text-left group bg-black p-3.5 rounded-xl border border-zinc-700 hover:border-zinc-600 transition-all cursor-pointer flex flex-col justify-between h-full space-y-2"
-                >
-                  <div className="space-y-1.5 w-full">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-zinc-200 uppercase font-black truncate">
-                        3. Weight Profit (Untung Timbangan)
-                      </span>
-                      <CalcSymbolBadge />
-                    </div>
-                    <div className="flex justify-between items-center text-xs gap-2">
-                      <span className="text-zinc-300">Selisih Berat:</span>
-                      <b
-                        className={`font-mono ${
-                          calculation.purchaseWeightProfitKg >= 0 ? 'text-amber-400' : 'text-red-400'
-                        }`}
-                      >
-                        {calculation.purchaseWeightProfitKg >= 0 ? '+' : ''}
-                        {calculation.purchaseWeightProfitKg} kg
-                      </b>
-                    </div>
-                    <div className="flex justify-between items-center text-xs gap-2">
-                      <span className="text-zinc-300">Weight Profit (Rp):</span>
-                      <b
-                        className={`font-mono text-sm ${
-                          calculation.purchaseWeightProfitRp >= 0 ? 'text-amber-400' : 'text-red-400'
-                        }`}
-                      >
-                        {calculation.purchaseWeightProfitRp >= 0 ? '+' : ''}
-                        {formatRupiah(calculation.purchaseWeightProfitRp)}
-                      </b>
-                    </div>
-                  </div>
-                  <div className="w-full pt-2 border-t border-zinc-900 flex justify-between items-center text-xs">
-                    <span className="text-zinc-400">Modal Riil / KG Fisik:</span>
-                    <b className="font-mono text-white">
-                      {formatRupiah(calculation.effectiveCostPerRealKg)}/kg
-                    </b>
-                  </div>
-                </button>
+                {emptyCount > 0 && (
+                  <>
+                    <span>·</span>
+                    <span className="text-amber-300">Kosong: {emptyCount}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-zinc-200">
-                3. Penilaian 6 Karakteristik Tembakau (Skala Maksimal /5)
-              </h3>
-              <span className="text-[11px] text-zinc-400">
-                Geser slider atau klik tombol angka cepat (1 s/d 5)
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <RatingSegmentSlider
-                label="Power Rating"
-                sublabel="Kekuatan nikotin & body"
-                value={powerRating}
-                onChange={setPowerRating}
-              />
-              <RatingSegmentSlider
-                label="Impact Rating"
-                sublabel="Tarikan tenggorokan (throat hit)"
-                value={impactRating}
-                onChange={setImpactRating}
-              />
-              <RatingSegmentSlider
-                label="Bitter Rating"
-                sublabel="Rasa pahit / gurih daun"
-                value={bitterRating}
-                onChange={setBitterRating}
-              />
-              <RatingSegmentSlider
-                label="Burn Rating"
-                sublabel="Daya bakar & kebersihan abu"
-                value={burnRating}
-                onChange={setBurnRating}
-              />
-              <RatingSegmentSlider
-                label="Sugar Rating"
-                sublabel="Kadar manis alami daun"
-                value={sugarRating}
-                onChange={setSugarRating}
-              />
-              <RatingSegmentSlider
-                label="Aroma Rating"
-                sublabel="Karakter aroma khas daun"
-                value={aromaRating}
-                onChange={setAromaRating}
-              />
-            </div>
-
-            <div className="space-y-2 pt-2">
-              <label className="block text-xs font-bold text-white">
-                Pilih Grade Tembakau (A+, A, B+, B, C+, C, D+, D, E) *
-              </label>
-              <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
-                {(Object.keys(GRADE_LABELS) as TobaccoGrade[]).map((grade) => {
-                  const isSelected = colorGrade === grade;
-                  return (
-                    <button
-                      key={grade}
-                      type="button"
-                      onClick={() => setColorGrade(grade)}
-                      className={`h-10 rounded-xl border text-center transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-black text-amber-400 border-zinc-700 font-black'
-                          : 'bg-black border-zinc-800 text-white hover:border-zinc-800'
-                      }`}
-                    >
-                      <div className="flex items-center justify-center gap-1">
-                        <span className="text-sm font-black">{grade}</span>
-                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-zinc-200 mb-1">
-                Deskripsi Fisik, Pegangan, Kadar Gagang & Catatan Tarra Penjual
-              </label>
-              <textarea
-                rows={2}
-                value={characterNotes}
-                onChange={(e) => setCharacterNotes(e.target.value)}
-                placeholder="Tulis detail pegangan (lemas/bergetah/kering), jumlah gagang, warna, serta catatan penjual..."
-                className="w-full px-3 py-2 bg-black border border-zinc-800 rounded-xl text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700 text-xs"
-              />
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-zinc-800 flex items-center justify-end gap-3">
+          <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+            <button
+              type="button"
+              onClick={handleLockAllFields}
+              className="h-7 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/50 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer"
+              title="Kunci semua kolom"
+            >
+              <Lock className="w-3 h-3" />
+              <span>Kunci Semua</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleUnlockAllFields}
+              className="h-7 px-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer"
+              title="Buka semua kolom"
+            >
+              <Unlock className="w-3 h-3" />
+              <span>Buka Semua</span>
+            </button>
             <button
               type="button"
               onClick={onClose}
-              className="h-10 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors cursor-pointer"
+              aria-label="Tutup modal"
             >
-              Batal
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Clean Section Switcher so data is never overcrowded in one view */}
+        <div className="px-4 py-2 bg-zinc-950 border-b border-zinc-800/90 flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1 bg-black p-1 rounded-xl border border-zinc-800">
+            <button
+              type="button"
+              onClick={() => setActiveSection('main')}
+              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                activeSection === 'main'
+                  ? 'bg-amber-500 text-black font-black'
+                  : 'text-zinc-300 hover:text-white'
+              }`}
+            >
+              1. Data, Timbangan &amp; Fee
             </button>
             <button
-              type="submit"
-              className="btn-amber-outline h-10 px-5 rounded-xl font-black text-xs cursor-pointer"
+              type="button"
+              onClick={() => setActiveSection('character')}
+              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                activeSection === 'character'
+                  ? 'bg-amber-500 text-black font-black'
+                  : 'text-zinc-300 hover:text-white'
+              }`}
             >
-              {editingTobacco ? 'Simpan Perubahan' : 'Simpan Tembakau Mentah'}
+              2. Grade &amp; 6 Karakter ({colorGrade})
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveSection('all')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                activeSection === 'all'
+                  ? 'bg-zinc-800 text-amber-400 border border-amber-500/50'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Semua
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2.5 text-[11px] font-mono">
+            <span className="text-zinc-400">
+              Netto: <b className="text-white">{calculation.netWeightKg} kg</b>
+            </span>
+            {calculation.totalAgentFeePerKg > 0 && (
+              <>
+                <span className="text-zinc-600">·</span>
+                <span className="text-zinc-300">
+                  Biaya Fee: <b className="text-amber-300">{formatRupiah(calculation.totalAgentFeeRp)}</b>
+                </span>
+              </>
+            )}
+            <span className="text-zinc-600">·</span>
+            <span className="text-zinc-300">
+              Total Modal: <b className="text-amber-400">{formatRupiah(calculation.totalModalAsal)}</b>
+            </span>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 space-y-4 flex-1 text-xs">
+          {/* SECTION 1: Identitas, Timbangan & Fee Perantara */}
+          {(activeSection === 'main' || activeSection === 'all') && (
+            <div className="space-y-3.5">
+              {/* Card 1: Identitas Tembakau & Penjual */}
+              <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="sm:col-span-2 flex flex-col">
+                    {renderFieldLabel('Nama Tembakau', 'name')}
+                    <input
+                      type="text"
+                      list="remembered-tobacco-names-list"
+                      disabled={isLocked('name')}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder={shadowNamePlaceholder}
+                      className={getTextboxClass('name')}
+                    />
+                    <datalist id="remembered-tobacco-names-list">
+                      {rememberedTobaccoNames.map((item) => (
+                        <option key={item} value={item} />
+                      ))}
+                    </datalist>
+
+                    {!isLocked('name') && rememberedTobaccoNames.length > 0 && (
+                      <div className="flex items-center gap-1 flex-wrap mt-1">
+                        {rememberedTobaccoNames.slice(0, 4).map((item) => (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => setName(item)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer max-w-[160px] truncate ${
+                              name === item
+                                ? 'bg-amber-500 text-black border-amber-400'
+                                : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                            }`}
+                          >
+                            {item}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col">
+                    {renderFieldLabel('Daerah Asal', 'origin')}
+                    <input
+                      type="text"
+                      list="tobacco-origins-datalist"
+                      disabled={isLocked('origin')}
+                      value={origin}
+                      onChange={(e) => setOrigin(e.target.value)}
+                      placeholder="Muntilan / Temanggung"
+                      className={getTextboxClass('origin')}
+                    />
+                    <datalist id="tobacco-origins-datalist">
+                      <option value="Temanggung" />
+                      <option value="Muntilan" />
+                      <option value="Madura" />
+                      <option value="Boyolali" />
+                      <option value="Lombok" />
+                      <option value="Weleri" />
+                      <option value="Jember" />
+                    </datalist>
+                  </div>
+
+                  <div className="flex flex-col">
+                    {renderFieldLabel(
+                      'Nama Penjual / Pengepul',
+                      'sellerName',
+                      <UserCheck className="w-3 h-3 text-zinc-400 shrink-0" />
+                    )}
+                    <input
+                      type="text"
+                      list="remembered-seller-names-list"
+                      disabled={isLocked('sellerName')}
+                      value={sellerName}
+                      onChange={(e) => setSellerName(e.target.value)}
+                      placeholder={shadowSellerPlaceholder}
+                      className={getTextboxClass('sellerName')}
+                    />
+                    <datalist id="remembered-seller-names-list">
+                      {rememberedSellerNames.map((item) => (
+                        <option key={item} value={item} />
+                      ))}
+                    </datalist>
+
+                    {!isLocked('sellerName') && rememberedSellerNames.length > 0 && (
+                      <div className="flex items-center gap-1 flex-wrap mt-1">
+                        {rememberedSellerNames.slice(0, 3).map((item) => (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => setSellerName(item)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer max-w-[130px] truncate ${
+                              sellerName === item
+                                ? 'bg-amber-500 text-black border-amber-400'
+                                : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                            }`}
+                          >
+                            {item}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col">
+                    {renderFieldLabel('Nomor Seri / Lot Beli', 'lotNumber')}
+                    <input
+                      type="text"
+                      disabled={isLocked('lotNumber')}
+                      value={lotNumber}
+                      onChange={(e) => setLotNumber(e.target.value)}
+                      placeholder="LOT-BAHAN-001"
+                      className={getTextboxClass('lotNumber', 'font-mono font-bold')}
+                    />
+                  </div>
+
+                  <div className="flex flex-col">
+                    {renderFieldLabel('Tanggal Beli', 'purchaseDate')}
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="date"
+                        disabled={isLocked('purchaseDate')}
+                        value={purchaseDate}
+                        onChange={(e) => setPurchaseDate(e.target.value)}
+                        className={getTextboxClass('purchaseDate')}
+                      />
+                      {!isLocked('purchaseDate') && !purchaseDate && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPurchaseDate(new Date().toISOString().split('T')[0])
+                          }
+                          className="h-9 px-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-amber-400 border border-zinc-700 text-[10px] font-bold shrink-0 cursor-pointer"
+                        >
+                          Hari Ini
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Timbangan, Biaya Tambahan Fee & Total Modal */}
+              <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="flex flex-col">
+                    {renderFieldLabel('Jenis Kemasan', 'packagingType')}
+                    <select
+                      disabled={isLocked('packagingType')}
+                      value={packagingType}
+                      onChange={(e) => handleSelectPackaging(e.target.value)}
+                      className={getTextboxClass('packagingType', 'font-bold')}
+                    >
+                      <option value="">-- Pilih Kemasan (Atau Manual) --</option>
+                      {packagingList.map((pkg) => (
+                        <option key={pkg.id} value={pkg.name}>
+                          {pkg.name} (Tarra {formatTaraFormula(pkg.taraPercent, pkg.taraFlatKg)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col">
+                    {renderFieldLabel('Harga Tembakau / KG (Rp)', 'pricePerKgPurchase')}
+                    <NumericInput
+                      emptyWhenZero
+                      disabled={isLocked('pricePerKgPurchase')}
+                      value={pricePerKgPurchase}
+                      onChange={setPricePerKgPurchase}
+                      placeholder="50000"
+                      className={getTextboxClass('pricePerKgPurchase', 'font-mono font-bold')}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
+                  <div className="flex flex-col">
+                    {renderFieldLabel('Bruto (KG)', 'grossWeightKg')}
+                    <div className="relative">
+                      <NumericInput
+                        emptyWhenZero
+                        disabled={isLocked('grossWeightKg')}
+                        value={grossWeightKg}
+                        onChange={setGrossWeightKg}
+                        placeholder="50"
+                        className={getTextboxClass('grossWeightKg', 'pr-7 font-mono font-bold')}
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-[11px] pointer-events-none">
+                        kg
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col">
+                    {renderFieldLabel('Tarra Flat (KG)', 'flatKgTara')}
+                    <div className="relative">
+                      <NumericInput
+                        emptyWhenZero
+                        disabled={isLocked('flatKgTara')}
+                        value={flatKgTara}
+                        onChange={setFlatKgTara}
+                        placeholder="2"
+                        className={getTextboxClass('flatKgTara', 'pr-7 font-mono font-bold')}
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-[11px] pointer-events-none">
+                        kg
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col">
+                    {renderFieldLabel('Tarra (%)', 'percentTara')}
+                    <div className="relative">
+                      <NumericInput
+                        emptyWhenZero
+                        disabled={isLocked('percentTara')}
+                        value={percentTara}
+                        onChange={setPercentTara}
+                        placeholder="10"
+                        className={getTextboxClass('percentTara', 'pr-7 font-mono font-bold')}
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-[11px] pointer-events-none">
+                        %
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className="text-[11px] font-bold text-amber-400 truncate">
+                        Netto (Bruto − Tarra)
+                      </span>
+                      <span className="text-[10px] font-mono text-zinc-400">
+                        −{calculation.deductionKg} kg
+                      </span>
+                    </div>
+                    <div className="h-9 px-3 rounded-lg bg-zinc-950 border border-amber-500/50 flex items-center justify-between font-mono text-xs">
+                      <b className="text-white text-sm">{calculation.netWeightKg} kg</b>
+                      <span className="text-[10px] text-zinc-400">
+                        {grossWeightKg || 0} − {calculation.deductionKg}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Compact Fee Perantara Bar (Biaya Tambahan / Added Cost = Netto × Fee/KG) */}
+                <div className="pt-2.5 border-t border-zinc-900 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] font-bold text-white inline-flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Biaya Fee Perantara (Netto × Fee/KG)</span>
+                      </span>
+
+                      {calculation.totalAgentFeePerKg > 0 && (
+                        <span className="text-[11px] font-mono font-bold text-amber-300">
+                          {formatRupiah(calculation.totalAgentFeePerKg)}/kg × {calculation.netWeightKg} kg ={' '}
+                          <b className="text-white">{formatRupiah(calculation.totalAgentFeeRp)}</b>
+                        </span>
+                      )}
+
+                      {!isLocked('agentFees') &&
+                        rememberedAgentNames.slice(0, 4).map((agentNameItem) => (
+                          <button
+                            key={agentNameItem}
+                            type="button"
+                            onClick={() => handleAddAgentFeeRow(agentNameItem)}
+                            className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-950 hover:bg-zinc-900 text-amber-300 border border-zinc-800 cursor-pointer"
+                          >
+                            + {agentNameItem}
+                          </button>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => toggleLock('agentFees')}
+                        className={`h-6 px-2 rounded border text-[9px] font-mono font-bold inline-flex items-center gap-1 cursor-pointer ${
+                          isLocked('agentFees')
+                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/60'
+                            : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border-zinc-800'
+                        }`}
+                      >
+                        {isLocked('agentFees') ? (
+                          <>
+                            <Lock className="w-2.5 h-2.5 text-amber-400" />
+                            <span>Terkunci</span>
+                          </>
+                        ) : (
+                          <>
+                            <Unlock className="w-2.5 h-2.5 text-zinc-400" />
+                            <span>Buka</span>
+                          </>
+                        )}
+                      </button>
+
+                      {!isLocked('agentFees') && (
+                        <button
+                          type="button"
+                          onClick={() => handleAddAgentFeeRow('')}
+                          className="h-6 px-2.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-black text-[10px] inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3 stroke-[2.5]" />
+                          <span>Tambah Fee</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <datalist id="remembered-agent-names-list">
+                    {rememberedAgentNames.map((agent) => (
+                      <option key={agent} value={agent} />
+                    ))}
+                  </datalist>
+
+                  {agentFees.length > 0 && (
+                    <div className="space-y-1.5">
+                      {agentFees.map((feeRow, index) => {
+                        const rowLocked = isLocked('agentFees');
+                        const rowFeePerKg = Math.max(0, Number(feeRow.feePerKg) || 0);
+                        const rowTotalFeeRp = Math.round(calculation.netWeightKg * rowFeePerKg);
+                        return (
+                          <div
+                            key={feeRow.id}
+                            className="grid grid-cols-12 gap-2 items-center bg-zinc-950 p-2 rounded-lg border border-zinc-800"
+                          >
+                            <div className="col-span-5 sm:col-span-4">
+                              <input
+                                type="text"
+                                list="remembered-agent-names-list"
+                                disabled={rowLocked}
+                                value={feeRow.agentName}
+                                onChange={(e) =>
+                                  handleUpdateAgentFeeRow(feeRow.id, {
+                                    agentName: e.target.value,
+                                  })
+                                }
+                                placeholder={
+                                  rememberedAgentNames[index] || shadowAgentPlaceholder
+                                }
+                                className="w-full h-8 px-2.5 bg-black border border-zinc-700 rounded-md text-xs font-bold text-white placeholder-zinc-500 focus:outline-hidden focus:border-amber-400"
+                              />
+                            </div>
+
+                            <div className="col-span-4 sm:col-span-3 relative">
+                              <NumericInput
+                                emptyWhenZero
+                                disabled={rowLocked}
+                                value={feeRow.feePerKg}
+                                onChange={(val) =>
+                                  handleUpdateAgentFeeRow(feeRow.id, { feePerKg: val })
+                                }
+                                placeholder="1000"
+                                className="w-full h-8 px-2.5 pr-8 bg-black border border-zinc-700 rounded-md text-xs font-mono font-bold text-white placeholder-zinc-500 focus:outline-hidden focus:border-amber-400"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 text-[10px] font-mono pointer-events-none">
+                                /kg
+                              </span>
+                            </div>
+
+                            <div className="col-span-2 sm:col-span-4 font-mono text-[11px] text-zinc-300 truncate text-right">
+                              <span className="hidden sm:inline">
+                                {calculation.netWeightKg} kg × {formatRupiah(rowFeePerKg)} ={' '}
+                              </span>
+                              <b className="text-white">{formatRupiah(rowTotalFeeRp)}</b>
+                            </div>
+
+                            <div className="col-span-1 sm:col-span-1 flex justify-end">
+                              {!rowLocked && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveAgentFeeRow(feeRow.id)}
+                                  className="h-8 px-2 rounded-md bg-zinc-900 hover:bg-red-950/60 text-zinc-400 hover:text-red-300 border border-zinc-800 text-[10px] font-bold inline-flex items-center justify-center cursor-pointer"
+                                  title="Hapus"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Compact 3-Column Cost Breakdown: 1. Harga Tembakau | 2. Biaya Tambahan Fee | 3. Total Modal Bayar */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-zinc-900">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenStepByStep('PAID_VALUE')}
+                    className="text-left bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] text-zinc-400 uppercase font-bold truncate">
+                        1. Harga Tembakau ({calculation.netWeightKg} kg)
+                      </span>
+                      <CalcSymbolBadge />
+                    </div>
+                    <div className="font-mono font-black text-white text-xs sm:text-sm mt-1">
+                      {formatRupiah(calculation.baseTobaccoCostRp)}
+                    </div>
+                    <div className="text-[10px] font-mono text-zinc-400 mt-0.5 truncate">
+                      {calculation.netWeightKg} kg × {formatRupiah(pricePerKgPurchase || 0)}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenStepByStep('REAL_VALUE')}
+                    className="text-left bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] text-zinc-300 uppercase font-bold truncate">
+                        2. Biaya Tambahan Fee
+                      </span>
+                      <CalcSymbolBadge />
+                    </div>
+                    <div className="font-mono font-black text-zinc-200 text-xs sm:text-sm mt-1">
+                      {formatRupiah(calculation.totalAgentFeeRp)}
+                    </div>
+                    <div className="text-[10px] font-mono text-zinc-400 mt-0.5 truncate">
+                      {calculation.netWeightKg} kg × {formatRupiah(calculation.totalAgentFeePerKg)}/kg
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenStepByStep('WEIGHT_PROFIT')}
+                    className="text-left bg-zinc-950 p-2.5 rounded-lg border border-amber-500/50 hover:border-amber-400 transition-all cursor-pointer flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] text-amber-400 uppercase font-bold truncate">
+                        3. Total Modal (Harga + Fee)
+                      </span>
+                      <CalcSymbolBadge />
+                    </div>
+                    <div className="font-mono font-black text-amber-400 text-xs sm:text-sm mt-1">
+                      {formatRupiah(calculation.totalModalAsal)}
+                    </div>
+                    <div className="text-[10px] font-mono text-zinc-300 mt-0.5 truncate">
+                      {calculation.netWeightKg} kg × {formatRupiah(calculation.effectivePricePerKgWithFee)}/kg
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 2: Grade (A, A+, B, B+ ... F+) & 6 Karakteristik (/5) */}
+          {(activeSection === 'character' || activeSection === 'all') && (
+            <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-3.5">
+              {/* Grade Selector in exact order: A, A+, B, B+, C, C+, D, D+, E, E+, F, F+ */}
+              <div>
+                {renderFieldLabel(
+                  'Grade Tembakau (A, A+, B, B+, C, C+, D, D+, E, E+, F, F+)',
+                  'colorGrade'
+                )}
+                <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
+                  {TOBACCO_GRADE_ORDER.map((grade) => {
+                    const isSelected = colorGrade === grade;
+                    return (
+                      <button
+                        key={grade}
+                        type="button"
+                        disabled={isLocked('colorGrade')}
+                        onClick={() => {
+                          if (!isLocked('colorGrade')) setColorGrade(grade);
+                        }}
+                        className={`h-9 rounded-lg border text-center transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-0.5 ${
+                          isSelected
+                            ? 'bg-amber-500 text-black border-amber-400 font-black'
+                            : 'bg-zinc-950 border-zinc-800 text-white hover:border-zinc-700 font-bold'
+                        }`}
+                      >
+                        <span className="text-xs">{grade}</span>
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 6 Sensory Sliders */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {(
+                  [
+                    {
+                      key: 'powerRating' as RawLockableFieldKey,
+                      label: 'Power',
+                      value: powerRating,
+                      onChange: setPowerRating,
+                    },
+                    {
+                      key: 'impactRating' as RawLockableFieldKey,
+                      label: 'Impact',
+                      value: impactRating,
+                      onChange: setImpactRating,
+                    },
+                    {
+                      key: 'bitterRating' as RawLockableFieldKey,
+                      label: 'Bitter',
+                      value: bitterRating,
+                      onChange: setBitterRating,
+                    },
+                    {
+                      key: 'burnRating' as RawLockableFieldKey,
+                      label: 'Burn',
+                      value: burnRating,
+                      onChange: setBurnRating,
+                    },
+                    {
+                      key: 'sugarRating' as RawLockableFieldKey,
+                      label: 'Sugar',
+                      value: sugarRating,
+                      onChange: setSugarRating,
+                    },
+                    {
+                      key: 'aromaRating' as RawLockableFieldKey,
+                      label: 'Aroma',
+                      value: aromaRating,
+                      onChange: setAromaRating,
+                    },
+                  ] as const
+                ).map((param) => {
+                  const locked = isLocked(param.key);
+                  return (
+                    <RatingSegmentSlider
+                      key={param.key}
+                      label={param.label}
+                      value={param.value}
+                      onChange={param.onChange}
+                      disabled={locked}
+                      headerExtra={
+                        <button
+                          type="button"
+                          onClick={() => toggleLock(param.key)}
+                          className={`h-5 px-1.5 rounded border text-[9px] font-mono font-bold inline-flex items-center gap-0.5 cursor-pointer ${
+                            locked
+                              ? 'bg-amber-500/15 text-amber-300 border-amber-500/60'
+                              : 'bg-zinc-950 text-zinc-400 hover:text-white border-zinc-800'
+                          }`}
+                        >
+                          {locked ? (
+                            <Lock className="w-2.5 h-2.5" />
+                          ) : (
+                            <Unlock className="w-2.5 h-2.5" />
+                          )}
+                          <span>{locked ? 'Kunci' : 'Buka'}</span>
+                        </button>
+                      }
+                    />
+                  );
+                })}
+              </div>
+
+              <div>
+                {renderFieldLabel('Catatan Karakter & Pegangan', 'characterNotes')}
+                <textarea
+                  rows={2}
+                  disabled={isLocked('characterNotes')}
+                  value={characterNotes}
+                  onChange={(e) => setCharacterNotes(e.target.value)}
+                  placeholder="Catatan pegangan, gagang, warna, atau tarra penjual..."
+                  className={`${getTextboxClass('characterNotes')} h-auto py-2`}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Compact Footer */}
+          <div className="pt-3 border-t border-zinc-800 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-1.5">
+              {activeSection === 'main' && (
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('character')}
+                  className="h-9 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-amber-400 border border-zinc-700 text-xs font-bold cursor-pointer"
+                >
+                  Ke Grade &amp; Karakter →
+                </button>
+              )}
+              {activeSection === 'character' && (
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('main')}
+                  className="h-9 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 text-xs font-bold cursor-pointer"
+                >
+                  ← Ke Data &amp; Timbangan
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-9 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="btn-amber-outline h-9 px-5 rounded-xl font-black text-xs cursor-pointer"
+              >
+                {editingTobacco ? 'Simpan Perubahan' : 'Simpan Barang'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

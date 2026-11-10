@@ -12,7 +12,12 @@ import {
 } from 'lucide-react';
 import { PackagingMaster, FactoryMaster, TobaccoRollSample } from '../types/tobacco';
 import { NumericInput } from './NumericInput';
-import { formatTaraFormula, formatRupiah } from '../utils/tobaccoMath';
+import {
+  formatTaraFormula,
+  formatRupiah,
+  calculateTaraDeduction,
+  roundHalfUpKg,
+} from '../utils/tobaccoMath';
 import { SegmentedControl } from './RatingSegmentSlider';
 
 interface MasterRegistryModalProps {
@@ -434,14 +439,15 @@ export const MasterRegistryModal: React.FC<MasterRegistryModalProps> = ({
                   Daftar Jenis Packaging Terdaftar (Klik Edit untuk mengubah):
                 </div>
                 {packagingList.map((pkg) => {
-                  const refDeduction50 = Number(
-                    ((50 * (pkg.taraPercent || 0)) / 100 + (pkg.taraFlatKg || 0)).toFixed(2)
+                  const refDeduction50 = calculateTaraDeduction(50, {
+                    percent: pkg.taraPercent || 0,
+                    flatKg: pkg.taraFlatKg || 0,
+                  }).deductionKg;
+                  const buyWeightDiff50 = roundHalfUpKg(
+                    refDeduction50 - roundHalfUpKg(pkg.packagingMassKg || 0)
                   );
-                  const buyWeightDiff50 = Number(
-                    (refDeduction50 - (pkg.packagingMassKg || 0)).toFixed(2)
-                  );
-                  const factoryWeightDiff50 = Number(
-                    ((pkg.packagingMassKg || 0) - refDeduction50).toFixed(2)
+                  const factoryWeightDiff50 = roundHalfUpKg(
+                    roundHalfUpKg(pkg.packagingMassKg || 0) - refDeduction50
                   );
                   const isBeingEdited = editingPkgId === pkg.id;
 

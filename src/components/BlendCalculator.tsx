@@ -31,6 +31,8 @@ import {
 import {
   calculateBlendMetrics,
   calculateFactoryDelivery,
+  calculateTaraDeduction,
+  roundHalfUpKg,
   formatRupiah,
   formatTaraFormula,
   GRADE_LABELS,
@@ -1366,18 +1368,16 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       (Number(pkg.packagingCostRp) || 0) + (Number(pkg.pressCostRp) || 0);
                     const pkgProdCost =
                       Math.round(metrics.totalMaterialCost * weightRatio) + pkgOverhead;
-                    const pkgTaraDeductionKg = Number(
-                      (
-                        (pkg.brutoWeightKg * (Number(pkg.taraPercent) || 0)) / 100 +
-                        (Number(pkg.taraFlatKg) || 0) +
-                        (Number(pkg.sampleDeductionKg) || 0)
-                      ).toFixed(2)
-                    );
-                    const pkgBillableNetKg = Number(
-                      Math.max(0, pkg.brutoWeightKg - pkgTaraDeductionKg).toFixed(2)
-                    );
-                    const pkgFactoryWeightProfitKg = Number(
-                      (pkgBillableNetKg - pkg.netWeightKg).toFixed(2)
+                    const pkgTaraCalc = calculateTaraDeduction(pkg.brutoWeightKg, {
+                      percent: Number(pkg.taraPercent) || 0,
+                      flatKg: Number(pkg.taraFlatKg) || 0,
+                      sampleKg: Number(pkg.sampleDeductionKg) || 0,
+                    });
+                    const pkgTaraDeductionKg = pkgTaraCalc.deductionKg;
+                    const pkgBillableNetKg = pkgTaraCalc.netWeightKg;
+                    const pkgRealNetKg = roundHalfUpKg(pkg.netWeightKg);
+                    const pkgFactoryWeightProfitKg = roundHalfUpKg(
+                      pkgBillableNetKg - pkgRealNetKg
                     );
                     const pkgFactoryWeightProfitRp = Math.round(
                       pkgFactoryWeightProfitKg * (Number(pkg.targetPricePerKg) || 0)

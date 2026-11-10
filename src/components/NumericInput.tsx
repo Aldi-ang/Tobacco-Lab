@@ -4,33 +4,40 @@ interface NumericInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElem
   value: number;
   onChange: (value: number) => void;
   allowDecimals?: boolean;
+  emptyWhenZero?: boolean;
 }
 
 export const NumericInput: React.FC<NumericInputProps> = ({
   value,
   onChange,
   allowDecimals = true,
+  emptyWhenZero = false,
   className = '',
   onFocus,
   onBlur,
   ...rest
 }) => {
-  const [displayValue, setDisplayValue] = useState<string>(() =>
-    value === 0 ? '0' : String(value ?? '')
-  );
+  const [displayValue, setDisplayValue] = useState<string>(() => {
+    if (value === 0) return emptyWhenZero ? '' : '0';
+    return String(value ?? '');
+  });
   const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     // Sync from parent when not actively editing a transient state like "12." or ""
     if (!isFocused) {
-      setDisplayValue(value === 0 ? '0' : String(value ?? 0));
+      if (value === 0) {
+        setDisplayValue(emptyWhenZero ? '' : '0');
+      } else {
+        setDisplayValue(String(value ?? 0));
+      }
     } else {
       const parsedCurrent = parseFloat(displayValue);
       if (!isNaN(parsedCurrent) && parsedCurrent !== value) {
-        setDisplayValue(String(value));
+        setDisplayValue(value === 0 && emptyWhenZero ? '' : String(value));
       }
     }
-  }, [value, isFocused]);
+  }, [value, isFocused, emptyWhenZero]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let raw = e.target.value;
@@ -78,12 +85,17 @@ export const NumericInput: React.FC<NumericInputProps> = ({
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     setIsFocused(false);
     if (displayValue === '' || displayValue === '.' || isNaN(parseFloat(displayValue))) {
-      setDisplayValue('0');
+      setDisplayValue(emptyWhenZero ? '' : '0');
       onChange(0);
     } else {
       const normalized = parseFloat(displayValue);
-      setDisplayValue(String(normalized));
-      onChange(normalized);
+      if (normalized === 0 && emptyWhenZero) {
+        setDisplayValue('');
+        onChange(0);
+      } else {
+        setDisplayValue(String(normalized));
+        onChange(normalized);
+      }
     }
     if (onBlur) onBlur(e);
   };

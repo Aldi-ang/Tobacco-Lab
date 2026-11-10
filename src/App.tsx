@@ -5,12 +5,12 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { X, Calculator } from 'lucide-react';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { RawTobaccoList } from './components/RawTobaccoList';
 import { RawTobaccoModal } from './components/RawTobaccoModal';
 import { BlendCalculator } from './components/BlendCalculator';
 import { FinishedTobaccoList } from './components/FinishedTobaccoList';
-import { ShipmentStatusView } from './components/ShipmentStatusView';
 import { RollArchiveView } from './components/RollArchiveView';
 import { RollDetailModal } from './components/RollDetailModal';
 import { TaraSimulator } from './components/TaraSimulator';
@@ -57,7 +57,78 @@ import {
 import {
   clampRating5,
   applyRejectedSerialReassignment,
+  roundHalfUpKg,
+  calculateRawTobaccoCost,
+  calculateTaraDeduction,
 } from './utils/tobaccoMath';
+
+function normalizeRawTobaccoRounding(item: RawTobacco): RawTobacco {
+  if (!item || !item.taraFormula) return item;
+  const calc = calculateRawTobaccoCost({
+    grossWeightKg: item.grossWeightKg || 0,
+    pricePerKgPurchase: item.pricePerKgPurchase || 0,
+    taraFormula: item.taraFormula,
+    additionalCost: item.additionalPurchaseCost || 0,
+    realPackagingMassKg: item.packagingMassKg,
+    agentFees: item.agentFees,
+  });
+  return {
+    ...item,
+    grossWeightKg: roundHalfUpKg(item.grossWeightKg || 0),
+    packagingMassKg: roundHalfUpKg(item.packagingMassKg ?? item.taraFormula.packagingMassKg ?? 0),
+    deductionKg: calc.deductionKg,
+    netWeightKg: calc.netWeightKg,
+    totalModalAsal: calc.totalModalAsal,
+    realCostPerNetKg: calc.realCostPerNetKg,
+    realNetWeightKg: calc.realNetWeightKg,
+    realStockValueRp: calc.realStockValueRp,
+    purchaseWeightProfitKg: calc.purchaseWeightProfitKg,
+    purchaseWeightProfitRp: calc.purchaseWeightProfitRp,
+    effectiveCostPerRealKg: calc.effectiveCostPerRealKg,
+  };
+}
+
+function normalizeFinishedSerialRounding(serial: FinishedTobaccoSerial): FinishedTobaccoSerial {
+  if (!serial || !serial.packaging) return serial;
+  const gross = roundHalfUpKg(serial.packaging.grossWeightPerPackage || 0);
+  const pkgMass = roundHalfUpKg(
+    serial.packaging.packagingMassKg ?? serial.factoryDeductionKg ?? 0
+  );
+  const realNet = Math.max(0, roundHalfUpKg(gross - pkgMass));
+  const taraRule = serial.packaging.factoryTaraFormula;
+  const deductionKg =
+    taraRule && (Number(taraRule.percent) > 0 || Number(taraRule.flatKg) > 0)
+      ? calculateTaraDeduction(gross, taraRule).deductionKg
+      : roundHalfUpKg(serial.factoryDeductionKg || 0);
+  const billableNet = Math.max(0, roundHalfUpKg(gross - deductionKg));
+  const weightProfitKg = roundHalfUpKg(billableNet - realNet);
+  const targetPrice = Number(serial.factoryTargetPricePerKg) || 0;
+  const hppPerKg = Math.round(serial.effectiveHppAfterTaraPerKg || serial.hppPerNetKg || 0);
+  const totalModalRp = Math.round(billableNet * hppPerKg);
+  const totalNotaRp = Math.round(billableNet * targetPrice);
+  const profitRp = totalNotaRp - totalModalRp;
+  const marginPercent =
+    totalNotaRp > 0 ? Number(((profitRp / totalNotaRp) * 100).toFixed(2)) : 0;
+
+  return {
+    ...serial,
+    totalBlendNetKg: realNet,
+    totalProductionCost: totalModalRp,
+    packaging: {
+      ...serial.packaging,
+      grossWeightPerPackage: gross,
+      packagingMassKg: pkgMass,
+      netTobaccoWeightKg: realNet,
+    },
+    factoryDeductionKg: deductionKg,
+    factoryNetBillableKg: billableNet,
+    factoryWeightProfitKg: weightProfitKg,
+    factoryWeightProfitRp: Math.round(weightProfitKg * targetPrice),
+    projectedRevenue: totalNotaRp,
+    projectedProfit: profitRp,
+    profitMarginPercent: marginPercent,
+  };
+}
 
 const STORAGE_KEYS = {
   RAW: 'kretek_master_raw_tobacco_v3',
@@ -74,18 +145,22 @@ export default function App() {
   const [rawTobaccos, setRawTobaccos] = useState<RawTobacco[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.RAW);
-      return saved ? JSON.parse(saved) : INITIAL_RAW_TOBACCO;
+      const parsed: RawTobacco[] = saved ? JSON.parse(saved) : INITIAL_RAW_TOBACCO;
+      return parsed.map(normalizeRawTobaccoRounding);
     } catch {
-      return INITIAL_RAW_TOBACCO;
+      return INITIAL_RAW_TOBACCO.map(normalizeRawTobaccoRounding);
     }
   });
 
   const [finishedBatches, setFinishedBatches] = useState<FinishedTobaccoSerial[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.FINISHED);
-      return saved ? JSON.parse(saved) : INITIAL_FINISHED_TOBACCO;
+      const parsed: FinishedTobaccoSerial[] = saved
+        ? JSON.parse(saved)
+        : INITIAL_FINISHED_TOBACCO;
+      return parsed.map(normalizeFinishedSerialRounding);
     } catch {
-      return INITIAL_FINISHED_TOBACCO;
+      return INITIAL_FINISHED_TOBACCO.map(normalizeFinishedSerialRounding);
     }
   });
 
@@ -121,6 +196,7 @@ export default function App() {
   const [editingTobacco, setEditingTobacco] = useState<RawTobacco | null>(null);
   const [selectedRoll, setSelectedRoll] = useState<TobaccoRollSample | null>(null);
   const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [masterInitialSection, setMasterInitialSection] = useState<
     'packaging' | 'factory' | 'gulungan'
   >('packaging');
@@ -166,9 +242,12 @@ export default function App() {
   const applyRemoteWorkspaceData = useCallback(
     (data: Record<string, unknown>, notifyToast?: string) => {
       isApplyingRemoteRef.current = true;
-      if (Array.isArray(data.rawTobaccos)) setRawTobaccos(data.rawTobaccos as RawTobacco[]);
+      if (Array.isArray(data.rawTobaccos))
+        setRawTobaccos((data.rawTobaccos as RawTobacco[]).map(normalizeRawTobaccoRounding));
       if (Array.isArray(data.finishedBatches))
-        setFinishedBatches(data.finishedBatches as FinishedTobaccoSerial[]);
+        setFinishedBatches(
+          (data.finishedBatches as FinishedTobaccoSerial[]).map(normalizeFinishedSerialRounding)
+        );
       if (Array.isArray(data.rollSamples))
         setRollSamples(data.rollSamples as TobaccoRollSample[]);
       if (Array.isArray(data.packagingList))
@@ -579,11 +658,41 @@ export default function App() {
     );
 
     if (status === 'ACCEPTED_CAIR') {
-      showToast('Status Seri diperbarui: Diterima Pabrik & Uang Cair!');
+      showToast('Status Seri diperbarui: Diterima / Accepted!');
     } else if (status === 'REJECTED_STOCK') {
       showToast('Seri di-Reject & otomatis masuk ke Panel 2: Stok Tembakau Jadi (Kemasan & Berat Tetap)!');
     } else {
-      showToast('Status Seri dikembalikan ke Menunggu QC Pabrik.');
+      showToast('Status Seri dikembalikan ke Menunggu Pabrik.');
+    }
+  };
+
+  // Send a Gulungan from Gudang (Gulungan tab) to Pabrik (Status Barang tab), or recall it back to Gudang
+  const handleSendRollToFactory = (rollId: string, isSent: boolean) => {
+    const targetRoll = rollSamples.find((r) => r.id === rollId);
+    if (!targetRoll) return;
+    hasLocalUserMutationRef.current = true;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    setRollSamples((prev) =>
+      prev.map((r) =>
+        r.id === rollId
+          ? {
+              ...r,
+              isSentToFactory: isSent,
+              sentToFactoryDate: isSent ? r.sentToFactoryDate || todayStr : undefined,
+            }
+          : r
+      )
+    );
+
+    if (isSent) {
+      showToast(
+        `Gulungan "${targetRoll.rollNumber}" dikirim ke ${targetRoll.targetFactory} & dipindahkan ke menu Status Barang!`
+      );
+    } else {
+      showToast(
+        `Gulungan "${targetRoll.rollNumber}" ditarik kembali ke menu Gulungan (Gudang).`
+      );
     }
   };
 
@@ -860,9 +969,8 @@ export default function App() {
   const rejectedStockCount = finishedBatches.filter(
     (b) => b.factoryStatus === 'REJECTED_STOCK'
   ).length;
-  const pendingQcCount = finishedBatches.filter(
-    (b) => (b.factoryStatus || 'PENDING') === 'PENDING'
-  ).length;
+  const warehouseRollCount = rollSamples.filter((r) => !r.isSentToFactory).length;
+  const shippedRollCount = rollSamples.filter((r) => !!r.isSentToFactory).length;
 
   if (authReady && !currentUser && !offlineBypass) {
     return (
@@ -891,8 +999,8 @@ export default function App() {
           rejectedStockCount={rejectedStockCount}
           totalNetStockKg={totalNetStockKg}
           finishedCount={finishedBatches.length}
-          pendingQcCount={pendingQcCount}
-          rollCount={rollSamples.length}
+          pendingQcCount={shippedRollCount}
+          rollCount={warehouseRollCount}
           onOpenAddModal={() => {
             setEditingTobacco(null);
             setIsRawModalOpen(true);
@@ -901,6 +1009,8 @@ export default function App() {
             setMasterInitialSection('packaging');
             setIsMasterModalOpen(true);
           }}
+          onOpenSimulator={() => setIsSimulatorOpen((prev) => !prev)}
+          isSimulatorOpen={isSimulatorOpen}
           onOpenPatchNotes={() => {
             setIsPatchNotesOpen(true);
             setHasUnreadPatch(false);
@@ -988,15 +1098,8 @@ export default function App() {
               )}
 
               {activeTab === 'qc-status' && (
-                <ShipmentStatusView
-                  finishedBatches={finishedBatches}
-                  rollSamples={rollSamples}
-                  onUpdateSerialStatus={handleUpdateSerialStatus}
-                />
-              )}
-
-              {activeTab === 'rolls' && (
                 <RollArchiveView
+                  viewMode="shipped"
                   rollSamples={rollSamples}
                   finishedBatches={finishedBatches}
                   rawTobaccos={rawTobaccos}
@@ -1011,6 +1114,30 @@ export default function App() {
                   onUpdateSmokingTest={handleUpdateSmokingTest}
                   onRepriceSerial={handleRepriceSerial}
                   onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
+                  onSendRollToFactory={handleSendRollToFactory}
+                  onUpdateSerialStatus={handleUpdateSerialStatus}
+                />
+              )}
+
+              {activeTab === 'rolls' && (
+                <RollArchiveView
+                  viewMode="warehouse"
+                  rollSamples={rollSamples}
+                  finishedBatches={finishedBatches}
+                  rawTobaccos={rawTobaccos}
+                  packagingList={packagingList}
+                  factoryList={factoryList}
+                  onSelectRoll={(roll) => setSelectedRoll(roll)}
+                  onOpenNewRollModal={() => {
+                    setMasterInitialSection('gulungan');
+                    setIsMasterModalOpen(true);
+                  }}
+                  onUpdateSerial={handleUpdateFinishedSerial}
+                  onUpdateSmokingTest={handleUpdateSmokingTest}
+                  onRepriceSerial={handleRepriceSerial}
+                  onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
+                  onSendRollToFactory={handleSendRollToFactory}
+                  onUpdateSerialStatus={handleUpdateSerialStatus}
                 />
               )}
 
@@ -1043,6 +1170,61 @@ export default function App() {
         </main>
       </div>
 
+      {/* Top Animated Slide-Down Simulator Drawer Modal */}
+      <AnimatePresence>
+        {isSimulatorOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-start overflow-y-auto p-2 sm:p-4 md:p-6"
+            onClick={() => setIsSimulatorOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: -40, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -30, scale: 0.96 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-6xl bg-[#050507] border-2 border-amber-500/50 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.95)] overflow-hidden my-2 sm:my-4"
+            >
+              <div className="sticky top-0 z-20 bg-black/95 backdrop-blur-xl px-4 py-3 border-b border-zinc-800 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/50 flex items-center justify-center text-amber-400 shrink-0">
+                    <Calculator className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
+                      Simulator Potongan Tarra & Kalkulasi Coba-Coba
+                    </h2>
+                    <p className="text-[11px] text-zinc-400">
+                      Alat bantu hitung cepat tanpa mengubah data stok atau gulungan asli
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSimulatorOpen(false)}
+                  className="min-h-9 px-3 py-1.5 rounded-xl bg-zinc-950 hover:bg-zinc-900 text-zinc-200 hover:text-white border border-zinc-700 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Tutup Simulator</span>
+                </button>
+              </div>
+              <div className="p-3 sm:p-5 max-h-[82vh] overflow-y-auto">
+                <TaraSimulator
+                  rawTobaccos={rawTobaccos}
+                  rollSamples={rollSamples}
+                  packagingList={packagingList}
+                  factoryList={factoryList}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <RawTobaccoModal
         isOpen={isRawModalOpen}
         onClose={() => {
@@ -1052,6 +1234,7 @@ export default function App() {
         onSave={handleSaveRawTobacco}
         editingTobacco={editingTobacco}
         packagingList={packagingList}
+        existingTobaccos={rawTobaccos}
       />
 
       <RollDetailModal
@@ -1146,6 +1329,20 @@ export default function App() {
         finishedBatches={finishedBatches}
         rollSamples={rollSamples}
         userEmail={currentUser?.email || null}
+        onShowToast={showToast}
+        onSaveLinkedSpreadsheet={(title, url) => {
+          if (!currentUser?.email) return;
+          const ownerEmail = currentUser.email.trim().toLowerCase();
+          hasLocalUserMutationRef.current = true;
+          setRollSamples((prev) =>
+            prev.map((r) => ({
+              ...r,
+              linkedSpreadsheetTitle: title.trim() || r.linkedSpreadsheetTitle,
+              linkedSpreadsheetUrl: url.trim() || r.linkedSpreadsheetUrl,
+              linkedSpreadsheetOwnerEmail: ownerEmail,
+            }))
+          );
+        }}
       />
 
       <BackupRestoreModal

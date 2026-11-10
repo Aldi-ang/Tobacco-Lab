@@ -1,69 +1,103 @@
 import {
   TobaccoGrade,
   TaraFormula,
+  AgentFeeItem,
   BlendIngredient,
   AdditionalCostItem,
   PackagingSpec,
   FinishedTobaccoSerial,
 } from '../types/tobacco';
 
+export const TOBACCO_GRADE_ORDER: TobaccoGrade[] = [
+  'A',
+  'A+',
+  'B',
+  'B+',
+  'C',
+  'C+',
+  'D',
+  'D+',
+  'E',
+  'E+',
+  'F',
+  'F+',
+];
+
 export const GRADE_SCORES: Record<TobaccoGrade, number> = {
-  'A+': 9,
-  'A': 8,
-  'B+': 7,
-  'B': 6,
-  'C+': 5,
-  'C': 4,
-  'D+': 3,
-  'D': 2,
-  'E': 1,
+  'A': 1,
+  'A+': 2,
+  'B': 3,
+  'B+': 4,
+  'C': 5,
+  'C+': 6,
+  'D': 7,
+  'D+': 8,
+  'E': 9,
+  'E+': 10,
+  'F': 11,
+  'F+': 12,
 };
 
 export const GRADE_LABELS: Record<TobaccoGrade, { name: string; color: string; desc: string }> = {
-  'A+': {
-    name: 'Grade A+ (Srintil Emas)',
-    color: 'bg-black text-amber-400 border-amber-500/70',
-    desc: 'Kuning keemasan berminyak/getah tebal, aroma wangi kuat',
-  },
   'A': {
-    name: 'Grade A (Kuning Terang)',
+    name: 'Grade A',
     color: 'bg-zinc-950 text-white border-zinc-800',
-    desc: 'Warna kuning cerah keemasan, mutu super',
+    desc: 'Grade A',
   },
-  'B+': {
-    name: 'Grade B+ (Cokelat Kuning)',
-    color: 'bg-zinc-900 text-zinc-200 border-zinc-800',
-    desc: 'Cokelat kemerahan matang, body mantap',
+  'A+': {
+    name: 'Grade A+',
+    color: 'bg-black text-amber-400 border-amber-500/70',
+    desc: 'Grade A+',
   },
   'B': {
-    name: 'Grade B (Cokelat Sedang)',
+    name: 'Grade B',
     color: 'bg-zinc-900 text-white border-zinc-700',
-    desc: 'Warna cokelat alami tembakau rajangan standar',
+    desc: 'Grade B',
   },
-  'C+': {
-    name: 'Grade C+ (Cokelat Tua)',
-    color: 'bg-zinc-900 text-zinc-200 border-zinc-700',
-    desc: 'Cokelat gelap, kadar tarikan padat',
+  'B+': {
+    name: 'Grade B+',
+    color: 'bg-zinc-900 text-zinc-200 border-zinc-800',
+    desc: 'Grade B+',
   },
   'C': {
-    name: 'Grade C (Gelap)',
+    name: 'Grade C',
     color: 'bg-zinc-900 text-zinc-300 border-zinc-700',
-    desc: 'Warna gelap tebal, rasa kuat',
+    desc: 'Grade C',
   },
-  'D+': {
-    name: 'Grade D+ (Daun Tengah/Atas)',
-    color: 'bg-zinc-950 text-zinc-200 border-zinc-800',
-    desc: 'Daun tengah/atas matang, body kuat',
+  'C+': {
+    name: 'Grade C+',
+    color: 'bg-zinc-900 text-zinc-200 border-zinc-700',
+    desc: 'Grade C+',
   },
   'D': {
-    name: 'Grade D (Standar Pabrik)',
+    name: 'Grade D',
     color: 'bg-zinc-900 text-white border-zinc-700',
-    desc: 'Grade D standar setoran pabrik',
+    desc: 'Grade D',
+  },
+  'D+': {
+    name: 'Grade D+',
+    color: 'bg-zinc-950 text-zinc-200 border-zinc-800',
+    desc: 'Grade D+',
   },
   'E': {
-    name: 'Grade E (Spesial / Super)',
+    name: 'Grade E',
     color: 'bg-black text-amber-400 border-zinc-700',
-    desc: 'Grade E kualitas tinggi sesuai klasifikasi nota pabrik',
+    desc: 'Grade E',
+  },
+  'E+': {
+    name: 'Grade E+',
+    color: 'bg-black text-amber-400 border-amber-500/70',
+    desc: 'Grade E+',
+  },
+  'F': {
+    name: 'Grade F',
+    color: 'bg-black text-amber-300 border-zinc-700',
+    desc: 'Grade F',
+  },
+  'F+': {
+    name: 'Grade F+',
+    color: 'bg-black text-amber-400 border-amber-500',
+    desc: 'Grade F+',
   },
 };
 
@@ -134,8 +168,20 @@ export function formatTaraFormula(percent: number, flatKg: number, sampleKg: num
 }
 
 /**
- * Menghitung potongan tara timbangan dari Bruto:
- * Netto = Bruto - Tarra
+ * Pembulatan timbangan & potongan tembakau (Beli & Jual):
+ * Desimal >= 0.5 dibulatkan ke atas menjadi bilangan bulat berikutnya
+ * (contoh: 10% dari 50 kg = 5 kg; 10% dari 55..59 kg = 5.5..5.9 -> 6 kg; 2 kg + 5.8 kg = 2 + 6 = 8 kg).
+ */
+export function roundHalfUpKg(value: number): number {
+  const clean = Math.max(0, Number((Number(value) || 0).toFixed(6)));
+  return Math.floor(clean + 0.5);
+}
+
+/**
+ * Menghitung potongan tara timbangan dari Bruto (berlaku sama untuk Beli & Jual/Setor Pabrik):
+ * - Potongan % dibulatkan ke atas jika >= 0.5 (misal 10% dari 55..59 kg = 5.5..5.9 -> 6 kg)
+ * - Total Potongan = Potongan % (bulat) + Flat KG + Sampel KG
+ * - Netto = Bruto - Total Potongan
  */
 export function calculateTaraDeduction(
   grossWeightKg: number,
@@ -144,26 +190,35 @@ export function calculateTaraDeduction(
   deductionKg: number;
   netWeightKg: number;
   effectivePercent: number;
+  rawPercentPart: number;
+  roundedPercentPart: number;
 } {
-  const gross = Math.max(0, grossWeightKg);
-  const percentPart = gross * ((formula.percent || 0) / 100);
-  const flatPart = formula.flatKg || 0;
-  const samplePart = formula.sampleKg || 0;
-  const rawDeduction = percentPart + flatPart + samplePart;
+  const gross = roundHalfUpKg(grossWeightKg);
+  const rawPercentPart = Number((gross * ((formula.percent || 0) / 100)).toFixed(2));
+  const percentPart = roundHalfUpKg(rawPercentPart);
+  const flatPart = roundHalfUpKg(formula.flatKg || 0);
+  const samplePart = roundHalfUpKg(formula.sampleKg || 0);
+  const rawDeduction = roundHalfUpKg(percentPart + flatPart + samplePart);
 
   const deductionKg = Math.min(gross, Math.max(0, rawDeduction));
   const netWeightKg = Math.max(0, gross - deductionKg);
   const effectivePercent = gross > 0 ? (deductionKg / gross) * 100 : 0;
 
   return {
-    deductionKg: Number(deductionKg.toFixed(2)),
-    netWeightKg: Number(netWeightKg.toFixed(2)),
+    deductionKg,
+    netWeightKg,
     effectivePercent: Number(effectivePercent.toFixed(2)),
+    rawPercentPart,
+    roundedPercentPart: percentPart,
   };
 }
 
 /**
- * Menghitung Modal Asal (Paid Value) vs Nilai Barang Sebenarnya (Real Value) & Weight Profit Pembelian
+ * Menghitung Modal Pembelian Tembakau Mentah:
+ * - Netto = Bruto - Potongan Tarra (misal 50 kg dengan potongan 10% + 2 kg -> 50 - 5 - 2 = 43 kg)
+ * - Biaya Tambahan Fee (Added Cost) = Netto * Total Fee/KG (misal 43 kg * Rp 1.000 = Rp 43.000)
+ * - Harga Total / KG = Harga Tembakau Dasar + Total Fee/KG (misal Rp 50.000 + Rp 1.000 = Rp 51.000/kg)
+ * - Total Modal Bayar = Netto * (Harga Tembakau Dasar + Total Fee/KG) (misal 43 kg * Rp 51.000 = Rp 2.193.000)
  */
 export function calculateRawTobaccoCost(params: {
   grossWeightKg: number;
@@ -171,9 +226,15 @@ export function calculateRawTobaccoCost(params: {
   taraFormula: TaraFormula;
   additionalCost?: number;
   realPackagingMassKg?: number;
+  agentFees?: AgentFeeItem[];
+  totalAgentFeePerKg?: number;
 }): {
   deductionKg: number;
   netWeightKg: number;
+  baseTobaccoCostRp: number;
+  totalAgentFeePerKg: number;
+  totalAgentFeeRp: number;
+  effectivePricePerKgWithFee: number;
   totalModalAsal: number;
   totalInvoiceCost: number;
   realCostPerNetKg: number;
@@ -190,42 +251,48 @@ export function calculateRawTobaccoCost(params: {
     pricePerKgPurchase,
     taraFormula,
     additionalCost = 0,
-    realPackagingMassKg: explicitPkgMassKg,
+    agentFees,
+    totalAgentFeePerKg: explicitAgentFeePerKg,
   } = params;
 
-  const gross = Math.max(0, grossWeightKg);
+  const gross = roundHalfUpKg(grossWeightKg);
   const { deductionKg, netWeightKg, effectivePercent } = calculateTaraDeduction(
     gross,
     taraFormula
   );
 
-  const realPackagingMassKg = Number(
-    Math.min(
-      gross,
-      Math.max(
-        0,
-        explicitPkgMassKg !== undefined
-          ? explicitPkgMassKg
-          : taraFormula.packagingMassKg !== undefined
-          ? taraFormula.packagingMassKg
-          : taraFormula.flatKg || 0
-      )
-    ).toFixed(2)
-  );
+  const basePricePerKg = Math.max(0, Number(pricePerKgPurchase) || 0);
+  const baseTobaccoCostRp = Math.round(netWeightKg * basePricePerKg);
 
-  const realNetWeightKg = Number(Math.max(0, gross - realPackagingMassKg).toFixed(2));
-  const totalModalAsal = Math.round(netWeightKg * pricePerKgPurchase);
-  const totalInvoiceCost = netWeightKg * pricePerKgPurchase + additionalCost;
-  const realStockValueRp = Math.round(realNetWeightKg * pricePerKgPurchase);
-  const purchaseWeightProfitKg = Number((realNetWeightKg - netWeightKg).toFixed(2));
-  const purchaseWeightProfitRp = Math.round(realStockValueRp - totalModalAsal);
+  const computedFeePerKg = Array.isArray(agentFees)
+    ? agentFees.reduce((sum, f) => sum + (Math.max(0, Number(f.feePerKg) || 0)), 0)
+    : Math.max(0, Number(explicitAgentFeePerKg) || 0);
 
-  const realCostPerNetKg = netWeightKg > 0 ? totalInvoiceCost / netWeightKg : 0;
-  const effectiveCostPerRealKg = realNetWeightKg > 0 ? totalInvoiceCost / realNetWeightKg : 0;
+  const totalAgentFeePerKg = Math.round(computedFeePerKg);
+  const totalAgentFeeRp = Math.round(netWeightKg * totalAgentFeePerKg);
+  const effectivePricePerKgWithFee = basePricePerKg + totalAgentFeePerKg;
+
+  // Total Modal = Netto * (Harga Tembakau + Fee/KG) = baseTobaccoCostRp + totalAgentFeeRp
+  const totalModalAsal = Math.round(netWeightKg * effectivePricePerKgWithFee);
+  const totalInvoiceCost = totalModalAsal + (Number(additionalCost) || 0);
+
+  const realPackagingMassKg = deductionKg;
+  const realNetWeightKg = netWeightKg;
+  const realStockValueRp = baseTobaccoCostRp;
+  const purchaseWeightProfitKg = 0;
+  const purchaseWeightProfitRp = 0;
+
+  const realCostPerNetKg =
+    netWeightKg > 0 ? totalInvoiceCost / netWeightKg : effectivePricePerKgWithFee;
+  const effectiveCostPerRealKg = realCostPerNetKg;
 
   return {
     deductionKg,
     netWeightKg,
+    baseTobaccoCostRp,
+    totalAgentFeePerKg,
+    totalAgentFeeRp,
+    effectivePricePerKgWithFee,
     totalModalAsal,
     totalInvoiceCost: Math.round(totalInvoiceCost),
     realCostPerNetKg: Math.round(realCostPerNetKg * 100) / 100,
@@ -240,15 +307,8 @@ export function calculateRawTobaccoCost(params: {
 }
 
 export function scoreToColorGrade(score: number): TobaccoGrade {
-  if (score >= 8.5) return 'A+';
-  if (score >= 7.5) return 'A';
-  if (score >= 6.5) return 'B+';
-  if (score >= 5.5) return 'B';
-  if (score >= 4.5) return 'C+';
-  if (score >= 3.5) return 'C';
-  if (score >= 2.5) return 'D+';
-  if (score >= 1.5) return 'D';
-  return 'E';
+  const idx = Math.max(0, Math.min(TOBACCO_GRADE_ORDER.length - 1, Math.round(score) - 1));
+  return TOBACCO_GRADE_ORDER[idx] || 'D';
 }
 
 export function clampRating5(val: number): number {
@@ -718,12 +778,14 @@ export function buildFinishedBatchSyncCsv(params: {
 
     const netProfit = totalBillableAmount - totalProductionCost;
 
+    const paymentSuffix =
+      b.paymentStatus === 'CAIR' ? ' (CAIR)' : ' (BELUM CAIR)';
     const statusLabel =
       b.factoryStatus === 'ACCEPTED_CAIR'
-        ? 'DITERIMA (UANG CAIR)'
+        ? `DITERIMA / ACCEPTED${paymentSuffix}`
         : b.factoryStatus === 'REJECTED_STOCK'
         ? 'REJECT (STOK JADI)'
-        : 'MENUNGGU QC';
+        : 'MENUNGGU PABRIK';
 
     sumBruto += bruto;
     sumTara += tara;

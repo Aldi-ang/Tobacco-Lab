@@ -1,6 +1,19 @@
-export type TobaccoGrade = 'A+' | 'A' | 'B+' | 'B' | 'C+' | 'C' | 'D+' | 'D' | 'E';
+export type TobaccoGrade =
+  | 'A'
+  | 'A+'
+  | 'B'
+  | 'B+'
+  | 'C'
+  | 'C+'
+  | 'D'
+  | 'D+'
+  | 'E'
+  | 'E+'
+  | 'F'
+  | 'F+';
 
 export type SerialFactoryStatus = 'PENDING' | 'ACCEPTED_CAIR' | 'REJECTED_STOCK';
+export type SerialPaymentStatus = 'CAIR' | 'BELUM_CAIR';
 
 export interface TaraFormula {
   rawFormula: string; // e.g. "3 kg" or "20% + 2 kg" or "10% + 2 kg + 2 kg Sampel"
@@ -34,6 +47,12 @@ export interface FactoryMaster {
   notes?: string;
 }
 
+export interface AgentFeeItem {
+  id: string;
+  agentName: string; // Nama pencari barang / perantara, misal "Pak Yohan", "Bu Menik"
+  feePerKg: number; // Nominal fee per KG (Rp/kg), misal 1000
+}
+
 export interface RawTobacco {
   id: string;
   name: string; // e.g. "Tembakau Temanggung Srintil"
@@ -45,19 +64,22 @@ export interface RawTobacco {
   // Pembelian & Timbangan (Netto Bayar = Bruto - Tarra Nota, Netto Riil = Bruto - Berat Wadah Riil)
   grossWeightKg: number; // Berat Bruto timbangan saat beli (kg)
   packagingMassKg?: number; // Berat wadah/kemasan kosong sebenarnya / riil (kg), misal Karung Goni 2 kg
-  pricePerKgPurchase: number; // Harga beli per kg sesuai nota (Rp)
+  pricePerKgPurchase: number; // Harga beli dasar per kg sesuai nota (Rp)
+  agentFees?: AgentFeeItem[]; // Daftar fee perantara/pencari barang per KG (bisa >1 orang, misal Pak Yohan 1000/kg + Bu Menik 1000/kg)
+  totalAgentFeePerKg?: number; // Total gabungan fee perantara per KG (Rp/kg), misal 2000/kg khusus barang ini
+  totalAgentFeeRp?: number; // Total nominal fee perantara (Netto Bayar * totalAgentFeePerKg)
   taraFormula: TaraFormula; // Formula potongan tara nota eksklusif per seri/penjual (misal 10% + 2 kg)
   additionalPurchaseCost: number; // Opsional ongkos kirim (Rp)
 
   // Hasil Hitung Timbangan Nota (Paid Weight & Paid Value) vs Sebenarnya (Real Weight & Real Value)
   deductionKg: number; // Total Potongan Tarra Nota (kg), misal 7 kg (dari 10% + 2 pada Bruto 50 kg)
   netWeightKg: number; // Netto Bayar = Bruto - Tarra Nota (kg), misal 43 kg
-  totalModalAsal?: number; // Paid Value (Nilai Bayar) = Netto Bayar * Harga Beli (Rp), misal 43 * Harga
-  realCostPerNetKg: number; // Harga Modal Nota per kg Netto Bayar (Rp/kg)
+  totalModalAsal?: number; // Paid Value (Nilai Bayar) = Netto Bayar * (Harga Beli + Total Fee/KG) (Rp)
+  realCostPerNetKg: number; // Harga Modal Nota per kg Netto Bayar termasuk Fee/KG (Rp/kg)
 
   // Perhitungan Berat Sebenarnya (Real Weight) & Weight Profit Pembelian
   realNetWeightKg?: number; // Netto Riil = Bruto - Berat Kemasan Riil (kg), misal 50 - 2 = 48 kg
-  realStockValueRp?: number; // Real Value (Nilai Barang Sebenarnya) = Netto Riil * Harga Beli (Rp), misal 48 * Harga
+  realStockValueRp?: number; // Real Value (Nilai Barang Sebenarnya) = Netto Riil * (Harga Beli + Total Fee/KG) (Rp)
   purchaseWeightProfitKg?: number; // Selisih Berat Beli = Netto Riil - Netto Bayar (kg), misal +5 kg
   purchaseWeightProfitRp?: number; // Weight Profit Beli (Rp) = Real Value - Paid Value, misal +5 * Harga
   effectiveCostPerRealKg?: number; // Harga Modal Riil per KG Fisik Sebenarnya = Paid Value / Netto Riil (Rp/kg)
@@ -73,6 +95,7 @@ export interface RawTobacco {
   aromaRating?: number; // 0 - 5
   colorGrade: TobaccoGrade; // Grade warna: A+, A, B+, B, C+, C, D+, D, E
   characterNotes: string; // Deskripsi fisik: pegangan, kadar gagang, warna, aroma
+  lockedFields?: string[]; // Daftar field yang dikunci manual saat input dicicil
 }
 
 export interface BlendIngredient {
@@ -176,8 +199,9 @@ export interface FinishedTobaccoSerial {
   projectedProfit: number;
   profitMarginPercent: number;
 
-  // Status Pabrik & Riwayat Reject (Diterima Cair vs Reject Masuk Stok Tembakau Jadi)
-  factoryStatus?: SerialFactoryStatus; // 'PENDING' | 'ACCEPTED_CAIR' | 'REJECTED_STOCK'
+  // Status Pabrik (Menunggu Pabrik vs Diterima/Accepted vs Reject) & Status Pembayaran (Cair / Paid vs Belum Cair / Not Paid)
+  factoryStatus?: SerialFactoryStatus; // 'PENDING' | 'ACCEPTED_CAIR' (Diterima/Accepted) | 'REJECTED_STOCK'
+  paymentStatus?: SerialPaymentStatus; // 'CAIR' (Paid) | 'BELUM_CAIR' (Not Paid)
   previousRollId?: string; // ID gulungan sebelum di-reject
   previousRollNumber?: string; // Kode gulungan sebelum di-reject (misal "GUL-2026-001")
   previousFactory?: string; // Pabrik yang me-reject sebelum dipindah ke gulungan baru
@@ -191,6 +215,13 @@ export interface FinishedTobaccoSerial {
   notes?: string;
 }
 
+export interface SavedGoogleSheetRef {
+  id: string; // Spreadsheet ID
+  title: string; // Nama Spreadsheet
+  url: string; // Full URL Google Sheets
+  lastUpdatedAt: string;
+}
+
 export interface TobaccoRollSample {
   id: string;
   rollNumber: string; // e.g. "GUL-2026-001"
@@ -202,6 +233,15 @@ export interface TobaccoRollSample {
   targetFactory: string;
   sampleCreatedDate: string;
   sampleWeightGrams: number;
+
+  // Status pengiriman gulungan: false/undefined = Masih di Gudang (menu Gulungan), true = Sudah Dikirim ke Pabrik (menu Status Barang)
+  isSentToFactory?: boolean;
+  sentToFactoryDate?: string;
+
+  // Memori Spreadsheet Google Sheets (Khusus Akun Google yang Login — Privat per Email/UID)
+  linkedSpreadsheetTitle?: string;
+  linkedSpreadsheetUrl?: string;
+  linkedSpreadsheetOwnerEmail?: string;
 
   // Salinan campuran lengkap untuk arsip
   ingredientsSnapshot: BlendIngredient[];

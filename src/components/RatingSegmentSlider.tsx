@@ -7,48 +7,78 @@ interface RatingSegmentSliderProps {
   sublabel?: string;
   value: number; // 0 to 5
   onChange: (val: number) => void;
+  disabled?: boolean;
+  headerExtra?: React.ReactNode;
 }
 
-const QUICK_STEPS = [1, 2, 3, 3.5, 4, 4.5, 5];
+const QUICK_STEPS = [0, 1, 2, 3, 3.5, 4, 4.5, 5];
 
 export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
   label,
   sublabel,
   value,
   onChange,
+  disabled = false,
+  headerExtra,
 }) => {
   const safeVal = Math.max(0, Math.min(5, Number(value) || 0));
   const fillPercent = (safeVal / 5) * 100;
+  const isEmptyZero = safeVal === 0;
 
   const handleStep = (delta: number) => {
+    if (disabled) return;
     const next = Math.max(0, Math.min(5, Number((safeVal + delta).toFixed(1))));
     onChange(next);
   };
 
   return (
-    <div className="bg-black/95 p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-600 transition-all duration-200 space-y-3">
+    <div
+      className={`bg-black/95 p-3.5 rounded-xl border transition-all duration-200 space-y-3 ${
+        disabled
+          ? 'border-zinc-800/70 opacity-75'
+          : isEmptyZero
+            ? 'border-dashed border-amber-500/40 hover:border-amber-500/70'
+            : 'border-zinc-800 hover:border-zinc-600'
+      }`}
+    >
       <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-zinc-800/90">
         <div className="min-w-0">
-          <span className="text-xs font-bold text-white block truncate">{label}</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs font-bold text-white truncate">{label}</span>
+            {isEmptyZero && (
+              <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/40 text-[9px] font-mono font-bold">
+                Kosong (0)
+              </span>
+            )}
+            {headerExtra}
+          </div>
           {sublabel && <span className="text-[10px] text-zinc-400 block truncate">{sublabel}</span>}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
+            disabled={disabled}
             onClick={() => handleStep(-0.5)}
-            className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer"
+            className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             title={`Kurangi ${label}`}
             aria-label={`Kurangi ${label}`}
           >
             <ChevronLeft className="w-3.5 h-3.5" />
           </button>
-          <div className="px-2.5 py-1 rounded-lg bg-black text-white border border-zinc-700 font-mono font-extrabold text-xs min-w-[56px] text-center">
+          <div
+            className={`px-2.5 py-1 rounded-lg bg-black border font-mono font-extrabold text-xs min-w-[56px] text-center ${
+              isEmptyZero
+                ? 'text-zinc-500 border-zinc-800'
+                : 'text-white border-zinc-700'
+            }`}
+          >
             {safeVal.toFixed(1)}<span className="text-amber-400">/5</span>
           </div>
           <button
             type="button"
+            disabled={disabled}
             onClick={() => handleStep(0.5)}
-            className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer"
+            className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             title={`Tambah ${label}`}
             aria-label={`Tambah ${label}`}
           >
@@ -70,22 +100,28 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
             min="0"
             max="5"
             step="0.1"
+            disabled={disabled}
             value={safeVal}
-            onChange={(e) => onChange(parseFloat(e.target.value))}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            onChange={(e) => {
+              if (!disabled) onChange(parseFloat(e.target.value));
+            }}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
             aria-label={label}
           />
         </div>
 
-        <div className="pt-2 border-t border-zinc-900 grid grid-cols-7 gap-1">
+        <div className="pt-2 border-t border-zinc-900 grid grid-cols-8 gap-1">
           {QUICK_STEPS.map((step) => {
             const isActive = Math.abs(safeVal - step) < 0.05;
             return (
               <button
                 key={step}
                 type="button"
-                onClick={() => onChange(step)}
-                className={`py-1 rounded-md font-mono text-[10px] font-bold transition-all duration-200 cursor-pointer ${
+                disabled={disabled}
+                onClick={() => {
+                  if (!disabled) onChange(step);
+                }}
+                className={`py-1 rounded-md font-mono text-[10px] font-bold transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                   isActive
                     ? 'bg-black text-amber-400 border border-amber-500/80'
                     : 'bg-zinc-950 text-zinc-400 hover:text-white hover:border-zinc-600 border border-zinc-800/80'

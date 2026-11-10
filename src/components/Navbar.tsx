@@ -47,6 +47,8 @@ interface NavbarProps {
   rollCount: number;
   onOpenAddModal: () => void;
   onOpenMasterModal: () => void;
+  onOpenSimulator?: () => void;
+  isSimulatorOpen?: boolean;
   onOpenPatchNotes: () => void;
   hasUnreadPatch?: boolean;
   onExportData: () => void;
@@ -71,6 +73,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   rollCount,
   onOpenAddModal,
   onOpenMasterModal,
+  onOpenSimulator,
+  isSimulatorOpen = false,
   onOpenPatchNotes,
   hasUnreadPatch = false,
   onExportData,
@@ -101,7 +105,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       fullLabel: 'Stok Tembakau (Mentah & Jadi Eks-Reject)',
       icon: <Leaf className="w-4 h-4 shrink-0" />,
       countText: `${rawTobaccoCount + rejectedStockCount}`,
-      desktopFlexClass: 'flex-[0.95]',
+      desktopFlexClass: 'flex-[1]',
     },
     {
       id: 'calculator',
@@ -109,7 +113,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       mobileLabel: 'Racikan',
       fullLabel: 'Kalkulator Racikan Tembakau & HPP',
       icon: <Scale className="w-4 h-4 shrink-0" />,
-      desktopFlexClass: 'flex-[0.95]',
+      desktopFlexClass: 'flex-[1]',
     },
     {
       id: 'finished',
@@ -124,27 +128,19 @@ export const Navbar: React.FC<NavbarProps> = ({
       id: 'rolls',
       shortLabel: 'Gulungan',
       mobileLabel: 'Gulungan',
-      fullLabel: 'Arsip Gulungan 3D, Nota Personal (Profit) & Nota Pabrik',
+      fullLabel: 'Gulungan di Gudang (Belum Dikirim ke Pabrik)',
       icon: <Scroll className="w-4 h-4 shrink-0" />,
       countText: `${rollCount}`,
       desktopFlexClass: 'flex-[1.05]',
     },
     {
-      id: 'tara-simulator',
-      shortLabel: 'Simulator',
-      mobileLabel: 'Simulator',
-      fullLabel: 'Simulator Potongan Tarra & Nota Pabrik',
-      icon: <Calculator className="w-4 h-4 shrink-0" />,
-      desktopFlexClass: 'flex-[1]',
-    },
-    {
       id: 'qc-status',
       shortLabel: 'Status Barang',
       mobileLabel: 'Status Barang',
-      fullLabel: 'Status Barang Kiriman per Gulungan (Menunggu QC, Terima Cair & Reject)',
+      fullLabel: 'Status Barang Kiriman Pabrik (Menunggu Pabrik, Terima Cair & Reject)',
       icon: <ClipboardCheck className="w-4 h-4 shrink-0" />,
       countText: `${pendingQcCount}`,
-      desktopFlexClass: 'flex-[1.3]',
+      desktopFlexClass: 'flex-[1.25]',
     },
     {
       id: 'history',
@@ -349,6 +345,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                     Riwayat Update, Fitur Baru & Bug Fixes
                   </span>
                 </button>
+
+                {onOpenSimulator && (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.96 }}
+                    onClick={onOpenSimulator}
+                    className={`group relative inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
+                      isSimulatorOpen
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                        : 'bg-black hover:bg-zinc-900 text-white border-zinc-800 hover:border-amber-500/70'
+                    }`}
+                    title="Buka Simulator Potongan Tarra & Kalkulasi Coba-Coba"
+                  >
+                    <Calculator className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>Simulator</span>
+                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                      Simulator Potongan Tarra & Coba-Coba Harga
+                    </span>
+                  </motion.button>
+                )}
 
                 <button
                   type="button"

@@ -513,7 +513,7 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
-                              title="Terima Pabrik & Uang Cair"
+                              title="Diterima Pabrik (Accepted)"
                               onClick={() =>
                                 onUpdateSerialStatus(
                                   ser.id,
@@ -528,7 +528,7 @@ export const ShipmentStatusView: React.FC<ShipmentStatusViewProps> = ({
                               }`}
                             >
                               <CheckCircle2 className="w-4 h-4 shrink-0" />
-                              <span>Terima Cair</span>
+                              <span>Diterima / Accepted</span>
                             </button>
 
                             <button

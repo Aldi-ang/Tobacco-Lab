@@ -27,6 +27,7 @@ import {
 } from '../types/tobacco';
 import {
   GRADE_LABELS,
+  TOBACCO_GRADE_ORDER,
   formatRupiah,
   clampRating5,
   calculateRawTobaccoCost,
@@ -106,34 +107,31 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
 
   const origins = ['ALL', ...Array.from(new Set(tobaccos.map((t) => t.origin.split(' ')[0])))];
 
-  // Helper to guarantee Paid vs Real Weight & Value metrics even for older cloud documents
+  // Helper to compute Netto (Bruto - Tarra), Base Tobacco Cost (Netto * Harga), Added Fee Cost (Netto * Fee), and Total Modal (Netto * (Harga + Fee))
   const getRawWeightMetrics = (t: RawTobacco) => {
     const calc = calculateRawTobaccoCost({
       grossWeightKg: t.grossWeightKg,
       pricePerKgPurchase: t.pricePerKgPurchase,
       taraFormula: t.taraFormula,
+      agentFees: t.agentFees,
+      totalAgentFeePerKg: t.totalAgentFeePerKg,
+      additionalCost: t.additionalPurchaseCost || 0,
     });
-    const paidNetKg = t.netWeightKg ?? calc.netWeightKg;
-    const realNetKg = t.realNetWeightKg ?? calc.realNetWeightKg;
-    const paidValueRp = t.totalModalAsal || calc.totalModalAsal;
-    const realValueRp = t.realStockValueRp ?? calc.realStockValueRp;
-    const weightProfitKg =
-      t.purchaseWeightProfitKg ?? Number((realNetKg - paidNetKg).toFixed(2));
-    const weightProfitRp = t.purchaseWeightProfitRp ?? realValueRp - paidValueRp;
-    const effectiveRealCostPerKg =
-      t.effectiveCostPerRealKg ?? calc.effectiveCostPerRealKg;
-    const realPkgMassKg =
-      t.taraFormula.packagingMassKg ?? t.taraFormula.flatKg ?? t.deductionKg;
+    const netWeightKg = calc.netWeightKg;
+    const baseTobaccoCostRp = calc.baseTobaccoCostRp;
+    const totalAgentFeePerKg = calc.totalAgentFeePerKg;
+    const totalAgentFeeRp = calc.totalAgentFeeRp;
+    const effectivePricePerKgWithFee = calc.effectivePricePerKgWithFee;
+    const totalModalAsal = calc.totalModalAsal;
 
     return {
-      paidNetKg,
-      realNetKg,
-      paidValueRp,
-      realValueRp,
-      weightProfitKg,
-      weightProfitRp,
-      effectiveRealCostPerKg,
-      realPkgMassKg,
+      netWeightKg,
+      baseTobaccoCostRp,
+      totalAgentFeePerKg,
+      totalAgentFeeRp,
+      effectivePricePerKgWithFee,
+      totalModalAsal,
+      deductionKg: calc.deductionKg,
     };
   };
 
@@ -153,10 +151,12 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
     })
     .sort((a, b) => {
       if (sortBy === 'stock') return b.currentStockNetKg - a.currentStockNetKg;
-      if (sortBy === 'hpp') return b.realCostPerNetKg - a.realCostPerNetKg;
+      if (sortBy === 'hpp') {
+        return getRawWeightMetrics(b).effectivePricePerKgWithFee - getRawWeightMetrics(a).effectivePricePerKgWithFee;
+      }
       if (sortBy === 'power') return b.powerRating - a.powerRating;
       if (sortBy === 'weightProfit') {
-        return getRawWeightMetrics(b).weightProfitRp - getRawWeightMetrics(a).weightProfitRp;
+        return getRawWeightMetrics(b).totalModalAsal - getRawWeightMetrics(a).totalModalAsal;
       }
       return a.name.localeCompare(b.name);
     });
@@ -188,38 +188,23 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
       {/* PANEL 1: STOK TEMBAKAU MENTAH */}
       {activeStockPanel === 'raw' && (
         <>
-          {/* Warehouse Paid Value vs Real Value & Buy-Side Weight Profit Summary Strip */}
+          {/* Warehouse Summary Strip: 1. Harga Tembakau Dasar | 2. Biaya Tambahan Fee | 3. Total Modal (Harga + Fee) */}
           {(() => {
             const totals = filteredRaw.reduce(
               (acc, t) => {
-                const paidVal =
-                  t.totalModalAsal || Math.round(t.netWeightKg * t.pricePerKgPurchase);
-                const realPkg = t.taraFormula.packagingMassKg ?? t.deductionKg;
-                const realNet =
-                  t.realNetWeightKg ??
-                  Number(Math.max(0, t.grossWeightKg - realPkg).toFixed(2));
-                const realVal =
-                  t.realStockValueRp ?? Math.round(realNet * t.pricePerKgPurchase);
-                const wpKg =
-                  t.purchaseWeightProfitKg ?? Number((realNet - t.netWeightKg).toFixed(2));
-                const wpRp = t.purchaseWeightProfitRp ?? realVal - paidVal;
-
+                const m = getRawWeightMetrics(t);
                 return {
-                  paidNetKg: Number((acc.paidNetKg + t.netWeightKg).toFixed(2)),
-                  realNetKg: Number((acc.realNetKg + realNet).toFixed(2)),
-                  paidValueRp: acc.paidValueRp + paidVal,
-                  realValueRp: acc.realValueRp + realVal,
-                  weightProfitKg: Number((acc.weightProfitKg + wpKg).toFixed(2)),
-                  weightProfitRp: acc.weightProfitRp + wpRp,
+                  netWeightKg: Number((acc.netWeightKg + m.netWeightKg).toFixed(2)),
+                  baseTobaccoCostRp: acc.baseTobaccoCostRp + m.baseTobaccoCostRp,
+                  totalAgentFeeRp: acc.totalAgentFeeRp + m.totalAgentFeeRp,
+                  totalModalAsal: acc.totalModalAsal + m.totalModalAsal,
                 };
               },
               {
-                paidNetKg: 0,
-                realNetKg: 0,
-                paidValueRp: 0,
-                realValueRp: 0,
-                weightProfitKg: 0,
-                weightProfitRp: 0,
+                netWeightKg: 0,
+                baseTobaccoCostRp: 0,
+                totalAgentFeeRp: 0,
+                totalModalAsal: 0,
               }
             );
 
@@ -230,52 +215,52 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   return {
                     stepNumber: idx + 3,
                     title: `${item.name} (${item.origin})`,
-                    formula: `Nilai Bayar = (Bruto − Potongan Nota) × Harga Beli`,
-                    substitution: `(${item.grossWeightKg} kg − ${item.deductionKg} kg) × ${formatRupiah(item.pricePerKgPurchase)} = ${m.paidNetKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${formatRupiah(m.paidValueRp)}`,
+                    formula: `Harga Tembakau = (Bruto − Tarra) × Harga Beli / KG`,
+                    substitution: `(${item.grossWeightKg} kg − ${m.deductionKg} kg) × ${formatRupiah(item.pricePerKgPurchase)} = ${m.netWeightKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${formatRupiah(m.baseTobaccoCostRp)}`,
                     resultLabel: `${item.name}`,
-                    resultValue: `${formatRupiah(m.paidValueRp)} (${m.paidNetKg} kg)`,
-                    explanation: `Bruto ${item.grossWeightKg} kg dipotong tarra nota ${item.deductionKg} kg (${item.taraFormula.rawFormula}) menjadi ${m.paidNetKg} kg.`,
+                    resultValue: `${formatRupiah(m.baseTobaccoCostRp)} (${m.netWeightKg} kg)`,
+                    explanation: `Bruto ${item.grossWeightKg} kg dipotong tarra ${m.deductionKg} kg (${item.taraFormula.rawFormula}) menjadi Netto ${m.netWeightKg} kg.`,
                     highlight: 'white' as const,
                   };
                 });
 
                 setCalcDetail({
-                  title: `1. Total Nilai Bayar (Paid Value) — ${filteredRaw.length} Stok`,
-                  subtitle: `Total Netto Bayar: ${totals.paidNetKg} kg`,
-                  badgeText: 'PANEL 1 GUDANG • RUMUS TOTAL NILAI BAYAR',
+                  title: `1. Total Harga Tembakau Dasar (Netto × Harga) — ${filteredRaw.length} Stok`,
+                  subtitle: `Total Netto (Bruto − Tarra): ${totals.netWeightKg} kg`,
+                  badgeText: 'PANEL 1 GUDANG • RUMUS HARGA TEMBAKAU DASAR',
                   coreFormula:
-                    'Total Nilai Bayar = Σ (Netto Bayar × Harga Beli)   |   Netto Bayar = Bruto − Potongan Nota',
-                  appliedFormula: `Total Nilai Bayar = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).paidValueRp)).join(' + ')} = ${formatRupiah(totals.paidValueRp)}   |   Total Netto Bayar = ${totals.paidNetKg} kg`,
+                    'Total Harga Tembakau = Σ (Netto × Harga Tembakau / KG)   |   Netto = Bruto − Tarra',
+                  appliedFormula: `Total Harga Tembakau = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).baseTobaccoCostRp)).join(' + ')} = ${formatRupiah(totals.baseTobaccoCostRp)}   |   Total Netto = ${totals.netWeightKg} kg`,
                   steps: [
                     {
                       stepNumber: 1,
-                      title: 'Total Netto Bayar',
-                      formula: 'Total Netto Bayar = Σ (Berat Bruto − Potongan Tarra Nota)',
+                      title: 'Total Netto (Bruto − Tarra)',
+                      formula: 'Total Netto = Σ (Berat Bruto − Potongan Tarra)',
                       substitution:
                         filteredRaw
-                          .map((item) => `${getRawWeightMetrics(item).paidNetKg} kg (${item.name})`)
-                          .join(' + ') + ` = ${totals.paidNetKg} kg`,
-                      resultLabel: 'Total Netto Bayar',
-                      resultValue: `${totals.paidNetKg} kg`,
-                      explanation: `Jumlah berat bersih nota dari seluruh ${filteredRaw.length} stok tembakau.`,
+                          .map((item) => `${getRawWeightMetrics(item).netWeightKg} kg (${item.name})`)
+                          .join(' + ') + ` = ${totals.netWeightKg} kg`,
+                      resultLabel: 'Total Netto',
+                      resultValue: `${totals.netWeightKg} kg`,
+                      explanation: `Jumlah berat bersih (Bruto − Tarra) dari seluruh ${filteredRaw.length} stok tembakau.`,
                       highlight: 'white',
                     },
                     {
                       stepNumber: 2,
-                      title: 'Total Nilai Bayar',
-                      formula: 'Total Nilai Bayar = Σ (Netto Bayar × Harga Beli / KG)',
+                      title: 'Total Harga Tembakau Dasar',
+                      formula: 'Total Harga Tembakau = Σ (Netto × Harga Tembakau / KG)',
                       substitution:
                         filteredRaw
-                          .map((item) => formatRupiah(getRawWeightMetrics(item).paidValueRp))
-                          .join(' + ') + ` = ${formatRupiah(totals.paidValueRp)}`,
-                      resultLabel: 'Total Nilai Bayar',
-                      resultValue: formatRupiah(totals.paidValueRp),
-                      explanation: `Total uang kas yang dibayarkan sesuai nota pembelian untuk ${filteredRaw.length} stok.`,
+                          .map((item) => formatRupiah(getRawWeightMetrics(item).baseTobaccoCostRp))
+                          .join(' + ') + ` = ${formatRupiah(totals.baseTobaccoCostRp)}`,
+                      resultLabel: 'Total Harga Tembakau Dasar',
+                      resultValue: formatRupiah(totals.baseTobaccoCostRp),
+                      explanation: `Total harga pokok tembakau murni sebelum ditambah fee pencari barang/perantara.`,
                       highlight: 'amber',
                     },
                     ...itemSteps,
                   ],
-                  conclusion: `Total Nilai Bayar = ${formatRupiah(totals.paidValueRp)} (${totals.paidNetKg} kg).`,
+                  conclusion: `Total Harga Tembakau Dasar = ${formatRupiah(totals.baseTobaccoCostRp)} (${totals.netWeightKg} kg).`,
                 });
                 return;
               }
@@ -283,160 +268,127 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
               if (focus === 'REAL_VALUE') {
                 const itemSteps = filteredRaw.map((item, idx) => {
                   const m = getRawWeightMetrics(item);
+                  const feeNames =
+                    Array.isArray(item.agentFees) && item.agentFees.length > 0
+                      ? item.agentFees
+                          .map((f) => `${f.agentName || 'Agen'} (+${formatRupiah(f.feePerKg)}/kg)`)
+                          .join(', ')
+                      : 'Tanpa Fee Perantara (Rp 0/kg)';
                   return {
                     stepNumber: idx + 3,
                     title: `${item.name} (${item.origin})`,
-                    formula: `Nilai Riil = (Bruto − Wadah Riil) × Harga Beli`,
-                    substitution: `(${item.grossWeightKg} kg − ${m.realPkgMassKg} kg) × ${formatRupiah(item.pricePerKgPurchase)} = ${m.realNetKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${formatRupiah(m.realValueRp)}`,
+                    formula: `Biaya Tambahan Fee = Netto × Fee / KG`,
+                    substitution: `${m.netWeightKg} kg × ${formatRupiah(m.totalAgentFeePerKg)}/kg = ${formatRupiah(m.totalAgentFeeRp)}`,
                     resultLabel: `${item.name}`,
-                    resultValue: `${formatRupiah(m.realValueRp)} (${m.realNetKg} kg)`,
-                    explanation: `Berat wadah asli (${item.taraFormula.packagingType || 'Standar'}) adalah ${m.realPkgMassKg} kg, sehingga fisik tembakau adalah ${m.realNetKg} kg.`,
-                    highlight: 'white' as const,
+                    resultValue: `+${formatRupiah(m.totalAgentFeeRp)} (${formatRupiah(m.totalAgentFeePerKg)}/kg)`,
+                    explanation: `Rincian Fee: ${feeNames}. Merupakan biaya tambahan pembelian (bukan keuntungan).`,
+                    highlight: (m.totalAgentFeeRp > 0 ? 'amber' : 'white') as 'amber' | 'white',
                   };
                 });
 
                 setCalcDetail({
-                  title: `2. Total Nilai Barang Riil (Real Value) — ${filteredRaw.length} Stok`,
-                  subtitle: `Total Netto Riil: ${totals.realNetKg} kg`,
-                  badgeText: 'PANEL 2 GUDANG • RUMUS TOTAL NILAI BARANG RIIL',
+                  title: `2. Total Biaya Tambahan Fee (Netto × Fee) — ${filteredRaw.length} Stok`,
+                  subtitle: `Biaya Tambahan Perantara • Total Netto: ${totals.netWeightKg} kg`,
+                  badgeText: 'PANEL 2 GUDANG • RUMUS BIAYA TAMBAHAN FEE PERANTARA',
                   coreFormula:
-                    'Total Nilai Riil = Σ (Netto Riil × Harga Beli)   |   Netto Riil = Bruto − Wadah Riil',
-                  appliedFormula: `Total Nilai Riil = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).realValueRp)).join(' + ')} = ${formatRupiah(totals.realValueRp)}   |   Total Netto Riil = ${totals.realNetKg} kg`,
+                    'Total Biaya Fee = Σ (Netto × Fee / KG)   |   Netto = Bruto − Tarra (Biaya Tambahan / Added Cost)',
+                  appliedFormula: `Total Biaya Tambahan Fee = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).totalAgentFeeRp)).join(' + ')} = +${formatRupiah(totals.totalAgentFeeRp)}`,
                   steps: [
                     {
                       stepNumber: 1,
-                      title: 'Total Netto Riil',
-                      formula: 'Total Netto Riil = Σ (Berat Bruto − Berat Wadah Riil)',
-                      substitution:
-                        filteredRaw
-                          .map((item) => `${getRawWeightMetrics(item).realNetKg} kg (${item.name})`)
-                          .join(' + ') + ` = ${totals.realNetKg} kg`,
-                      resultLabel: 'Total Netto Riil',
-                      resultValue: `${totals.realNetKg} kg`,
-                      explanation: `Jumlah berat fisik tembakau sebenarnya di gudang dari ${filteredRaw.length} stok.`,
+                      title: 'Rumus Fee per Barang (Netto × Fee)',
+                      formula: 'Biaya Fee Barang = (Bruto − Tarra) × Total Fee / KG',
+                      substitution: `Contoh: 50 kg dengan potongan 10% + 2 kg → Netto = 50 − 5 − 2 = 43 kg × Rp 1.000 = Rp 43.000 biaya tambahan`,
+                      resultLabel: 'Sifat Perhitungan',
+                      resultValue: 'Biaya Tambahan (Added Cost)',
+                      explanation: `Fee perantara menambah harga modal per kg tembakau yang harus kita bayar.`,
                       highlight: 'white',
                     },
                     {
                       stepNumber: 2,
-                      title: 'Total Nilai Riil',
-                      formula: 'Total Nilai Riil = Σ (Netto Riil × Harga Beli / KG)',
+                      title: 'Total Biaya Tambahan Fee Gudang',
+                      formula: 'Total Biaya Fee = Σ (Netto × Fee / KG)',
                       substitution:
                         filteredRaw
-                          .map((item) => formatRupiah(getRawWeightMetrics(item).realValueRp))
-                          .join(' + ') + ` = ${formatRupiah(totals.realValueRp)}`,
-                      resultLabel: 'Total Nilai Riil',
-                      resultValue: formatRupiah(totals.realValueRp),
-                      explanation: `Total nilai pasar barang berdasarkan berat fisik sebenarnya di gudang.`,
+                          .map((item) => formatRupiah(getRawWeightMetrics(item).totalAgentFeeRp))
+                          .join(' + ') + ` = ${formatRupiah(totals.totalAgentFeeRp)}`,
+                      resultLabel: 'Total Biaya Tambahan Fee',
+                      resultValue: `+${formatRupiah(totals.totalAgentFeeRp)}`,
+                      explanation: `Total seluruh ongkos fee pencari barang/perantara dari ${filteredRaw.length} stok.`,
                       highlight: 'amber',
                     },
                     ...itemSteps,
                   ],
-                  conclusion: `Total Nilai Riil = ${formatRupiah(totals.realValueRp)} (${totals.realNetKg} kg).`,
+                  conclusion: `Total Biaya Tambahan Fee = +${formatRupiah(totals.totalAgentFeeRp)} (Biaya Tambahan Pembelian).`,
                 });
                 return;
               }
 
-              // focus === 'WEIGHT_PROFIT'
+              // focus === 'WEIGHT_PROFIT' -> Total Modal Pembelian (Harga Tembakau + Fee)
               const itemSteps = filteredRaw.map((item, idx) => {
                 const m = getRawWeightMetrics(item);
                 return {
-                  stepNumber: idx + 7,
+                  stepNumber: idx + 4,
                   title: `${item.name} (${item.origin})`,
-                  formula: `Weight Profit = (Netto Riil − Netto Bayar) × Harga Beli`,
-                  substitution: `(${m.realNetKg} kg − ${m.paidNetKg} kg) × ${formatRupiah(item.pricePerKgPurchase)} = ${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)}`,
+                  formula: `Total Modal = Netto × (Harga Beli + Fee/KG)`,
+                  substitution: `${m.netWeightKg} kg × (${formatRupiah(item.pricePerKgPurchase)} + ${formatRupiah(m.totalAgentFeePerKg)}) = ${m.netWeightKg} kg × ${formatRupiah(m.effectivePricePerKgWithFee)} = ${formatRupiah(m.totalModalAsal)}`,
                   resultLabel: `${item.name}`,
-                  resultValue: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg (${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)})`,
-                  explanation: `Potongan nota ${item.deductionKg} kg vs berat wadah asli ${m.realPkgMassKg} kg (${item.taraFormula.packagingType || 'Standar'}).`,
-                  highlight: (m.weightProfitKg >= 0 ? 'amber' : 'red') as 'amber' | 'red',
+                  resultValue: `${formatRupiah(m.totalModalAsal)} (${formatRupiah(m.effectivePricePerKgWithFee)}/kg)`,
+                  explanation: `Harga Tembakau ${formatRupiah(m.baseTobaccoCostRp)} + Biaya Fee ${formatRupiah(m.totalAgentFeeRp)} = Total Modal ${formatRupiah(m.totalModalAsal)}.`,
+                  highlight: 'amber' as const,
                 };
               });
 
               const avgEffectiveModalPerKg =
-                totals.realNetKg > 0 ? Math.round(totals.paidValueRp / totals.realNetKg) : 0;
+                totals.netWeightKg > 0 ? Math.round(totals.totalModalAsal / totals.netWeightKg) : 0;
 
               setCalcDetail({
-                title: `3. Weight Profit (Untung Timbangan Beli) — ${filteredRaw.length} Stok`,
-                subtitle: `Total Netto Riil ${totals.realNetKg} kg vs Total Netto Bayar ${totals.paidNetKg} kg`,
-                badgeText: 'PANEL 3 GUDANG • RUMUS WEIGHT PROFIT BELI',
+                title: `3. Total Modal Pembelian (Harga + Fee) — ${filteredRaw.length} Stok`,
+                subtitle: `Total Netto: ${totals.netWeightKg} kg • Rata-rata ${formatRupiah(avgEffectiveModalPerKg)}/kg`,
+                badgeText: 'PANEL 3 GUDANG • RUMUS TOTAL MODAL (HARGA + FEE)',
                 coreFormula:
-                  'Weight Profit = Total Nilai Riil − Total Nilai Bayar   |   Modal Riil/KG = Total Nilai Bayar ÷ Total Netto Riil',
-                appliedFormula: `Weight Profit = ${formatRupiah(totals.realValueRp)} − ${formatRupiah(totals.paidValueRp)} = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}   |   Modal Riil/KG = ${formatRupiah(totals.paidValueRp)} ÷ ${totals.realNetKg} kg = ${formatRupiah(avgEffectiveModalPerKg)}/kg`,
+                  'Total Modal = Σ [Netto × (Harga Tembakau + Fee)] = Total Harga Tembakau + Total Biaya Fee',
+                appliedFormula: `Total Modal = ${formatRupiah(totals.baseTobaccoCostRp)} (Tembakau) + ${formatRupiah(totals.totalAgentFeeRp)} (Fee) = ${formatRupiah(totals.totalModalAsal)}`,
                 steps: [
                   {
                     stepNumber: 1,
-                    title: 'Total Netto Riil',
-                    formula: 'Total Netto Riil = Σ (Berat Bruto − Berat Wadah Riil)',
+                    title: 'Total Harga Tembakau Dasar (Netto × Harga)',
+                    formula: 'Total Harga Tembakau = Σ (Netto × Harga Beli / KG)',
                     substitution:
                       filteredRaw
-                        .map((item) => `${getRawWeightMetrics(item).realNetKg} kg`)
-                        .join(' + ') + ` = ${totals.realNetKg} kg`,
-                    resultLabel: 'Total Netto Riil',
-                    resultValue: `${totals.realNetKg} kg`,
-                    explanation: `Total berat fisik tembakau sebenarnya di gudang setelah dikurangi berat wadah asli.`,
+                        .map((item) => formatRupiah(getRawWeightMetrics(item).baseTobaccoCostRp))
+                        .join(' + ') + ` = ${formatRupiah(totals.baseTobaccoCostRp)}`,
+                    resultLabel: 'Total Harga Tembakau',
+                    resultValue: formatRupiah(totals.baseTobaccoCostRp),
+                    explanation: `Total harga pokok tembakau murni untuk ${totals.netWeightKg} kg.`,
                     highlight: 'white',
                   },
                   {
                     stepNumber: 2,
-                    title: 'Total Netto Bayar',
-                    formula: 'Total Netto Bayar = Σ (Berat Bruto − Potongan Nota)',
+                    title: 'Total Biaya Tambahan Fee (Netto × Fee)',
+                    formula: 'Total Biaya Fee = Σ (Netto × Fee / KG)',
                     substitution:
                       filteredRaw
-                        .map((item) => `${getRawWeightMetrics(item).paidNetKg} kg`)
-                        .join(' + ') + ` = ${totals.paidNetKg} kg`,
-                    resultLabel: 'Total Netto Bayar',
-                    resultValue: `${totals.paidNetKg} kg`,
-                    explanation: `Total berat bersih yang kita bayar sesuai nota penjual.`,
+                        .map((item) => formatRupiah(getRawWeightMetrics(item).totalAgentFeeRp))
+                        .join(' + ') + ` = +${formatRupiah(totals.totalAgentFeeRp)}`,
+                    resultLabel: 'Total Biaya Tambahan Fee',
+                    resultValue: `+${formatRupiah(totals.totalAgentFeeRp)}`,
+                    explanation: `Total biaya tambahan untuk agen/perantara pencari barang.`,
                     highlight: 'white',
                   },
                   {
                     stepNumber: 3,
-                    title: 'Total Nilai Riil',
-                    formula: 'Total Nilai Riil = Σ (Netto Riil × Harga Beli / KG)',
-                    substitution:
-                      filteredRaw
-                        .map((item) => formatRupiah(getRawWeightMetrics(item).realValueRp))
-                        .join(' + ') + ` = ${formatRupiah(totals.realValueRp)}`,
-                    resultLabel: 'Total Nilai Riil',
-                    resultValue: formatRupiah(totals.realValueRp),
-                    explanation: `Total nilai barang dihitung dari berat fisik tembakau sebenarnya (${totals.realNetKg} kg).`,
-                    highlight: 'white',
-                  },
-                  {
-                    stepNumber: 4,
-                    title: 'Total Nilai Bayar',
-                    formula: 'Total Nilai Bayar = Σ (Netto Bayar × Harga Beli / KG)',
-                    substitution:
-                      filteredRaw
-                        .map((item) => formatRupiah(getRawWeightMetrics(item).paidValueRp))
-                        .join(' + ') + ` = ${formatRupiah(totals.paidValueRp)}`,
-                    resultLabel: 'Total Nilai Bayar',
-                    resultValue: formatRupiah(totals.paidValueRp),
-                    explanation: `Total uang kas yang dibayarkan ke penjual (${totals.paidNetKg} kg).`,
-                    highlight: 'white',
-                  },
-                  {
-                    stepNumber: 5,
-                    title: 'Selisih Berat',
-                    formula: 'Selisih Berat = Total Netto Riil − Total Netto Bayar',
-                    substitution: `${totals.realNetKg} kg − ${totals.paidNetKg} kg = ${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
-                    resultLabel: 'Selisih Berat',
-                    resultValue: `${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
-                    explanation: `Ekstra berat fisik tembakau di gudang dibandingkan berat nota yang dibayar.`,
-                    highlight: totals.weightProfitKg >= 0 ? 'amber' : 'red',
-                  },
-                  {
-                    stepNumber: 6,
-                    title: 'Weight Profit',
-                    formula: 'Weight Profit = Total Nilai Riil − Total Nilai Bayar',
-                    substitution: `${formatRupiah(totals.realValueRp)} − ${formatRupiah(totals.paidValueRp)} = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
-                    resultLabel: 'Weight Profit',
-                    resultValue: `${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
-                    explanation: `Modal Riil Rata-Rata Gudang = ${formatRupiah(totals.paidValueRp)} ÷ ${totals.realNetKg} kg = ${formatRupiah(avgEffectiveModalPerKg)}/kg.`,
-                    highlight: totals.weightProfitRp >= 0 ? 'amber' : 'red',
+                    title: 'Total Modal Pembelian (Harga Tembakau + Fee)',
+                    formula: 'Total Modal = Total Harga Tembakau + Total Biaya Fee',
+                    substitution: `${formatRupiah(totals.baseTobaccoCostRp)} + ${formatRupiah(totals.totalAgentFeeRp)} = ${formatRupiah(totals.totalModalAsal)}`,
+                    resultLabel: 'Total Modal Kita Bayar',
+                    resultValue: formatRupiah(totals.totalModalAsal),
+                    explanation: `Rata-rata harga modal efektif = ${formatRupiah(totals.totalModalAsal)} ÷ ${totals.netWeightKg} kg = ${formatRupiah(avgEffectiveModalPerKg)}/kg.`,
+                    highlight: 'amber',
                   },
                   ...itemSteps,
                 ],
-                conclusion: `Weight Profit = ${formatRupiah(totals.realValueRp)} − ${formatRupiah(totals.paidValueRp)} = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}.`,
+                conclusion: `Total Modal Pembelian = ${formatRupiah(totals.baseTobaccoCostRp)} + ${formatRupiah(totals.totalAgentFeeRp)} = ${formatRupiah(totals.totalModalAsal)}.`,
               });
             };
 
@@ -445,35 +397,35 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 slides={[
                   {
                     id: 'paid-value',
-                    tabLabel: '1. Nilai Bayar',
-                    title: '1. Total Nilai Bayar (Paid Value)',
-                    mainValue: formatRupiah(totals.paidValueRp),
-                    subLabel: 'Netto Nota Dibayar',
-                    subValue: `${totals.paidNetKg} kg`,
-                    formulaHint: 'Σ Netto Nota × Harga',
+                    tabLabel: '1. Harga Tembakau',
+                    title: '1. Total Harga Tembakau Dasar (Netto × Harga)',
+                    mainValue: formatRupiah(totals.baseTobaccoCostRp),
+                    subLabel: 'Total Netto (Bruto − Tarra)',
+                    subValue: `${totals.netWeightKg} kg`,
+                    formulaHint: 'Σ (Netto × Harga Beli)',
                     accent: 'white',
                     onOpenCalc: () => openWarehouseCalcModal('PAID_VALUE'),
                   },
                   {
                     id: 'real-value',
-                    tabLabel: '2. Nilai Riil',
-                    title: '2. Total Nilai Barang Riil (Real Value)',
-                    mainValue: formatRupiah(totals.realValueRp),
-                    subLabel: 'Netto Fisik Sebenarnya',
-                    subValue: `${totals.realNetKg} kg`,
-                    formulaHint: 'Σ Netto Riil × Harga',
+                    tabLabel: '2. Biaya Fee',
+                    title: '2. Total Biaya Tambahan Fee (Netto × Fee)',
+                    mainValue: `+${formatRupiah(totals.totalAgentFeeRp)}`,
+                    subLabel: 'Biaya Tambahan Perantara',
+                    subValue: `${totals.netWeightKg} kg`,
+                    formulaHint: 'Σ (Netto × Fee/KG)',
                     accent: 'white',
                     onOpenCalc: () => openWarehouseCalcModal('REAL_VALUE'),
                   },
                   {
                     id: 'weight-profit',
-                    tabLabel: '3. Weight Profit',
-                    title: '3. Weight Profit (Untung Timbangan Beli)',
-                    mainValue: `${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
-                    subLabel: 'Selisih Berat',
-                    subValue: `${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
-                    formulaHint: 'Nilai Riil − Nilai Bayar',
-                    accent: totals.weightProfitRp >= 0 ? 'amber' : 'red',
+                    tabLabel: '3. Total Modal',
+                    title: '3. Total Modal Pembelian (Harga + Fee)',
+                    mainValue: formatRupiah(totals.totalModalAsal),
+                    subLabel: 'Total Netto Dibayar',
+                    subValue: `${totals.netWeightKg} kg`,
+                    formulaHint: 'Σ [Netto × (Harga + Fee)]',
+                    accent: 'amber',
                     onOpenCalc: () => openWarehouseCalcModal('WEIGHT_PROFIT'),
                   },
                 ]}
@@ -537,7 +489,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     aria-label="Filter Grade Warna"
                   >
                     <option value="ALL">Semua Grade</option>
-                    {Object.keys(GRADE_LABELS).map((gr) => (
+                    {TOBACCO_GRADE_ORDER.map((gr) => (
                       <option key={gr} value={gr}>
                         Grade {gr}
                       </option>
@@ -578,23 +530,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 const sugar5 = clampRating5(tobacco.sugarRating ?? 4.0);
                 const aroma5 = clampRating5(tobacco.aromaRating ?? 4.2);
                 const pkgName = tobacco.taraFormula.packagingType || 'Keranjang';
-                const totalModalAsal =
-                  tobacco.totalModalAsal ||
-                  Math.round(tobacco.netWeightKg * tobacco.pricePerKgPurchase);
-                const realPkgMassKg =
-                  tobacco.taraFormula.packagingMassKg ?? tobacco.deductionKg;
-                const realNetWeightKg =
-                  tobacco.realNetWeightKg ??
-                  Number(Math.max(0, tobacco.grossWeightKg - realPkgMassKg).toFixed(2));
-                const realStockValueRp =
-                  tobacco.realStockValueRp ??
-                  Math.round(realNetWeightKg * tobacco.pricePerKgPurchase);
-                const purchaseWeightProfitKg =
-                  tobacco.purchaseWeightProfitKg ??
-                  Number((realNetWeightKg - tobacco.netWeightKg).toFixed(2));
-                const purchaseWeightProfitRp =
-                  tobacco.purchaseWeightProfitRp ??
-                  realStockValueRp - totalModalAsal;
+                const m = getRawWeightMetrics(tobacco);
 
                 const tickerItems = [
                   {
@@ -612,30 +548,33 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     ],
                   },
                   {
-                    id: 'weight-profit-beli',
-                    shortTab: 'Untung Kg',
-                    label: 'Paid vs Real Value',
-                    value: `${purchaseWeightProfitKg >= 0 ? '+' : ''}${purchaseWeightProfitKg} kg (${purchaseWeightProfitRp >= 0 ? '+' : ''}${formatRupiah(purchaseWeightProfitRp)})`,
-                    subValue: `Riil ${realNetWeightKg}kg`,
-                    detailLine: `Bayar ${formatRupiah(totalModalAsal)} vs Riil ${formatRupiah(realStockValueRp)}`,
-                    accent: 'amber' as const,
-                  },
-                  {
                     id: 'timbangan-beli',
                     shortTab: 'Berat',
-                    label: 'Timbangan & Tarra',
-                    value: `Bayar ${tobacco.netWeightKg}kg • Riil ${realNetWeightKg}kg`,
-                    subValue: `Tarra -${tobacco.deductionKg}kg`,
-                    detailLine: `Bruto ${tobacco.grossWeightKg}kg • Wadah ${realPkgMassKg}kg (${pkgName})`,
+                    label: 'Timbangan (Bruto − Tarra)',
+                    value: `Netto ${m.netWeightKg} kg`,
+                    subValue: `Tarra -${m.deductionKg} kg`,
+                    detailLine: `Bruto ${tobacco.grossWeightKg} kg • ${pkgName} (${tobacco.taraFormula.rawFormula})`,
                     accent: 'white' as const,
+                  },
+                  {
+                    id: 'biaya-fee',
+                    shortTab: 'Fee',
+                    label: 'Biaya Tambahan Fee (Netto × Fee)',
+                    value:
+                      m.totalAgentFeePerKg > 0
+                        ? `+${formatRupiah(m.totalAgentFeeRp)}`
+                        : 'Rp 0 (Tanpa Fee)',
+                    subValue: `+${formatRupiah(m.totalAgentFeePerKg)}/kg`,
+                    detailLine: `${m.netWeightKg} kg × ${formatRupiah(m.totalAgentFeePerKg)}/kg`,
+                    accent: 'amber' as const,
                   },
                   {
                     id: 'harga-modal',
                     shortTab: 'Modal',
-                    label: 'Beli & Modal Asal',
-                    value: `${formatRupiah(tobacco.pricePerKgPurchase)}/kg`,
-                    subValue: 'Beli',
-                    detailLine: `Paid: ${formatRupiah(totalModalAsal)}`,
+                    label: 'Total Modal (Harga + Fee)',
+                    value: `${formatRupiah(m.totalModalAsal)}`,
+                    subValue: `${formatRupiah(m.effectivePricePerKgWithFee)}/kg`,
+                    detailLine: `Tembakau ${formatRupiah(m.baseTobaccoCostRp)} + Fee ${formatRupiah(m.totalAgentFeeRp)}`,
                     accent: 'amber' as const,
                   },
                 ];
@@ -670,40 +609,48 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         {tobacco.name}
                       </h3>
 
-                      {/* Permanent Summary Box with Paid vs Real Weight & Value */}
+                      {/* Permanent Summary Box with Netto (Bruto - Tarra), Harga + Fee, and Total Modal */}
                       <div className="bg-zinc-950/95 border border-zinc-800/90 rounded-xl px-2.5 py-2 space-y-1">
                         <div className="flex items-center justify-between gap-1">
                           <span className="text-[9px] font-bold uppercase text-zinc-400">
-                            Netto Bayar / Riil
+                            Netto (Bruto − Tarra)
                           </span>
                           <span className="font-mono font-black text-[11px] sm:text-xs text-white whitespace-nowrap">
-                            {tobacco.netWeightKg} kg{' '}
-                            <span className="text-amber-400">/ {realNetWeightKg} kg</span>
+                            {m.netWeightKg} kg{' '}
+                            <span className="text-zinc-400 text-[10px]">
+                              ({tobacco.grossWeightKg}−{m.deductionKg})
+                            </span>
                           </span>
                         </div>
                         <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
                           <span className="text-[9px] font-bold uppercase text-zinc-400">
-                            Harga Beli / KG
+                            Harga Tembakau / KG
                           </span>
-                          <span className="font-mono font-black text-[11px] sm:text-xs text-zinc-200 whitespace-nowrap">
-                            {formatRupiah(tobacco.realCostPerNetKg)}
+                          <span className="font-mono font-bold text-[11px] text-zinc-200 whitespace-nowrap">
+                            {formatRupiah(tobacco.pricePerKgPurchase)}
                           </span>
                         </div>
-                        {purchaseWeightProfitKg !== 0 && (
+                        {m.totalAgentFeePerKg > 0 && (
                           <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-                            <span className="text-[9px] font-black uppercase text-zinc-200">
-                              Weight Profit
+                            <span className="text-[9px] font-bold uppercase text-amber-300 truncate">
+                              + Fee ({tobacco.agentFees?.length || 1} Agen)
                             </span>
-                            <span className="font-mono font-black text-[10px] sm:text-[11px] text-zinc-200 whitespace-nowrap">
-                              {purchaseWeightProfitKg > 0 ? '+' : ''}
-                              {purchaseWeightProfitKg} kg ({purchaseWeightProfitRp > 0 ? '+' : ''}
-                              {formatRupiah(purchaseWeightProfitRp)})
+                            <span className="font-mono font-bold text-[10px] text-amber-400 whitespace-nowrap">
+                              +{formatRupiah(m.totalAgentFeePerKg)}/kg ({formatRupiah(m.totalAgentFeeRp)})
                             </span>
                           </div>
                         )}
+                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
+                          <span className="text-[9px] font-black uppercase text-amber-400">
+                            Total Modal ({formatRupiah(m.effectivePricePerKgWithFee)}/kg)
+                          </span>
+                          <span className="font-mono font-black text-[11px] sm:text-xs text-amber-400 whitespace-nowrap">
+                            {formatRupiah(m.totalModalAsal)}
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Moving Panel with All 5 Character Parameters (/5) & Clear Breakdown */}
+                      {/* Moving Panel with All 6 Character Parameters (/5) & Clear Breakdown */}
                       <SpinningStatTicker items={tickerItems} intervalMs={3200 + (idx % 3) * 350} />
                     </div>
 
@@ -822,7 +769,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 space-y-2">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <label className="text-[10px] uppercase font-extrabold text-amber-400">
-                            Opsi Ganti Nomor Seri Baru (Misal: {item.serialNumber} menjadi AL 1)
+                            Ganti Nomor Seri Baru
                           </label>
                           <button
                             type="button"
@@ -837,7 +784,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                             }
                             className="px-2 py-0.5 rounded bg-black hover:bg-zinc-900 border border-amber-500/60 text-[10px] font-mono font-bold text-amber-300 cursor-pointer"
                           >
-                            Contoh:{' '}
+                            +{' '}
                             {item.serialNumber.toUpperCase() === 'AK 1'
                               ? 'AL 1'
                               : `AL ${item.serialNumber.replace(/[^0-9]/g, '') || '1'}`}
@@ -973,24 +920,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
           >
             {(() => {
               const t = selectedRawDetail;
-              const modalAsal =
-                t.totalModalAsal || Math.round(t.netWeightKg * t.pricePerKgPurchase);
-              const realPkgMassKg = t.taraFormula.packagingMassKg ?? t.deductionKg;
-              const realNetWeightKg =
-                t.realNetWeightKg ??
-                Number(Math.max(0, t.grossWeightKg - realPkgMassKg).toFixed(2));
-              const realStockValueRp =
-                t.realStockValueRp ?? Math.round(realNetWeightKg * t.pricePerKgPurchase);
-              const purchaseWeightProfitKg =
-                t.purchaseWeightProfitKg ??
-                Number((realNetWeightKg - t.netWeightKg).toFixed(2));
-              const purchaseWeightProfitRp =
-                t.purchaseWeightProfitRp ?? realStockValueRp - modalAsal;
-              const effectiveCostPerRealKg =
-                t.effectiveCostPerRealKg ??
-                (realNetWeightKg > 0
-                  ? Math.round((modalAsal / realNetWeightKg) * 100) / 100
-                  : t.realCostPerNetKg);
+              const m = getRawWeightMetrics(t);
 
               return (
                 <motion.div
@@ -1037,14 +967,41 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       )}
                     </div>
 
-                    {/* Timbangan Nota vs Timbangan Riil & Weight Profit (Specific Per-Panel Breakdown) */}
+                    {Array.isArray(t.agentFees) && t.agentFees.length > 0 && (
+                      <div className="bg-black p-3 rounded-xl border border-amber-500/40 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-amber-300">
+                          <span>Biaya Tambahan Fee Perantara ({t.agentFees.length} Orang):</span>
+                          <span className="font-mono font-black text-amber-400">
+                            +{formatRupiah(m.totalAgentFeePerKg)}/kg (Total +{formatRupiah(m.totalAgentFeeRp)})
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {t.agentFees.map((f, idx) => (
+                            <span
+                              key={f.id || idx}
+                              className="px-2 py-0.5 rounded-md bg-zinc-950 border border-zinc-800 text-[11px] font-mono text-zinc-200"
+                            >
+                              <b className="text-white">{f.agentName || `Orang #${idx + 1}`}</b>:{' '}
+                              +{formatRupiah(f.feePerKg)}/kg × {m.netWeightKg} kg ={' '}
+                              <b className="text-amber-400">
+                                +{formatRupiah(Math.round(m.netWeightKg * (Number(f.feePerKg) || 0)))}
+                              </b>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rincian Harga Tembakau, Biaya Tambahan Fee & Total Modal (Specific Per-Panel Breakdown) */}
                     <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2.5">
                       <div className="flex items-center justify-between flex-wrap gap-1.5 text-zinc-400">
-                        <span>Kemasan ({t.taraFormula.packagingType || 'Standar'}):</span>
-                        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-zinc-400">
-                          <CalcSymbolBadge />
-                          <span>Simbol rincian angka</span>
+                        <span>
+                          Kemasan: <b className="text-white">{t.taraFormula.packagingType || 'Standar'}</b> • Netto:{' '}
+                          <b className="text-amber-400 font-mono">
+                            {t.grossWeightKg} − {m.deductionKg} = {m.netWeightKg} kg
+                          </b>
                         </span>
+                        <CalcSymbolBadge />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-zinc-900 items-stretch">
@@ -1056,10 +1013,10 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                                 name: t.name,
                                 packagingType: t.taraFormula.packagingType || 'Standar',
                                 grossWeightKg: t.grossWeightKg,
-                                realPackagingMassKg: realPkgMassKg,
                                 percentTara: t.taraFormula.percent,
                                 flatKgTara: t.taraFormula.flatKg,
                                 pricePerKg: t.pricePerKgPurchase,
+                                agentFees: t.agentFees,
                                 additionalCost: t.additionalPurchaseCost || 0,
                                 focus: 'PAID_VALUE',
                               })
@@ -1070,20 +1027,20 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                           <div className="space-y-1 w-full">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-[10px] text-zinc-400 font-bold uppercase block truncate">
-                                1. Nilai Bayar Nota (Paid Value)
+                                1. Harga Tembakau (Netto × Harga)
                               </span>
                               <CalcSymbolBadge />
                             </div>
                             <div className="font-mono text-white">
-                              Bruto {t.grossWeightKg} − Tarra {t.deductionKg} ={' '}
-                              <b className="text-white">{t.netWeightKg} kg</b>
+                              Bruto {t.grossWeightKg} − Tarra {m.deductionKg} ={' '}
+                              <b className="text-white">{m.netWeightKg} kg</b>
                             </div>
                             <div className="font-mono font-black text-white text-sm">
-                              {formatRupiah(modalAsal)}
+                              {formatRupiah(m.baseTobaccoCostRp)}
                             </div>
                           </div>
                           <div className="pt-1.5 border-t border-zinc-900 text-[10px] font-mono text-zinc-400">
-                            {t.netWeightKg} kg × {formatRupiah(t.pricePerKgPurchase)}
+                            {m.netWeightKg} kg × {formatRupiah(t.pricePerKgPurchase)}/kg
                           </div>
                         </button>
 
@@ -1095,10 +1052,10 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                                 name: t.name,
                                 packagingType: t.taraFormula.packagingType || 'Standar',
                                 grossWeightKg: t.grossWeightKg,
-                                realPackagingMassKg: realPkgMassKg,
                                 percentTara: t.taraFormula.percent,
                                 flatKgTara: t.taraFormula.flatKg,
                                 pricePerKg: t.pricePerKgPurchase,
+                                agentFees: t.agentFees,
                                 additionalCost: t.additionalPurchaseCost || 0,
                                 focus: 'REAL_VALUE',
                               })
@@ -1108,21 +1065,21 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         >
                           <div className="space-y-1 w-full">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] text-zinc-200 font-bold uppercase block truncate">
-                                2. Nilai Barang Riil (Real Value)
+                              <span className="text-[10px] text-amber-300 font-bold uppercase block truncate">
+                                2. Biaya Tambahan Fee (Netto × Fee)
                               </span>
                               <CalcSymbolBadge />
                             </div>
                             <div className="font-mono text-zinc-200">
-                              Bruto {t.grossWeightKg} − Wadah {realPkgMassKg} ={' '}
-                              <b className="text-zinc-200">{realNetWeightKg} kg</b>
+                              Netto <b className="text-white">{m.netWeightKg} kg</b> × Fee{' '}
+                              <b className="text-amber-300">+{formatRupiah(m.totalAgentFeePerKg)}/kg</b>
                             </div>
-                            <div className="font-mono font-black text-zinc-200 text-sm">
-                              {formatRupiah(realStockValueRp)}
+                            <div className="font-mono font-black text-amber-400 text-sm">
+                              +{formatRupiah(m.totalAgentFeeRp)}
                             </div>
                           </div>
                           <div className="pt-1.5 border-t border-zinc-900 text-[10px] font-mono text-zinc-400">
-                            {realNetWeightKg} kg × {formatRupiah(t.pricePerKgPurchase)}
+                            Biaya Tambahan ({t.agentFees?.length || 0} Orang Perantara)
                           </div>
                         </button>
                       </div>
@@ -1135,31 +1092,30 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                               name: t.name,
                               packagingType: t.taraFormula.packagingType || 'Standar',
                               grossWeightKg: t.grossWeightKg,
-                              realPackagingMassKg: realPkgMassKg,
                               percentTara: t.taraFormula.percent,
                               flatKgTara: t.taraFormula.flatKg,
                               pricePerKg: t.pricePerKgPurchase,
+                              agentFees: t.agentFees,
                               additionalCost: t.additionalPurchaseCost || 0,
                               focus: 'WEIGHT_PROFIT',
                             })
                           )
                         }
-                        className="w-full text-left group bg-zinc-950 p-3 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex items-center justify-between flex-wrap gap-2"
+                        className="w-full text-left group bg-zinc-950 p-3 rounded-lg border border-amber-500/40 hover:border-amber-500 transition-all cursor-pointer flex items-center justify-between flex-wrap gap-2"
                       >
                         <div>
-                          <span className="text-[10px] font-black uppercase text-zinc-200 block">
-                            3. Weight Profit (Untung Timbangan Beli)
+                          <span className="text-[10px] font-black uppercase text-amber-400 block">
+                            3. Total Modal Kita Bayar (Harga + Fee)
                           </span>
                           <span className="text-[11px] font-mono text-zinc-300">
-                            Modal Riil / KG Fisik:{' '}
-                            <b className="text-white">{formatRupiah(effectiveCostPerRealKg)}/kg</b>
+                            {m.netWeightKg} kg × ({formatRupiah(t.pricePerKgPurchase)} +{' '}
+                            {formatRupiah(m.totalAgentFeePerKg)}) ={' '}
+                            <b className="text-white">{formatRupiah(m.effectivePricePerKgWithFee)}/kg</b>
                           </span>
                         </div>
                         <div className="flex items-center gap-2.5">
                           <div className="font-mono font-black text-amber-400 text-sm text-right">
-                            {purchaseWeightProfitKg >= 0 ? '+' : ''}
-                            {purchaseWeightProfitKg} kg ({purchaseWeightProfitRp >= 0 ? '+' : ''}
-                            {formatRupiah(purchaseWeightProfitRp)})
+                            {formatRupiah(m.totalModalAsal)}
                           </div>
                           <CalcSymbolBadge />
                         </div>
