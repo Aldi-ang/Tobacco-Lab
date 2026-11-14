@@ -7,7 +7,7 @@ interface NumericInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElem
   emptyWhenZero?: boolean;
 }
 
-export const NumericInput: React.FC<NumericInputProps> = ({
+export const NumericInput = React.forwardRef<HTMLInputElement, NumericInputProps>(({
   value,
   onChange,
   allowDecimals = true,
@@ -16,7 +16,7 @@ export const NumericInput: React.FC<NumericInputProps> = ({
   onFocus,
   onBlur,
   ...rest
-}) => {
+}, ref) => {
   const [displayValue, setDisplayValue] = useState<string>(() => {
     if (value === 0) return emptyWhenZero ? '' : '0';
     return String(value ?? '');
@@ -103,6 +103,7 @@ export const NumericInput: React.FC<NumericInputProps> = ({
   return (
     <input
       {...rest}
+      ref={ref}
       type="text"
       inputMode={allowDecimals ? 'decimal' : 'numeric'}
       value={displayValue}
@@ -112,4 +113,6 @@ export const NumericInput: React.FC<NumericInputProps> = ({
       className={className}
     />
   );
-};
+});
+
+NumericInput.displayName = 'NumericInput';

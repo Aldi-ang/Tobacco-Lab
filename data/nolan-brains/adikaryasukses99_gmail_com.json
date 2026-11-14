@@ -1,0 +1,201 @@
+{
+  "agentName": "Nolan",
+  "version": "1.0.0",
+  "accountEmail": "adikaryasukses99@gmail.com",
+  "lastUpdated": "2026-11-14T02:24:14.855Z",
+  "githubRepo": "Aldi-ang/A-Brain",
+  "githubBranch": "main",
+  "githubFilePath": "Tobacco-Business/nolan-brain.json",
+  "autoSyncGithub": true,
+  "learnedRules": [
+    "Setiap entri pembelian mentah wajib menyertakan berat bersih dan HPP riil untuk akurasi kalkulasi margin keuntungan.",
+    "Data pembelian mentah wajib dilengkapi berat bersih dan HPP akurat sebelum validasi stok.",
+    "Setiap pembelian wajib mencatat berat bersih aktual dan HPP per kg untuk validasi margin profit.",
+    "Utamakan bahan dengan Sisa Stok Gudang (currentStockNetKg) yang cukup dan HPP Bersih/kg (realCostPerNetKg) efisien agar margin profit pabrik > 22%.",
+    "Perhitungkan selalu Fee Perantara (Netto × Fee/KG) sebagai tambahan modal dalam HPP dasar setiap bahan mentah.",
+    "Seimbangkan tembakau berkarakter Power/Impact kuat (Temanggung/Muntilan) dengan tembakau ber-Sugar/Burn halus (Garut/Madura/Paiton) sesuai selera pabrik tujuan.",
+    "Prioritaskan pemanfaatan stok yang memberi Weight Profit (selisih Netto Riil vs Netto Nota) tinggi untuk mendongkrak keuntungan timbangan."
+  ],
+  "decisionEpisodes": [
+    {
+      "id": "ep-1794623054854",
+      "timestamp": "2026-11-14T02:24:14.854Z",
+      "type": "RAW_PURCHASE",
+      "summary": "Stok Mentah Baru: MTL Srinthil Radial (Belum Diisi) [Grade D] • Netto 0 kg • HPP Rp 0/kg",
+      "learnedTakeaway": "Pola keputusan pengguna berhasil direkam ke histori pembelajaran Nolan."
+    },
+    {
+      "id": "ep-1794622495121",
+      "timestamp": "2026-11-14T02:14:55.121Z",
+      "type": "RAW_PURCHASE",
+      "summary": "Stok Mentah Baru: MTL Srinthil Radial (Belum Diisi) [Grade D] • Netto 0 kg • HPP Rp 0/kg",
+      "learnedTakeaway": "Data pembelian mentah tanpa berat bersih dan HPP yang akurat tidak dapat dihitung margin keuntungan profitnya."
+    },
+    {
+      "id": "ep-1794573636823",
+      "timestamp": "2026-11-13T12:40:36.823Z",
+      "type": "RAW_PURCHASE",
+      "summary": "Stok Mentah Baru: MTL Srinthil Radial (Belum Diisi) [Grade D] • Netto 0 kg • HPP Rp 0/kg",
+      "learnedTakeaway": "Data pembelian mentah tanpa berat bersih dan HPP yang akurat menghambat validasi margin profit pabrik."
+    },
+    {
+      "id": "ep-1794546645316",
+      "timestamp": "2026-11-13T05:10:45.316Z",
+      "type": "RAW_PURCHASE",
+      "summary": "Stok Mentah Baru: MTL Srinthil Baru (Muntilan) [Grade E] • Netto 0 kg • HPP Rp 0/kg",
+      "learnedTakeaway": "Transaksi tanpa data berat bersih dan HPP membuat efisiensi margin pabrik tidak terukur."
+    },
+    {
+      "id": "ep-1794462047453",
+      "timestamp": "2026-11-12T05:40:47.453Z",
+      "type": "BLEND_CREATED",
+      "summary": "Racikan \"Campuran Temanggung + Magelang + Madura + Boyolali (2026-11-12) [Seri AK 1]\" (2 Seri) → CELLO MUNTILAN [Grade E] • HPP Rp 78.145/kg",
+      "learnedTakeaway": "Pola keputusan pengguna berhasil direkam ke histori pembelajaran Nolan."
+    },
+    {
+      "id": "init-ep-tbk-fin-57",
+      "timestamp": "2026-11-03",
+      "type": "FACTORY_ACCEPTED",
+      "summary": "Seri 57 (CELLO MUNTILAN - Seri 57) → CELLO MUNTILAN [Grade E]",
+      "factoryName": "CELLO MUNTILAN",
+      "recipeName": "CELLO MUNTILAN - Seri 57",
+      "grade": "E",
+      "hppPerKg": 92500,
+      "targetPricePerKg": 140000,
+      "ingredientsSummary": "Tembakau Temanggung Srintil (Grade E Super) (26kg) + Tembakau Muntilan Garangan Wangi (26kg)",
+      "learnedTakeaway": "Komposisi Tembakau Temanggung Srintil (Grade E Super) (26kg) + Tembakau Muntilan Garangan Wangi (26kg) diterima baik oleh CELLO MUNTILAN pada HPP Rp 92.500/kg."
+    },
+    {
+      "id": "init-ep-tbk-fin-58",
+      "timestamp": "2026-11-03",
+      "type": "FACTORY_ACCEPTED",
+      "summary": "Seri 58 (CELLO MUNTILAN - Seri 58) → CELLO MUNTILAN [Grade E]",
+      "factoryName": "CELLO MUNTILAN",
+      "recipeName": "CELLO MUNTILAN - Seri 58",
+      "grade": "E",
+      "hppPerKg": 92500,
+      "targetPricePerKg": 137500,
+      "ingredientsSummary": "Tembakau Temanggung Srintil (Grade E Super) (25.5kg) + Tembakau Muntilan Garangan Wangi (25.5kg)",
+      "learnedTakeaway": "Komposisi Tembakau Temanggung Srintil (Grade E Super) (25.5kg) + Tembakau Muntilan Garangan Wangi (25.5kg) diterima baik oleh CELLO MUNTILAN pada HPP Rp 92.500/kg."
+    },
+    {
+      "id": "init-ep-tbk-fin-59",
+      "timestamp": "2026-11-03",
+      "type": "FACTORY_ACCEPTED",
+      "summary": "Seri 59 (CELLO MUNTILAN - Seri 59) → CELLO MUNTILAN [Grade D]",
+      "factoryName": "CELLO MUNTILAN",
+      "recipeName": "CELLO MUNTILAN - Seri 59",
+      "grade": "D",
+      "hppPerKg": 73000,
+      "targetPricePerKg": 92500,
+      "ingredientsSummary": "Tembakau Madura Campor Manis (25.5kg) + Tembakau Boyolali Daun Tengah (25.5kg)",
+      "learnedTakeaway": "Komposisi Tembakau Madura Campor Manis (25.5kg) + Tembakau Boyolali Daun Tengah (25.5kg) diterima baik oleh CELLO MUNTILAN pada HPP Rp 73.000/kg."
+    },
+    {
+      "id": "init-ep-tbk-fin-60",
+      "timestamp": "2026-11-03",
+      "type": "FACTORY_ACCEPTED",
+      "summary": "Seri 60 (CELLO MUNTILAN - Seri 60) → CELLO MUNTILAN [Grade D]",
+      "factoryName": "CELLO MUNTILAN",
+      "recipeName": "CELLO MUNTILAN - Seri 60",
+      "grade": "D",
+      "hppPerKg": 73000,
+      "targetPricePerKg": 90000,
+      "ingredientsSummary": "Tembakau Madura Campor Manis (19.5kg) + Tembakau Boyolali Daun Tengah (19.5kg)",
+      "learnedTakeaway": "Komposisi Tembakau Madura Campor Manis (19.5kg) + Tembakau Boyolali Daun Tengah (19.5kg) diterima baik oleh CELLO MUNTILAN pada HPP Rp 73.000/kg."
+    },
+    {
+      "id": "init-ep-tbk-fin-68",
+      "timestamp": "2026-11-03",
+      "type": "BLEND_CREATED",
+      "summary": "Seri 68 (CELLO MUNTILAN - Seri 68) → CELLO MUNTILAN [Grade D+]",
+      "factoryName": "CELLO MUNTILAN",
+      "recipeName": "CELLO MUNTILAN - Seri 68",
+      "grade": "D+",
+      "hppPerKg": 78000,
+      "targetPricePerKg": 100000,
+      "ingredientsSummary": "Tembakau Muntilan Garangan Wangi (26.4kg) + Tembakau Madura Campor Manis (17.6kg)",
+      "learnedTakeaway": "Racikan CELLO MUNTILAN - Seri 68 menggunakan Tembakau Muntilan Garangan Wangi (26.4kg) + Tembakau Madura Campor Manis (17.6kg) dengan target jual Rp 100.000/kg."
+    },
+    {
+      "id": "init-ep-tbk-fin-56-reject",
+      "timestamp": "2026-11-03",
+      "type": "FACTORY_REJECTED",
+      "summary": "Seri AK 1 (CELLO MUNTILAN - Seri AK 1) → CELLO MUNTILAN [Grade D]",
+      "factoryName": "CELLO MUNTILAN",
+      "recipeName": "CELLO MUNTILAN - Seri AK 1",
+      "grade": "D",
+      "hppPerKg": 74000,
+      "targetPricePerKg": 92500,
+      "ingredientsSummary": "Tembakau Madura Campor Manis (24kg) + Tembakau Boyolali Daun Tengah (24kg)",
+      "learnedTakeaway": "Seri AK 1 direject oleh CELLO MUNTILAN; evaluasi ulang grade/komposisi untuk pengiriman berikutnya."
+    },
+    {
+      "id": "init-ep-tbk-fin-72",
+      "timestamp": "2026-11-03",
+      "type": "BLEND_CREATED",
+      "summary": "Seri AL 2 (DJARUM 1 - Eks CELLO 1) → PT Djarum Kudus (Divisi Pembelian Daun) [Grade E]",
+      "factoryName": "PT Djarum Kudus (Divisi Pembelian Daun)",
+      "recipeName": "DJARUM 1 - Eks CELLO 1",
+      "grade": "E",
+      "hppPerKg": 90000,
+      "targetPricePerKg": 135000,
+      "ingredientsSummary": "Tembakau Temanggung Srintil (Grade E Super) (25kg) + Tembakau Muntilan Garangan Wangi (25kg)",
+      "learnedTakeaway": "Racikan DJARUM 1 - Eks CELLO 1 menggunakan Tembakau Temanggung Srintil (Grade E Super) (25kg) + Tembakau Muntilan Garangan Wangi (25kg) dengan target jual Rp 135.000/kg."
+    }
+  ],
+  "factoryProfiles": [
+    {
+      "factoryName": "CELLO MUNTILAN",
+      "acceptedCount": 4,
+      "rejectedCount": 1,
+      "preferredGrades": [
+        "E",
+        "D"
+      ],
+      "avgAcceptedHppPerKg": 82750,
+      "avgTargetPricePerKg": 115000,
+      "sensorySweetSpot": "Power 3.9/5 • Sugar 4.0/5 • Aroma 4.3/5",
+      "notes": "4 seri Diterima/Accepted, rata-rata margin positif."
+    },
+    {
+      "factoryName": "PT Gudang Garam Tbk - Kediri",
+      "acceptedCount": 0,
+      "rejectedCount": 0,
+      "preferredGrades": [
+        "D",
+        "E"
+      ],
+      "avgAcceptedHppPerKg": 0,
+      "avgTargetPricePerKg": 0,
+      "sensorySweetSpot": "Belum ada histori seri",
+      "notes": "Siap menerima pengiriman gulungan sampel baru."
+    },
+    {
+      "factoryName": "PT Djarum Kudus (Divisi Pembelian Daun)",
+      "acceptedCount": 0,
+      "rejectedCount": 0,
+      "preferredGrades": [
+        "E"
+      ],
+      "avgAcceptedHppPerKg": 90000,
+      "avgTargetPricePerKg": 135000,
+      "sensorySweetSpot": "Power 4.3/5 • Sugar 4.1/5 • Aroma 4.6/5",
+      "notes": "Siap menerima pengiriman gulungan sampel baru."
+    },
+    {
+      "factoryName": "PR Sukun Kudus",
+      "acceptedCount": 0,
+      "rejectedCount": 0,
+      "preferredGrades": [
+        "D",
+        "E"
+      ],
+      "avgAcceptedHppPerKg": 0,
+      "avgTargetPricePerKg": 0,
+      "sensorySweetSpot": "Belum ada histori seri",
+      "notes": "Siap menerima pengiriman gulungan sampel baru."
+    }
+  ],
+  "lastSyncedToGithub": "2026-11-14T02:24:14.886Z"
+}

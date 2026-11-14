@@ -138,12 +138,13 @@ export const PWAInstallButton: React.FC = () => {
       <button
         type="button"
         onClick={handleInstallClick}
-        className="inline-flex items-center gap-1 h-8 sm:h-9 px-2 sm:px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-bold text-[11px] sm:text-xs transition-all cursor-pointer shrink-0"
-        title="Install Aplikasi Tobacco Lab ke Layar Utama (iPhone, Android & PC)"
+        aria-label="Install Aplikasi Tobacco Lab ke Layar Utama"
+        className="group relative inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer shrink-0"
       >
         <Smartphone className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-        <span className="hidden md:inline">Install App</span>
-        <span className="md:hidden">Install</span>
+        <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+          Install Aplikasi
+        </span>
       </button>
 
       {showGuideModal &&

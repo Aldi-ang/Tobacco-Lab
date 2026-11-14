@@ -54,6 +54,8 @@ interface FinishedTobaccoListProps {
   onOpenRoll: (rollId: string) => void;
   onUpdateSerial?: (updated: FinishedTobaccoSerial) => void;
   onDelete: (id: string) => void;
+  onDeleteRoll?: (rollId: string) => void;
+  onClearAllSerials?: () => void;
   onOpenGoogleSheetsModal?: () => void;
 }
 
@@ -65,6 +67,8 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
   onOpenRoll,
   onUpdateSerial,
   onDelete,
+  onDeleteRoll,
+  onClearAllSerials,
   onOpenGoogleSheetsModal,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -262,12 +266,12 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
             </span>
             {status === 'ACCEPTED_CAIR' && (
               <span className="inline-flex items-center gap-0.5 text-amber-400 font-black text-[9px] shrink-0">
-                <DollarSign className="w-2.5 h-2.5" /> Diterima ({batch.paymentStatus === 'CAIR' ? 'Cair' : 'Blm Cair'})
+                <Check className="w-2.5 h-2.5" /> Diterima
               </span>
             )}
             {status === 'REJECTED_STOCK' && (
-              <span className="inline-flex items-center gap-0.5 text-zinc-300 font-bold text-[9px] shrink-0">
-                <RotateCcw className="w-2.5 h-2.5 text-zinc-300" /> Reject
+              <span className="inline-flex items-center gap-0.5 text-red-400 font-bold text-[9px] shrink-0">
+                <RotateCcw className="w-2.5 h-2.5 text-red-400" /> Reject
               </span>
             )}
           </div>
@@ -329,6 +333,20 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                 <span>Edit</span>
               </button>
             )}
+            <button
+              type="button"
+              aria-label={`Hapus Seri ${batch.serialNumber}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(batch.id);
+              }}
+              className="group/del relative h-6 w-6 shrink-0 rounded-md bg-black hover:bg-red-950/80 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/70 flex items-center justify-center cursor-pointer transition-colors"
+            >
+              <Trash2 className="w-3 h-3 shrink-0" />
+              <span className="pointer-events-none opacity-0 group-hover/del:opacity-100 transition-opacity duration-150 absolute -top-7 right-0 z-50 px-2 py-0.5 rounded bg-black border border-red-500/70 text-red-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
+                Hapus Seri {batch.serialNumber}
+              </span>
+            </button>
             <span className="font-bold shrink-0">Rincian →</span>
           </div>
         </div>
@@ -364,13 +382,6 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
             fullLabel: 'Kelompokkan Nomor Seri Berdasarkan Gulungan',
             icon: <FolderKanban className="w-3.5 h-3.5" />,
           },
-          {
-            id: 'csv-sync',
-            label: 'Sinkron CSV',
-            fullLabel:
-              'Sinkronisasi Data Batch (Modal Produksi & Harga Tagih) ke CSV / Google Sheets',
-            icon: <FileSpreadsheet className="w-3.5 h-3.5" />,
-          },
         ]}
       />
 
@@ -383,7 +394,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Cari nomor seri (57, 58...), gulungan (GUL-...), atau pabrik..."
+              placeholder="Cari nomor seri (1, 2, AK 1...), gulungan (GUL-...), atau pabrik..."
               className="w-full h-9 sm:h-10 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700"
             />
           </div>
@@ -701,6 +712,19 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                   >
                     <ExternalLink className="w-3.5 h-3.5" /> Gulungan
                   </button>
+                  {onDeleteRoll && (
+                    <button
+                      type="button"
+                      aria-label={`Hapus Gulungan ${roll.rollNumber}`}
+                      onClick={() => onDeleteRoll(roll.id)}
+                      className="group relative h-8 w-8 shrink-0 rounded-lg bg-black hover:bg-red-950/70 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/70 flex items-center justify-center cursor-pointer transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                      <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-red-500/70 text-red-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
+                        Hapus Gulungan {roll.rollNumber}
+                      </span>
+                    </button>
+                  )}
                 </div>
               </div>
 

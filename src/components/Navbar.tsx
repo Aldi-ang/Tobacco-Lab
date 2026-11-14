@@ -9,12 +9,10 @@ import {
   Plus,
   Download,
   Upload,
-  RotateCcw,
   Warehouse,
   ClipboardCheck,
   ChevronLeft,
   ChevronRight,
-  SlidersHorizontal,
   Sparkles,
   Cloud,
   LogOut,
@@ -23,6 +21,8 @@ import {
   History,
   RefreshCw,
   AlertTriangle,
+  Bot,
+  Settings,
 } from 'lucide-react';
 import { PWAInstallButton, OfflineIndicator } from './PWAInstallButton';
 import { CURRENT_APP_VERSION } from './PatchNotesModal';
@@ -34,7 +34,8 @@ export type ActiveTab =
   | 'rolls'
   | 'tara-simulator'
   | 'qc-status'
-  | 'history';
+  | 'history'
+  | 'settings';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -60,6 +61,7 @@ interface NavbarProps {
   onGoogleLogin?: () => void;
   onGoogleLogout?: () => void;
   onForceCloudSync?: () => void;
+  onOpenNolanAgent?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -86,6 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onGoogleLogin,
   onGoogleLogout,
   onForceCloudSync,
+  onOpenNolanAgent,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -151,6 +154,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       countText: `${finishedCount}`,
       desktopFlexClass: 'flex-[1.05]',
     },
+    {
+      id: 'settings',
+      shortLabel: 'Setting',
+      mobileLabel: 'Setting',
+      fullLabel: 'Pengaturan Sistem, GitHub A-Brain Nolan, Cloud Sync & Master Data',
+      icon: <Settings className="w-4 h-4 shrink-0" />,
+      desktopFlexClass: 'flex-[1]',
+    },
   ];
 
   const currentIndex = Math.max(
@@ -198,240 +209,144 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
 
-              {/* Mobile-only compact status badges (< 640px) */}
+              {/* Mobile-only compact status badges (< 640px) — Fixed Icon-Only Slots */}
               <div className="sm:hidden flex items-center gap-1 shrink-0">
                 {userEmail ? (
-                  <div className="inline-flex items-center gap-0.5 h-7 px-1.5 rounded-lg bg-black text-white border border-zinc-800 font-bold text-[10px] whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={onForceCloudSync}
-                      className="inline-flex items-center gap-1 pr-1 cursor-pointer"
-                      title={`Cloud (${userEmail}) — Ketuk untuk Tarik Data Cloud Terbaru`}
-                    >
-                      {cloudSyncStatus === 'syncing' ? (
-                        <Loader2 className="w-3 h-3 animate-spin text-amber-400 shrink-0" />
-                      ) : cloudSyncStatus === 'error' ? (
-                        <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />
-                      ) : (
-                        <CheckCircle2 className="w-3 h-3 text-amber-400 shrink-0" />
-                      )}
-                      <span>Cloud</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onGoogleLogout}
-                      className="pl-1 border-l border-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
-                      title={`Keluar dari Cloud (${userEmail})`}
-                      aria-label="Keluar dari Cloud"
-                    >
-                      <LogOut className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={onForceCloudSync}
+                    aria-label="Sinkronisasi Cloud"
+                    className="group relative h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-lg bg-black text-white border border-zinc-800 cursor-pointer"
+                  >
+                    {cloudSyncStatus === 'syncing' ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
+                    ) : cloudSyncStatus === 'error' ? (
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    )}
+                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                      Cloud Sync ({userEmail.split('@')[0]})
+                    </span>
+                  </button>
                 ) : (
                   <button
                     type="button"
                     onClick={onGoogleLogin}
-                    className="inline-flex items-center gap-1 h-7 px-1.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 font-bold text-[10px] whitespace-nowrap cursor-pointer"
-                    title="Masuk dengan Google untuk Sinkronisasi Cloud"
+                    aria-label="Masuk Cloud Google"
+                    className="group relative inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 cursor-pointer"
                   >
-                    <Cloud className="w-3 h-3 text-zinc-300 shrink-0" />
-                    <span>Login</span>
+                    <Cloud className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
+                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                      Login Cloud Google
+                    </span>
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  onClick={onOpenPatchNotes}
-                  className="relative inline-flex items-center gap-1 h-7 px-1.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 font-mono font-bold text-[10px] whitespace-nowrap cursor-pointer"
-                  title="Lihat Patch Notes, Fitur Baru & Perbaikan Bug"
-                >
-                  <Sparkles className="w-2.5 h-2.5 text-zinc-300 shrink-0" />
-                  <span>{CURRENT_APP_VERSION}</span>
-                  {hasUnreadPatch && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                  )}
-                </button>
-
                 <div
-                  className="bg-zinc-950/90 h-7 px-1.5 rounded-lg border border-zinc-800 flex items-center gap-1 shrink-0"
-                  title="Total Sisa Stok Bersih Tembakau Mentah"
+                  className="group relative bg-zinc-950/90 h-7 px-2 rounded-lg border border-zinc-800 flex items-center gap-1 shrink-0"
                 >
                   <Warehouse className="w-3 h-3 text-zinc-400 shrink-0" />
                   <div className="font-extrabold text-white font-mono text-[10px] whitespace-nowrap">
                     {totalNetStockKg.toLocaleString('id-ID', { maximumFractionDigits: 1 })}{' '}
                     <span className="text-zinc-400">kg</span>
                   </div>
+                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                    Total Sisa Stok Mentah
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Right Controls: Flex-wrap with clean spacing so it never overlaps Brand on tablet/medium screens */}
+            {/* Right Controls: Streamlined Operational Controls Only */}
             <div className="flex flex-wrap items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto sm:ml-auto text-xs">
               <div
-                className="hidden sm:flex bg-zinc-950/90 h-8 sm:h-9 px-2.5 rounded-lg border border-zinc-800 items-center gap-1.5 shrink-0"
-                title="Total Sisa Stok Bersih Tembakau Mentah"
+                className="group relative hidden sm:flex bg-zinc-950/90 h-8 sm:h-9 px-2.5 rounded-lg border border-zinc-800 items-center gap-1.5 shrink-0"
               >
                 <Warehouse className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
                 <div className="font-extrabold text-white font-mono text-xs whitespace-nowrap">
                   {totalNetStockKg.toLocaleString('id-ID', { maximumFractionDigits: 1 })}{' '}
                   <span className="text-zinc-400">kg</span>
                 </div>
+                <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                  Total Sisa Stok Bersih Tembakau Mentah
+                </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1 sm:gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {userEmail ? (
-                  <div className="hidden sm:inline-flex items-center gap-1.5 h-8 sm:h-9 px-2.5 rounded-lg bg-black border border-zinc-800 text-xs shrink-0">
-                    <button
-                      type="button"
-                      onClick={onForceCloudSync}
-                      className="inline-flex items-center gap-1.5 hover:text-amber-300 transition-colors cursor-pointer"
-                      title={`Sinkronisasi Cloud Aktif (${userEmail}) — Klik untuk Tarik Data Cloud Terbaru`}
-                    >
-                      {cloudSyncStatus === 'syncing' ? (
-                        <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
-                      ) : cloudSyncStatus === 'error' ? (
-                        <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                      ) : (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      )}
-                      <span className="font-bold text-white max-w-[110px] lg:max-w-[130px] truncate">
-                        {userEmail.split('@')[0]}
-                      </span>
-                      <RefreshCw
-                        className={`w-3 h-3 text-zinc-400 hover:text-amber-400 shrink-0 ${
-                          cloudSyncStatus === 'syncing' ? 'animate-spin text-amber-400' : ''
-                        }`}
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onGoogleLogout}
-                      className="ml-0.5 p-1 rounded hover:bg-zinc-900 text-zinc-400 hover:text-white cursor-pointer"
-                      title={`Keluar dari Cloud (${userEmail})`}
-                      aria-label="Keluar dari Akun Google"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={onForceCloudSync}
+                    aria-label="Sinkronisasi Cloud"
+                    className="group relative hidden sm:inline-flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
+                  >
+                    {cloudSyncStatus === 'syncing' ? (
+                      <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
+                    ) : cloudSyncStatus === 'error' ? (
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    )}
+                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                      Cloud Aktif ({userEmail}) — Klik Segarkan
+                    </span>
+                  </button>
                 ) : (
                   <button
                     type="button"
                     onClick={onGoogleLogin}
-                    className="hidden sm:inline-flex items-center gap-1.5 h-8 sm:h-9 px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-bold text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
-                    title="Masuk dengan Google agar data tersimpan di Cloud & sinkron di semua perangkat"
+                    aria-label="Login Cloud Google"
+                    className="group relative hidden sm:inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
                   >
                     <Cloud className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-                    <span>Login Cloud</span>
+                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                      Login Cloud Google
+                    </span>
                   </button>
                 )}
 
                 <PWAInstallButton />
 
-                <button
-                  type="button"
-                  onClick={onOpenPatchNotes}
-                  className="hidden sm:inline-flex group relative items-center justify-center gap-1.5 h-8 sm:h-9 px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-bold text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
-                  title="Lihat Patch Notes, Fitur Baru & Perbaikan Bug"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-                  <span className="hidden lg:inline">Patch Notes</span>
-                  <span className="font-mono text-[10px] text-zinc-300">
-                    ({CURRENT_APP_VERSION})
-                  </span>
-                  {hasUnreadPatch && (
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                  )}
-                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
-                    Riwayat Update, Fitur Baru & Bug Fixes
-                  </span>
-                </button>
+                {onOpenNolanAgent && (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.96 }}
+                    onClick={onOpenNolanAgent}
+                    aria-label="Buka Nolan AI Assistant"
+                    className="group relative inline-flex items-center justify-center h-8 px-2.5 sm:h-9 sm:px-3 gap-1.5 rounded-lg bg-[#042f2e] hover:bg-[#064e3b] text-emerald-300 border border-emerald-500/70 hover:border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)] transition-colors cursor-pointer shrink-0 font-extrabold text-xs"
+                  >
+                    <Bot className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Nolan AI</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  </motion.button>
+                )}
 
                 {onOpenSimulator && (
                   <motion.button
                     type="button"
                     whileTap={{ scale: 0.96 }}
                     onClick={onOpenSimulator}
-                    className={`group relative inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
+                    aria-label="Simulator"
+                    className={`group relative inline-flex items-center justify-center h-8 px-2.5 sm:h-9 sm:px-3 gap-1.5 rounded-lg transition-colors cursor-pointer shrink-0 border font-bold text-xs ${
                       isSimulatorOpen
                         ? 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
                         : 'bg-black hover:bg-zinc-900 text-white border-zinc-800 hover:border-amber-500/70'
                     }`}
-                    title="Buka Simulator Potongan Tarra & Kalkulasi Coba-Coba"
                   >
                     <Calculator className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>Simulator</span>
-                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
-                      Simulator Potongan Tarra & Coba-Coba Harga
-                    </span>
+                    <span className="hidden sm:inline">Simulator</span>
                   </motion.button>
                 )}
 
                 <button
                   type="button"
-                  onClick={onOpenMasterModal}
-                  className="group relative inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 font-bold text-[11px] sm:text-xs whitespace-nowrap transition-all cursor-pointer shrink-0"
-                  title="Format Kemasan (Tarra & Ongkos Press), Daftar Pabrik & Gulungan"
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-                  <span>Format</span>
-                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
-                    Atur Format Kemasan, Pabrik & Gulungan
-                  </span>
-                </button>
-
-                <button
-                  type="button"
                   onClick={onOpenAddModal}
-                  className="group relative btn-amber-outline inline-flex items-center justify-center gap-1 h-8 sm:h-9 px-2.5 sm:px-3 rounded-lg font-extrabold text-[11px] sm:text-xs whitespace-nowrap cursor-pointer shrink-0"
-                  title="Tambah Stok Tembakau Mentah Baru"
+                  aria-label="Tambah Stok Tembakau Mentah"
+                  className="group relative btn-amber-outline inline-flex items-center justify-center h-8 px-2.5 sm:h-9 sm:px-3 gap-1.5 rounded-lg font-extrabold cursor-pointer shrink-0 text-xs"
                 >
-                  <Plus className="w-3.5 h-3.5 stroke-[2.5] text-amber-400 shrink-0" />
-                  <span>Bahan</span>
-                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden md:block absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
-                    Tambah Stok Tembakau Mentah
-                  </span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={onExportData}
-                  className="h-8 w-8 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer shrink-0"
-                  title="Backup Data JSON"
-                  aria-label="Ekspor Data JSON"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                </button>
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json,application/json,text/plain,*/*"
-                  onChange={onImportData}
-                  className="hidden"
-                  id="import-json-input"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    onOpenRestoreModal ? onOpenRestoreModal() : fileInputRef.current?.click()
-                  }
-                  className="h-8 w-8 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer shrink-0"
-                  title="Restore Data JSON"
-                  aria-label="Impor Data JSON"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onResetData}
-                  className="h-8 w-8 sm:h-9 sm:w-9 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer shrink-0"
-                  title="Reset Data ke Contoh Awal"
-                  aria-label="Reset Data ke Contoh Awal"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <Plus className="w-4 h-4 stroke-[2.5] text-amber-400 shrink-0" />
+                  <span>+ Input Stok</span>
                 </button>
               </div>
             </div>
@@ -445,27 +360,29 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={handlePrevTab}
-                className="h-9 w-8 lg:w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer"
-                title="Segmen Sebelumnya"
+                className="group relative h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
                 aria-label="Segmen Sebelumnya"
               >
                 <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+                <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-9 left-0 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-2xl">
+                  Segmen Sebelumnya
+                </span>
               </button>
 
-              <div className="flex items-center justify-between gap-1 lg:gap-2 flex-1 min-w-0">
+              {/* Fixed 7-column grid so navigation buttons NEVER shift position when active or hovered */}
+              <div className="grid grid-cols-7 gap-1 lg:gap-1.5 flex-1 min-w-0">
                 {tabs.map((tab) => {
                   const isActive = activeTab === tab.id;
                   return (
                     <button
                       key={tab.id}
                       type="button"
-                      title={tab.fullLabel}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`group relative ${
+                      className={`group relative w-full min-w-0 h-9 px-2 lg:px-3 text-[11px] lg:text-xs font-extrabold rounded-lg flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${
                         isActive
-                          ? 'flex-[1.25] lg:flex-[1.15] text-white'
-                          : `${tab.desktopFlexClass || 'flex-1'} text-zinc-400 hover:text-white border border-transparent hover:border-zinc-800/80`
-                      } min-w-0 h-9 px-1.5 lg:px-3 text-[11px] lg:text-xs font-extrabold rounded-lg flex items-center justify-center gap-1 lg:gap-1.5 whitespace-nowrap transition-all duration-250 ease-out cursor-pointer`}
+                          ? 'text-white'
+                          : 'text-zinc-400 hover:text-white border border-transparent hover:border-zinc-800/80'
+                      }`}
                     >
                       {isActive && (
                         <motion.span
@@ -474,7 +391,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           className="absolute inset-0 rounded-lg bg-black border border-amber-500/80 shadow-[0_0_12px_rgba(245,158,11,0.14)]"
                         />
                       )}
-                      <span className="relative z-10 flex items-center justify-center gap-1 lg:gap-1.5 min-w-0">
+                      <span className="relative z-10 flex items-center justify-center gap-1.5 min-w-0">
                         <span className={isActive ? 'text-amber-400 shrink-0' : 'shrink-0'}>
                           {tab.icon}
                         </span>
@@ -503,11 +420,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={handleNextTab}
-                className="h-9 w-8 lg:w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer"
-                title="Segmen Berikutnya"
+                className="group relative h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
                 aria-label="Segmen Berikutnya"
               >
                 <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+                <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-9 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-2xl">
+                  Segmen Berikutnya
+                </span>
               </button>
             </div>
           </nav>

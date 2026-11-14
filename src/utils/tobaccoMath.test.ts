@@ -12,8 +12,11 @@ import {
   formatSerialLineage,
   hasSerialLineage,
   applyRejectedSerialReassignment,
+  getAllowedGradesForTarget,
+  extractUniqueOrigins,
+  solveAutoBlend,
 } from './tobaccoMath';
-import { BlendIngredient, FinishedTobaccoSerial } from '../types/tobacco';
+import { BlendIngredient, FinishedTobaccoSerial, RawTobacco } from '../types/tobacco';
 
 test('parseTaraFormula and formatTaraFormula support flat tara, percent+flat, and sample deduction', () => {
   const flatOnly = parseTaraFormula('3 kg');
@@ -370,6 +373,137 @@ test('Rejected Seri renaming & reassignment: AK 1 in Cello 1 rejected -> renamed
   assert.equal(result.updatedSerial.transferHistory?.[0].toSerialNumber, 'AL 1');
   assert.deepEqual(result.updatedTargetRollSerialNumbers, ['DJ 1', 'AL 1']);
 });
+
+test('Auto-Racik Grade Sorting: Target D or D+ automatically selects 1 level below (C, C+) and 2 levels above (E, E+, F)', () => {
+  // Strict cross-grade sorting (1 level below C/C+, 2 levels above E/E+/F)
+  const strictForD = getAllowedGradesForTarget('D', {
+    includeTargetFamily: false,
+    includeTopPlus: false,
+  });
+  assert.deepEqual(strictForD, ['C', 'C+', 'E', 'E+', 'F']);
+
+  const strictForDPlus = getAllowedGradesForTarget('D+', {
+    includeTargetFamily: false,
+    includeTopPlus: false,
+  });
+  assert.deepEqual(strictForDPlus, ['C', 'C+', 'E', 'E+', 'F']);
+
+  // Default inclusive sorting (includes D, D+ as well)
+  const inclusiveForD = getAllowedGradesForTarget('D', {
+    includeTargetFamily: true,
+    includeTopPlus: false,
+  });
+  assert.deepEqual(inclusiveForD, ['C', 'C+', 'D', 'D+', 'E', 'E+', 'F']);
+});
+
+test('Auto-Racik Solver: Finds optimal blend when feasible and reports honest mathematical impossibility when asked to average down below min stock', () => {
+  const sampleStocks: RawTobacco[] = [
+    {
+      id: 'stk-c',
+      name: 'Boyolali Rajang Halus',
+      origin: 'Boyolali',
+      lotNumber: 'LOT-BYL-01',
+      purchaseDate: '2026-11-01',
+      grossWeightKg: 100,
+      taraFormula: { rawFormula: '3 kg', percent: 0, flatKg: 3, pricingBasis: 'NET_WEIGHT' },
+      deductionKg: 3,
+      netWeightKg: 97,
+      pricePerKgPurchase: 60000,
+      totalModalAsal: 5820000,
+      additionalPurchaseCost: 0,
+      realCostPerNetKg: 60000,
+      powerRating: 3.5,
+      impactRating: 3.5,
+      bitterRating: 2.5,
+      burnRating: 4.5,
+      sugarRating: 3.8,
+      aromaRating: 4.0,
+      colorGrade: 'C',
+      characterNotes: 'Halus ringan',
+      currentStockNetKg: 80,
+    },
+    {
+      id: 'stk-e',
+      name: 'Temanggung Kemloko',
+      origin: 'Temanggung',
+      lotNumber: 'LOT-TMG-02',
+      purchaseDate: '2026-11-01',
+      grossWeightKg: 100,
+      taraFormula: { rawFormula: '3 kg', percent: 0, flatKg: 3, pricingBasis: 'NET_WEIGHT' },
+      deductionKg: 3,
+      netWeightKg: 97,
+      pricePerKgPurchase: 100000,
+      totalModalAsal: 9700000,
+      additionalPurchaseCost: 0,
+      realCostPerNetKg: 100000,
+      powerRating: 4.5,
+      impactRating: 4.5,
+      bitterRating: 3.5,
+      burnRating: 4.5,
+      sugarRating: 4.2,
+      aromaRating: 4.4,
+      colorGrade: 'E',
+      characterNotes: 'Mantap gurih',
+      currentStockNetKg: 80,
+    },
+  ];
+
+  assert.deepEqual(extractUniqueOrigins(sampleStocks), ['Boyolali', 'Temanggung']);
+
+  // Case A: Feasible midpoint target (50/50 blend -> Power 4.0, Bitter 3.0, Price Rp 80,000/kg)
+  const feasibleResult = solveAutoBlend({
+    rawTobaccos: sampleStocks,
+    stockMode: 'ALL',
+    targetGrade: 'D',
+    allowedGrades: getAllowedGradesForTarget('D'),
+    targetSensory: {
+      power: 4.0,
+      impact: 4.0,
+      bitter: 3.0,
+      burn: 4.5,
+      sugar: 4.0,
+      aroma: 4.2,
+    },
+    allowedOrigins: ['Boyolali', 'Temanggung'],
+    targetPricePerKg: 80000,
+    targetTotalKg: 100,
+  });
+
+  assert.equal(feasibleResult.isPoolEmpty, false);
+  assert.equal(feasibleResult.isFullyFeasible, true);
+  assert.equal(feasibleResult.hasOutOfBoundsTarget, false);
+  assert.equal(feasibleResult.achievedMetrics.totalBlendNetKg, 100);
+  assert.equal(Math.abs(feasibleResult.achievedMetrics.weightedPower - 4.0) <= 0.1, true);
+  assert.equal(Math.abs(feasibleResult.achievedMetrics.hppPerNetKg - 80000) <= 2000, true);
+
+  // Case B: Impossible to average down (asking for Bitter 1.5 when min Bitter in stock is 2.5, and Price Rp 45,000 when min is Rp 60,000)
+  const impossibleResult = solveAutoBlend({
+    rawTobaccos: sampleStocks,
+    stockMode: 'ALL',
+    targetGrade: 'D',
+    allowedGrades: getAllowedGradesForTarget('D'),
+    targetSensory: {
+      power: 4.0,
+      impact: 4.0,
+      bitter: 1.5, // Impossible! Min in pool is 2.5
+      burn: 4.5,
+      sugar: 4.0,
+      aroma: 4.2,
+    },
+    allowedOrigins: [],
+    targetPricePerKg: 45000, // Impossible! Min in pool is 60,000
+    targetTotalKg: 100,
+  });
+
+  assert.equal(impossibleResult.isFullyFeasible, false);
+  assert.equal(impossibleResult.hasOutOfBoundsTarget, true);
+  const bitterDiag = impossibleResult.parameterDiagnostics.find((d) => d.key === 'bitter');
+  assert.equal(bitterDiag?.status, 'IMPOSSIBLE_TOO_LOW');
+  const priceDiag = impossibleResult.parameterDiagnostics.find((d) => d.key === 'price');
+  assert.equal(priceDiag?.status, 'IMPOSSIBLE_TOO_LOW');
+  assert.equal(impossibleResult.impossibilityWarnings.length >= 2, true);
+});
+
 
 
 

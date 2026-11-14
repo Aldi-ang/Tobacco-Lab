@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   X,
   Sparkles,
@@ -9,6 +9,9 @@ import {
   Plus,
   Trash2,
   Users,
+  ArrowRight,
+  Clock,
+  RotateCw,
 } from 'lucide-react';
 import { RawTobacco, TobaccoGrade, PackagingMaster, AgentFeeItem } from '../types/tobacco';
 import {
@@ -105,7 +108,32 @@ const ALL_RAW_FIELD_KEYS: RawLockableFieldKey[] = [
   'characterNotes',
 ];
 
-type RawModalSectionTab = 'main' | 'character' | 'all';
+import { getNextFocusFieldId } from '../utils/tobaccoCompleteness';
+
+type RawModalSectionTab = 'quick' | 'advanced' | 'all';
+
+const QUICK_CHARACTER_PRESETS = [
+  {
+    id: 'ringan',
+    label: 'Ringan',
+    values: { power: 2.5, impact: 2.5, bitter: 1.5, burn: 4.5, sugar: 3.5, aroma: 4.0 },
+  },
+  {
+    id: 'sedang',
+    label: 'Sedang',
+    values: { power: 3.5, impact: 3.5, bitter: 2.5, burn: 4.0, sugar: 3.5, aroma: 4.0 },
+  },
+  {
+    id: 'mantap',
+    label: 'Mantap',
+    values: { power: 4.5, impact: 4.5, bitter: 3.5, burn: 4.0, sugar: 3.0, aroma: 4.2 },
+  },
+  {
+    id: 'manis',
+    label: 'Manis Harum',
+    values: { power: 3.0, impact: 3.0, bitter: 1.5, burn: 4.5, sugar: 4.5, aroma: 4.8 },
+  },
+];
 
 interface RawTobaccoModalProps {
   isOpen: boolean;
@@ -124,7 +152,16 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
   packagingList,
   existingTobaccos = [],
 }) => {
-  const [activeSection, setActiveSection] = useState<RawModalSectionTab>('main');
+  const [activeSection, setActiveSection] = useState<RawModalSectionTab>('quick');
+
+  // Refs for Enter-to-Advance focus sequencing
+  const sellerInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const originInputRef = useRef<HTMLInputElement>(null);
+  const packagingSelectRef = useRef<HTMLSelectElement>(null);
+  const grossInputRef = useRef<HTMLInputElement>(null);
+  const priceInputRef = useRef<HTMLInputElement>(null);
+  const lotInputRef = useRef<HTMLInputElement>(null);
 
   // All textboxes empty by default (with shadow placeholders) & all parameters 0 by default
   const [name, setName] = useState('');
@@ -222,7 +259,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
     setStoredTobaccoNames(loadStringListFromStorage(REMEMBERED_TOBACCO_NAMES_KEY));
     setStoredSellerNames(loadStringListFromStorage(REMEMBERED_SELLER_NAMES_KEY));
     setStoredAgentNames(loadStringListFromStorage(REMEMBERED_AGENT_NAMES_KEY));
-    setActiveSection('main');
+    setActiveSection('quick');
 
     if (editingTobacco) {
       setName(editingTobacco.name || '');
@@ -291,6 +328,14 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setColorGrade('D');
       setCharacterNotes('');
       setLockedMap({});
+    }
+
+    if (isOpen) {
+      window.setTimeout(() => {
+        if (!editingTobacco) {
+          sellerInputRef.current?.focus();
+        }
+      }, 60);
     }
   }, [editingTobacco, isOpen]);
 
@@ -434,24 +479,21 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
         <button
           type="button"
           onClick={() => toggleLock(key)}
-          title={locked ? `Buka kunci ${labelText}` : `Kunci ${labelText}`}
-          className={`h-5 px-1.5 rounded border text-[9px] font-mono font-bold inline-flex items-center gap-1 cursor-pointer transition-all shrink-0 ${
+          aria-label={locked ? `Buka kunci ${labelText}` : `Kunci ${labelText}`}
+          className={`group relative h-5 w-5 shrink-0 rounded border inline-flex items-center justify-center cursor-pointer transition-colors ${
             locked
               ? 'bg-amber-500/15 text-amber-300 border-amber-500/60'
               : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border-zinc-800'
           }`}
         >
           {locked ? (
-            <>
-              <Lock className="w-2.5 h-2.5 text-amber-400" />
-              <span>Terkunci</span>
-            </>
+            <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
           ) : (
-            <>
-              <Unlock className="w-2.5 h-2.5 text-zinc-400" />
-              <span>Buka</span>
-            </>
+            <Unlock className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
           )}
+          <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-7 right-0 z-50 px-2 py-0.5 rounded bg-black border border-zinc-700 text-white font-mono text-[9px] font-bold whitespace-nowrap shadow-xl">
+            {locked ? 'Terkunci (Klik Buka)' : 'Terbuka (Klik Kunci)'}
+          </span>
         </button>
       </div>
     );
@@ -515,9 +557,42 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const QUICK_FIELD_ORDER = ['sellerName', 'name', 'origin', 'packagingType', 'grossWeightKg', 'pricePerKgPurchase'] as const;
+  type QuickFocusField = (typeof QUICK_FIELD_ORDER)[number];
 
+  const quickFieldRefMap: Record<
+    QuickFocusField,
+    React.RefObject<HTMLInputElement | HTMLSelectElement | null>
+  > = {
+    sellerName: sellerInputRef,
+    name: nameInputRef,
+    origin: originInputRef,
+    packagingType: packagingSelectRef,
+    grossWeightKg: grossInputRef,
+    pricePerKgPurchase: priceInputRef,
+  };
+
+  const handleEnterAdvanceQuick = (
+    e: React.KeyboardEvent,
+    currentField: QuickFocusField
+  ) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const nextField = getNextFocusFieldId(QUICK_FIELD_ORDER, currentField, (f) =>
+      isLocked(f)
+    );
+    if (nextField && quickFieldRefMap[nextField]?.current) {
+      const target = quickFieldRefMap[nextField].current;
+      target?.focus();
+      if (target instanceof HTMLInputElement) {
+        target.select();
+      }
+    } else {
+      saveCurrentTobacco(false);
+    }
+  };
+
+  const buildRawTobaccoPayload = (): RawTobacco => {
     const finalName =
       name.trim() ||
       rememberedTobaccoNames[0] ||
@@ -566,7 +641,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
     const rawFormula = formatTaraFormula(percentTara, flatKgTara);
     const todayStr = new Date().toISOString().split('T')[0];
 
-    const updated: RawTobacco = {
+    return {
       id: editingTobacco ? editingTobacco.id : `tbk-raw-${Date.now()}`,
       name: finalName,
       origin: origin.trim() || 'Belum Diisi',
@@ -616,9 +691,35 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       characterNotes: characterNotes.trim(),
       lockedFields: activeLockedFields,
     };
+  };
 
+  const saveCurrentTobacco = (continueSameSeller: boolean) => {
+    const updated = buildRawTobaccoPayload();
     onSave(updated);
+    if (continueSameSeller && !editingTobacco) {
+      // Keep seller, origin, and packaging for rapid consecutive basket grading
+      setName('');
+      setLotNumber('');
+      setGrossWeightKg(0);
+      setPricePerKgPurchase(0);
+      setPowerRating(0);
+      setImpactRating(0);
+      setBitterRating(0);
+      setBurnRating(0);
+      setSugarRating(0);
+      setAromaRating(0);
+      setCharacterNotes('');
+      window.setTimeout(() => {
+        nameInputRef.current?.focus();
+      }, 40);
+      return;
+    }
     onClose();
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveCurrentTobacco(false);
   };
 
   const shadowNamePlaceholder = rememberedTobaccoNames[0] || 'Nama tembakau...';
@@ -652,29 +753,33 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={handleLockAllFields}
-              className="h-7 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/50 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer"
-              title="Kunci semua kolom"
+              aria-label="Kunci semua kolom"
+              className="group relative h-8 w-8 shrink-0 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/50 inline-flex items-center justify-center cursor-pointer"
             >
-              <Lock className="w-3 h-3" />
-              <span>Kunci Semua</span>
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-amber-500/60 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                Kunci Semua Kolom
+              </span>
             </button>
             <button
               type="button"
               onClick={handleUnlockAllFields}
-              className="h-7 px-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer"
-              title="Buka semua kolom"
+              aria-label="Buka semua kolom"
+              className="group relative h-8 w-8 shrink-0 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 inline-flex items-center justify-center cursor-pointer"
             >
-              <Unlock className="w-3 h-3" />
-              <span>Buka Semua</span>
+              <Unlock className="w-3.5 h-3.5 shrink-0" />
+              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                Buka Semua Kolom
+              </span>
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors cursor-pointer"
+              className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors cursor-pointer"
               aria-label="Tutup modal"
             >
               <X className="w-4 h-4" />
@@ -682,30 +787,30 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
           </div>
         </div>
 
-        {/* Clean Section Switcher so data is never overcrowded in one view */}
+        {/* Clean Mode Switcher: 1. Grading & Input Cepat (Default unified view) | 2. Lanjutan (Lot/Fee/Tarra/Kunci) */}
         <div className="px-4 py-2 bg-zinc-950 border-b border-zinc-800/90 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-1 bg-black p-1 rounded-xl border border-zinc-800">
             <button
               type="button"
-              onClick={() => setActiveSection('main')}
+              onClick={() => setActiveSection('quick')}
               className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                activeSection === 'main'
+                activeSection === 'quick'
                   ? 'bg-amber-500 text-black font-black'
                   : 'text-zinc-300 hover:text-white'
               }`}
             >
-              1. Data, Timbangan &amp; Fee
+              1. Grading &amp; Input Cepat ({colorGrade})
             </button>
             <button
               type="button"
-              onClick={() => setActiveSection('character')}
+              onClick={() => setActiveSection('advanced')}
               className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                activeSection === 'character'
+                activeSection === 'advanced'
                   ? 'bg-amber-500 text-black font-black'
                   : 'text-zinc-300 hover:text-white'
               }`}
             >
-              2. Grade &amp; 6 Karakter ({colorGrade})
+              2. Detail Lanjutan (Lot, Fee &amp; Tarra)
             </button>
             <button
               type="button"
@@ -720,103 +825,39 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center gap-2.5 text-[11px] font-mono">
-            <span className="text-zinc-400">
-              Netto: <b className="text-white">{calculation.netWeightKg} kg</b>
+          <div className="flex items-center gap-2 text-[11px] font-mono">
+            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-zinc-400">
+              <ArrowRight className="w-3 h-3 text-amber-400" />
+              Enter = Lanjut Kolom
             </span>
-            {calculation.totalAgentFeePerKg > 0 && (
-              <>
-                <span className="text-zinc-600">·</span>
-                <span className="text-zinc-300">
-                  Biaya Fee: <b className="text-amber-300">{formatRupiah(calculation.totalAgentFeeRp)}</b>
-                </span>
-              </>
-            )}
-            <span className="text-zinc-600">·</span>
             <span className="text-zinc-300">
-              Total Modal: <b className="text-amber-400">{formatRupiah(calculation.totalModalAsal)}</b>
+              Modal: <b className="text-amber-400">{formatRupiah(calculation.totalModalAsal)}</b>
             </span>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-4 space-y-4 flex-1 text-xs">
-          {/* SECTION 1: Identitas, Timbangan & Fee Perantara */}
-          {(activeSection === 'main' || activeSection === 'all') && (
-            <div className="space-y-3.5">
-              {/* Card 1: Identitas Tembakau & Penjual */}
+        <form onSubmit={handleSubmit} className="overflow-y-auto p-3.5 sm:p-4 space-y-3.5 flex-1 text-xs">
+          {/* MODE 1: UNIFIED SIMULTANEOUS GRADING & INPUT (Penjual -> Jenis -> Daerah -> Kemasan -> Grade + 6 Karakter + Timbangan/Harga Opsional) */}
+          {(activeSection === 'quick' || activeSection === 'all') && (
+            <div className="space-y-3">
+              {/* Step A: 4 Core Gudang Identity Inputs in Exact Grading Order with Enter-to-Advance */}
               <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  <div className="sm:col-span-2 flex flex-col">
-                    {renderFieldLabel('Nama Tembakau', 'name')}
-                    <input
-                      type="text"
-                      list="remembered-tobacco-names-list"
-                      disabled={isLocked('name')}
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder={shadowNamePlaceholder}
-                      className={getTextboxClass('name')}
-                    />
-                    <datalist id="remembered-tobacco-names-list">
-                      {rememberedTobaccoNames.map((item) => (
-                        <option key={item} value={item} />
-                      ))}
-                    </datalist>
-
-                    {!isLocked('name') && rememberedTobaccoNames.length > 0 && (
-                      <div className="flex items-center gap-1 flex-wrap mt-1">
-                        {rememberedTobaccoNames.slice(0, 4).map((item) => (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() => setName(item)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer max-w-[160px] truncate ${
-                              name === item
-                                ? 'bg-amber-500 text-black border-amber-400'
-                                : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
-                            }`}
-                          >
-                            {item}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col">
-                    {renderFieldLabel('Daerah Asal', 'origin')}
-                    <input
-                      type="text"
-                      list="tobacco-origins-datalist"
-                      disabled={isLocked('origin')}
-                      value={origin}
-                      onChange={(e) => setOrigin(e.target.value)}
-                      placeholder="Muntilan / Temanggung"
-                      className={getTextboxClass('origin')}
-                    />
-                    <datalist id="tobacco-origins-datalist">
-                      <option value="Temanggung" />
-                      <option value="Muntilan" />
-                      <option value="Madura" />
-                      <option value="Boyolali" />
-                      <option value="Lombok" />
-                      <option value="Weleri" />
-                      <option value="Jember" />
-                    </datalist>
-                  </div>
-
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                   <div className="flex flex-col">
                     {renderFieldLabel(
-                      'Nama Penjual / Pengepul',
+                      '1. Penjual / Petani',
                       'sellerName',
-                      <UserCheck className="w-3 h-3 text-zinc-400 shrink-0" />
+                      <UserCheck className="w-3 h-3 text-amber-400 shrink-0" />
                     )}
                     <input
+                      ref={sellerInputRef}
                       type="text"
+                      enterKeyHint="next"
                       list="remembered-seller-names-list"
                       disabled={isLocked('sellerName')}
                       value={sellerName}
                       onChange={(e) => setSellerName(e.target.value)}
+                      onKeyDown={(e) => handleEnterAdvanceQuick(e, 'sellerName')}
                       placeholder={shadowSellerPlaceholder}
                       className={getTextboxClass('sellerName')}
                     />
@@ -825,7 +866,6 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                         <option key={item} value={item} />
                       ))}
                     </datalist>
-
                     {!isLocked('sellerName') && rememberedSellerNames.length > 0 && (
                       <div className="flex items-center gap-1 flex-wrap mt-1">
                         {rememberedSellerNames.slice(0, 3).map((item) => (
@@ -833,7 +873,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                             key={item}
                             type="button"
                             onClick={() => setSellerName(item)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer max-w-[130px] truncate ${
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer max-w-[120px] truncate ${
                               sellerName === item
                                 ? 'bg-amber-500 text-black border-amber-400'
                                 : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
@@ -847,8 +887,265 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                   </div>
 
                   <div className="flex flex-col">
+                    {renderFieldLabel('2. Jenis Tembakau', 'name')}
+                    <input
+                      ref={nameInputRef}
+                      type="text"
+                      enterKeyHint="next"
+                      list="remembered-tobacco-names-list"
+                      disabled={isLocked('name')}
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      onKeyDown={(e) => handleEnterAdvanceQuick(e, 'name')}
+                      placeholder={shadowNamePlaceholder}
+                      className={getTextboxClass('name')}
+                    />
+                    <datalist id="remembered-tobacco-names-list">
+                      {rememberedTobaccoNames.map((item) => (
+                        <option key={item} value={item} />
+                      ))}
+                    </datalist>
+                    {!isLocked('name') && rememberedTobaccoNames.length > 0 && (
+                      <div className="flex items-center gap-1 flex-wrap mt-1">
+                        {rememberedTobaccoNames.slice(0, 3).map((item) => (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => setName(item)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer max-w-[130px] truncate ${
+                              name === item
+                                ? 'bg-amber-500 text-black border-amber-400'
+                                : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                            }`}
+                          >
+                            {item}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col">
+                    {renderFieldLabel('3. Daerah Asal', 'origin')}
+                    <input
+                      ref={originInputRef}
+                      type="text"
+                      enterKeyHint="next"
+                      list="tobacco-origins-datalist"
+                      disabled={isLocked('origin')}
+                      value={origin}
+                      onChange={(e) => setOrigin(e.target.value)}
+                      onKeyDown={(e) => handleEnterAdvanceQuick(e, 'origin')}
+                      placeholder="Muntilan / Temanggung"
+                      className={getTextboxClass('origin')}
+                    />
+                    <datalist id="tobacco-origins-datalist">
+                      <option value="Temanggung" />
+                      <option value="Muntilan" />
+                      <option value="Madura" />
+                      <option value="Boyolali" />
+                      <option value="Lombok" />
+                      <option value="Weleri" />
+                      <option value="Jember" />
+                    </datalist>
+                    {!isLocked('origin') && (
+                      <div className="flex items-center gap-1 flex-wrap mt-1">
+                        {['Muntilan', 'Temanggung', 'Boyolali'].map((orig) => (
+                          <button
+                            key={orig}
+                            type="button"
+                            onClick={() => setOrigin(orig)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
+                              origin === orig
+                                ? 'bg-amber-500 text-black border-amber-400'
+                                : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                            }`}
+                          >
+                            {orig}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col">
+                    {renderFieldLabel('4. Kemasan', 'packagingType')}
+                    <select
+                      ref={packagingSelectRef}
+                      disabled={isLocked('packagingType')}
+                      value={packagingType}
+                      onChange={(e) => handleSelectPackaging(e.target.value)}
+                      onKeyDown={(e) => handleEnterAdvanceQuick(e, 'packagingType')}
+                      className={getTextboxClass('packagingType', 'font-bold')}
+                    >
+                      <option value="">-- Pilih Kemasan --</option>
+                      {packagingList.map((pkg) => (
+                        <option key={pkg.id} value={pkg.name}>
+                          {pkg.name} (Tarra {formatTaraFormula(pkg.taraPercent, pkg.taraFlatKg)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step B: Simultaneous Grade + 6 Karakter Grading on SAME Screen */}
+              <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-3">
+                <div>
+                  <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
+                    <span className="text-[11px] font-bold text-zinc-200">
+                      5. Grade &amp; 6 Atribut Grading Lapangan
+                    </span>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {QUICK_CHARACTER_PRESETS.map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => {
+                            if (!isLocked('powerRating')) setPowerRating(preset.values.power);
+                            if (!isLocked('impactRating')) setImpactRating(preset.values.impact);
+                            if (!isLocked('bitterRating')) setBitterRating(preset.values.bitter);
+                            if (!isLocked('burnRating')) setBurnRating(preset.values.burn);
+                            if (!isLocked('sugarRating')) setSugarRating(preset.values.sugar);
+                            if (!isLocked('aromaRating')) setAromaRating(preset.values.aroma);
+                          }}
+                          className="px-2 py-0.5 rounded bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-amber-500/60 text-[10px] font-bold text-amber-300 cursor-pointer"
+                        >
+                          Preset: {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
+                    {TOBACCO_GRADE_ORDER.map((grade) => {
+                      const isSelected = colorGrade === grade;
+                      return (
+                        <button
+                          key={grade}
+                          type="button"
+                          disabled={isLocked('colorGrade')}
+                          onClick={() => {
+                            if (!isLocked('colorGrade')) setColorGrade(grade);
+                          }}
+                          className={`h-8 rounded-lg border text-center transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-0.5 ${
+                            isSelected
+                              ? 'bg-amber-500 text-black border-amber-400 font-black'
+                              : 'bg-zinc-950 border-zinc-800 text-white hover:border-zinc-700 font-bold'
+                          }`}
+                        >
+                          <span className="text-xs">{grade}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 6 Sensory Sliders */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {(
+                    [
+                      { key: 'powerRating' as RawLockableFieldKey, label: 'Power', value: powerRating, onChange: setPowerRating },
+                      { key: 'impactRating' as RawLockableFieldKey, label: 'Impact', value: impactRating, onChange: setImpactRating },
+                      { key: 'bitterRating' as RawLockableFieldKey, label: 'Bitter', value: bitterRating, onChange: setBitterRating },
+                      { key: 'burnRating' as RawLockableFieldKey, label: 'Burn', value: burnRating, onChange: setBurnRating },
+                      { key: 'sugarRating' as RawLockableFieldKey, label: 'Sugar', value: sugarRating, onChange: setSugarRating },
+                      { key: 'aromaRating' as RawLockableFieldKey, label: 'Aroma', value: aromaRating, onChange: setAromaRating },
+                    ] as const
+                  ).map((param) => (
+                    <RatingSegmentSlider
+                      key={param.key}
+                      label={param.label}
+                      value={param.value}
+                      onChange={param.onChange}
+                      disabled={isLocked(param.key)}
+                    />
+                  ))}
+                </div>
+
+                <div>
+                  <input
+                    type="text"
+                    disabled={isLocked('characterNotes')}
+                    value={characterNotes}
+                    onChange={(e) => setCharacterNotes(e.target.value)}
+                    placeholder="Catatan pegangan / gagang / warna (opsional)..."
+                    className={getTextboxClass('characterNotes')}
+                  />
+                </div>
+              </div>
+
+              {/* Step C: Timbangan & Harga (Opsional / Menyusul) */}
+              <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-[11px] font-bold text-white inline-flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    6. Timbangan &amp; Harga (Kosongkan / 0 Jika Menyusul)
+                  </span>
+                  <span className="text-[10px] font-mono text-amber-300">
+                    {grossWeightKg <= 0 && pricePerKgPurchase <= 0
+                      ? '⏳ Ditandai: Butuh Timbangan & Harga'
+                      : grossWeightKg <= 0
+                        ? '⏳ Ditandai: Butuh Timbangan'
+                        : pricePerKgPurchase <= 0
+                          ? '⏳ Ditandai: Butuh Harga'
+                          : `Netto ${calculation.netWeightKg} kg • ${formatRupiah(calculation.totalModalAsal)}`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
+                  <div className="flex flex-col">
+                    {renderFieldLabel('Bruto Timbangan (KG)', 'grossWeightKg')}
+                    <div className="relative">
+                      <NumericInput
+                        ref={grossInputRef}
+                        emptyWhenZero
+                        enterKeyHint="next"
+                        disabled={isLocked('grossWeightKg')}
+                        value={grossWeightKg}
+                        onChange={setGrossWeightKg}
+                        onKeyDown={(e) => handleEnterAdvanceQuick(e, 'grossWeightKg')}
+                        placeholder="Menyusul (0)"
+                        className={getTextboxClass('grossWeightKg', 'pr-7 font-mono font-bold')}
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-[11px] pointer-events-none">
+                        kg
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col">
+                    {renderFieldLabel('Harga Tembakau / KG (Rp)', 'pricePerKgPurchase')}
+                    <NumericInput
+                      ref={priceInputRef}
+                      emptyWhenZero
+                      enterKeyHint="done"
+                      disabled={isLocked('pricePerKgPurchase')}
+                      value={pricePerKgPurchase}
+                      onChange={setPricePerKgPurchase}
+                      onKeyDown={(e) => handleEnterAdvanceQuick(e, 'pricePerKgPurchase')}
+                      placeholder="Menyusul (0)"
+                      className={getTextboxClass('pricePerKgPurchase', 'font-mono font-bold')}
+                    />
+                  </div>
+
+                  <div className="h-9 px-3 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-between font-mono text-xs">
+                    <span className="text-[10px] text-zinc-400">Netto Nota:</span>
+                    <b className="text-amber-400 text-xs">{calculation.netWeightKg} kg</b>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODE 2: DETAIL LANJUTAN (Lot, Tanggal, Tarra Manual, Fee Perantara & Breakdown) */}
+          {(activeSection === 'advanced' || activeSection === 'all') && (
+            <div className="space-y-3.5">
+              <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="flex flex-col">
                     {renderFieldLabel('Nomor Seri / Lot Beli', 'lotNumber')}
                     <input
+                      ref={lotInputRef}
                       type="text"
                       disabled={isLocked('lotNumber')}
                       value={lotNumber}
@@ -882,112 +1179,46 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Card 2: Timbangan, Biaya Tambahan Fee & Total Modal */}
-              <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div className="flex flex-col">
-                    {renderFieldLabel('Jenis Kemasan', 'packagingType')}
-                    <select
-                      disabled={isLocked('packagingType')}
-                      value={packagingType}
-                      onChange={(e) => handleSelectPackaging(e.target.value)}
-                      className={getTextboxClass('packagingType', 'font-bold')}
-                    >
-                      <option value="">-- Pilih Kemasan (Atau Manual) --</option>
-                      {packagingList.map((pkg) => (
-                        <option key={pkg.id} value={pkg.name}>
-                          {pkg.name} (Tarra {formatTaraFormula(pkg.taraPercent, pkg.taraFlatKg)})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col">
-                    {renderFieldLabel('Harga Tembakau / KG (Rp)', 'pricePerKgPurchase')}
-                    <NumericInput
-                      emptyWhenZero
-                      disabled={isLocked('pricePerKgPurchase')}
-                      value={pricePerKgPurchase}
-                      onChange={setPricePerKgPurchase}
-                      placeholder="50000"
-                      className={getTextboxClass('pricePerKgPurchase', 'font-mono font-bold')}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 items-end">
-                  <div className="flex flex-col">
-                    {renderFieldLabel('Bruto (KG)', 'grossWeightKg')}
-                    <div className="relative">
-                      <NumericInput
-                        emptyWhenZero
-                        disabled={isLocked('grossWeightKg')}
-                        value={grossWeightKg}
-                        onChange={setGrossWeightKg}
-                        placeholder="50"
-                        className={getTextboxClass('grossWeightKg', 'pr-7 font-mono font-bold')}
-                      />
-                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-[11px] pointer-events-none">
-                        kg
-                      </span>
-                    </div>
-                  </div>
-
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 items-end">
                   <div className="flex flex-col">
                     {renderFieldLabel('Tarra Flat (KG)', 'flatKgTara')}
-                    <div className="relative">
-                      <NumericInput
-                        emptyWhenZero
-                        disabled={isLocked('flatKgTara')}
-                        value={flatKgTara}
-                        onChange={setFlatKgTara}
-                        placeholder="2"
-                        className={getTextboxClass('flatKgTara', 'pr-7 font-mono font-bold')}
-                      />
-                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-[11px] pointer-events-none">
-                        kg
-                      </span>
-                    </div>
+                    <NumericInput
+                      emptyWhenZero
+                      disabled={isLocked('flatKgTara')}
+                      value={flatKgTara}
+                      onChange={setFlatKgTara}
+                      placeholder="2"
+                      className={getTextboxClass('flatKgTara', 'font-mono font-bold')}
+                    />
                   </div>
 
                   <div className="flex flex-col">
                     {renderFieldLabel('Tarra (%)', 'percentTara')}
-                    <div className="relative">
-                      <NumericInput
-                        emptyWhenZero
-                        disabled={isLocked('percentTara')}
-                        value={percentTara}
-                        onChange={setPercentTara}
-                        placeholder="10"
-                        className={getTextboxClass('percentTara', 'pr-7 font-mono font-bold')}
-                      />
-                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 text-[11px] pointer-events-none">
-                        %
-                      </span>
-                    </div>
+                    <NumericInput
+                      emptyWhenZero
+                      disabled={isLocked('percentTara')}
+                      value={percentTara}
+                      onChange={setPercentTara}
+                      placeholder="10"
+                      className={getTextboxClass('percentTara', 'font-mono font-bold')}
+                    />
                   </div>
 
                   <div className="flex flex-col">
-                    <div className="flex items-center justify-between gap-1 mb-1">
-                      <span className="text-[11px] font-bold text-amber-400 truncate">
-                        Netto (Bruto − Tarra)
-                      </span>
-                      <span className="text-[10px] font-mono text-zinc-400">
-                        −{calculation.deductionKg} kg
-                      </span>
-                    </div>
-                    <div className="h-9 px-3 rounded-lg bg-zinc-950 border border-amber-500/50 flex items-center justify-between font-mono text-xs">
-                      <b className="text-white text-sm">{calculation.netWeightKg} kg</b>
-                      <span className="text-[10px] text-zinc-400">
-                        {grossWeightKg || 0} − {calculation.deductionKg}
-                      </span>
-                    </div>
+                    {renderFieldLabel('Berat Wadah Riil (KG)', 'packagingMassKg')}
+                    <NumericInput
+                      emptyWhenZero
+                      disabled={isLocked('packagingMassKg')}
+                      value={packagingMassKg}
+                      onChange={setPackagingMassKg}
+                      placeholder="3"
+                      className={getTextboxClass('packagingMassKg', 'font-mono font-bold')}
+                    />
                   </div>
                 </div>
 
-                {/* Compact Fee Perantara Bar (Biaya Tambahan / Added Cost = Netto × Fee/KG) */}
+                {/* Compact Fee Perantara Bar */}
                 <div className="pt-2.5 border-t border-zinc-900 space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1016,40 +1247,16 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                         ))}
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    {!isLocked('agentFees') && (
                       <button
                         type="button"
-                        onClick={() => toggleLock('agentFees')}
-                        className={`h-6 px-2 rounded border text-[9px] font-mono font-bold inline-flex items-center gap-1 cursor-pointer ${
-                          isLocked('agentFees')
-                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/60'
-                            : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border-zinc-800'
-                        }`}
+                        onClick={() => handleAddAgentFeeRow('')}
+                        aria-label="Tambah Orang / Fee Perantara"
+                        className="h-6 w-6 shrink-0 rounded bg-amber-500 hover:bg-amber-400 text-black font-black inline-flex items-center justify-center cursor-pointer"
                       >
-                        {isLocked('agentFees') ? (
-                          <>
-                            <Lock className="w-2.5 h-2.5 text-amber-400" />
-                            <span>Terkunci</span>
-                          </>
-                        ) : (
-                          <>
-                            <Unlock className="w-2.5 h-2.5 text-zinc-400" />
-                            <span>Buka</span>
-                          </>
-                        )}
+                        <Plus className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
                       </button>
-
-                      {!isLocked('agentFees') && (
-                        <button
-                          type="button"
-                          onClick={() => handleAddAgentFeeRow('')}
-                          className="h-6 px-2.5 rounded bg-amber-500 hover:bg-amber-400 text-black font-black text-[10px] inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <Plus className="w-3 h-3 stroke-[2.5]" />
-                          <span>Tambah Fee</span>
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
 
                   <datalist id="remembered-agent-names-list">
@@ -1080,9 +1287,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                                     agentName: e.target.value,
                                   })
                                 }
-                                placeholder={
-                                  rememberedAgentNames[index] || shadowAgentPlaceholder
-                                }
+                                placeholder={rememberedAgentNames[index] || shadowAgentPlaceholder}
                                 className="w-full h-8 px-2.5 bg-black border border-zinc-700 rounded-md text-xs font-bold text-white placeholder-zinc-500 focus:outline-hidden focus:border-amber-400"
                               />
                             </div>
@@ -1104,13 +1309,10 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                             </div>
 
                             <div className="col-span-2 sm:col-span-4 font-mono text-[11px] text-zinc-300 truncate text-right">
-                              <span className="hidden sm:inline">
-                                {calculation.netWeightKg} kg × {formatRupiah(rowFeePerKg)} ={' '}
-                              </span>
                               <b className="text-white">{formatRupiah(rowTotalFeeRp)}</b>
                             </div>
 
-                            <div className="col-span-1 sm:col-span-1 flex justify-end">
+                            <div className="col-span-1 flex justify-end">
                               {!rowLocked && (
                                 <button
                                   type="button"
@@ -1129,24 +1331,21 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                   )}
                 </div>
 
-                {/* Compact 3-Column Cost Breakdown: 1. Harga Tembakau | 2. Biaya Tambahan Fee | 3. Total Modal Bayar */}
+                {/* 3 Metric Breakdown Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-zinc-900">
                   <button
                     type="button"
                     onClick={() => handleOpenStepByStep('PAID_VALUE')}
-                    className="text-left bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between"
+                    className="text-left bg-zinc-950 p-2.5 rounded-lg border border-amber-500/50 hover:border-amber-400 transition-all cursor-pointer flex flex-col justify-between"
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-[10px] text-zinc-400 uppercase font-bold truncate">
-                        1. Harga Tembakau ({calculation.netWeightKg} kg)
+                      <span className="text-[10px] text-amber-400 uppercase font-bold truncate">
+                        1. Total Modal / Inventori
                       </span>
                       <CalcSymbolBadge />
                     </div>
-                    <div className="font-mono font-black text-white text-xs sm:text-sm mt-1">
-                      {formatRupiah(calculation.baseTobaccoCostRp)}
-                    </div>
-                    <div className="text-[10px] font-mono text-zinc-400 mt-0.5 truncate">
-                      {calculation.netWeightKg} kg × {formatRupiah(pricePerKgPurchase || 0)}
+                    <div className="font-mono font-black text-amber-400 text-xs sm:text-sm mt-1">
+                      {formatRupiah(calculation.totalModalAsal)}
                     </div>
                   </button>
 
@@ -1156,35 +1355,31 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                     className="text-left bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between"
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-[10px] text-zinc-300 uppercase font-bold truncate">
-                        2. Biaya Tambahan Fee
+                      <span className="text-[10px] text-zinc-200 uppercase font-bold truncate">
+                        2. Weight Profit (Rupiah)
                       </span>
                       <CalcSymbolBadge />
                     </div>
-                    <div className="font-mono font-black text-zinc-200 text-xs sm:text-sm mt-1">
-                      {formatRupiah(calculation.totalAgentFeeRp)}
-                    </div>
-                    <div className="text-[10px] font-mono text-zinc-400 mt-0.5 truncate">
-                      {calculation.netWeightKg} kg × {formatRupiah(calculation.totalAgentFeePerKg)}/kg
+                    <div className="font-mono font-black text-white text-xs sm:text-sm mt-1">
+                      {calculation.purchaseWeightProfitRp >= 0 ? '+' : ''}
+                      {formatRupiah(calculation.purchaseWeightProfitRp)}
                     </div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleOpenStepByStep('WEIGHT_PROFIT')}
-                    className="text-left bg-zinc-950 p-2.5 rounded-lg border border-amber-500/50 hover:border-amber-400 transition-all cursor-pointer flex flex-col justify-between"
+                    className="text-left bg-zinc-950 p-2.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between"
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-[10px] text-amber-400 uppercase font-bold truncate">
-                        3. Total Modal (Harga + Fee)
+                      <span className="text-[10px] text-zinc-300 uppercase font-bold truncate">
+                        3. Weight Profit (KG)
                       </span>
                       <CalcSymbolBadge />
                     </div>
-                    <div className="font-mono font-black text-amber-400 text-xs sm:text-sm mt-1">
-                      {formatRupiah(calculation.totalModalAsal)}
-                    </div>
-                    <div className="text-[10px] font-mono text-zinc-300 mt-0.5 truncate">
-                      {calculation.netWeightKg} kg × {formatRupiah(calculation.effectivePricePerKgWithFee)}/kg
+                    <div className="font-mono font-black text-amber-300 text-xs sm:text-sm mt-1">
+                      {calculation.purchaseWeightProfitKg >= 0 ? '+' : ''}
+                      {calculation.purchaseWeightProfitKg} kg
                     </div>
                   </button>
                 </div>
@@ -1192,163 +1387,34 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
             </div>
           )}
 
-          {/* SECTION 2: Grade (A, A+, B, B+ ... F+) & 6 Karakteristik (/5) */}
-          {(activeSection === 'character' || activeSection === 'all') && (
-            <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-3.5">
-              {/* Grade Selector in exact order: A, A+, B, B+, C, C+, D, D+, E, E+, F, F+ */}
-              <div>
-                {renderFieldLabel(
-                  'Grade Tembakau (A, A+, B, B+, C, C+, D, D+, E, E+, F, F+)',
-                  'colorGrade'
-                )}
-                <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
-                  {TOBACCO_GRADE_ORDER.map((grade) => {
-                    const isSelected = colorGrade === grade;
-                    return (
-                      <button
-                        key={grade}
-                        type="button"
-                        disabled={isLocked('colorGrade')}
-                        onClick={() => {
-                          if (!isLocked('colorGrade')) setColorGrade(grade);
-                        }}
-                        className={`h-9 rounded-lg border text-center transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-0.5 ${
-                          isSelected
-                            ? 'bg-amber-500 text-black border-amber-400 font-black'
-                            : 'bg-zinc-950 border-zinc-800 text-white hover:border-zinc-700 font-bold'
-                        }`}
-                      >
-                        <span className="text-xs">{grade}</span>
-                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 6 Sensory Sliders */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                {(
-                  [
-                    {
-                      key: 'powerRating' as RawLockableFieldKey,
-                      label: 'Power',
-                      value: powerRating,
-                      onChange: setPowerRating,
-                    },
-                    {
-                      key: 'impactRating' as RawLockableFieldKey,
-                      label: 'Impact',
-                      value: impactRating,
-                      onChange: setImpactRating,
-                    },
-                    {
-                      key: 'bitterRating' as RawLockableFieldKey,
-                      label: 'Bitter',
-                      value: bitterRating,
-                      onChange: setBitterRating,
-                    },
-                    {
-                      key: 'burnRating' as RawLockableFieldKey,
-                      label: 'Burn',
-                      value: burnRating,
-                      onChange: setBurnRating,
-                    },
-                    {
-                      key: 'sugarRating' as RawLockableFieldKey,
-                      label: 'Sugar',
-                      value: sugarRating,
-                      onChange: setSugarRating,
-                    },
-                    {
-                      key: 'aromaRating' as RawLockableFieldKey,
-                      label: 'Aroma',
-                      value: aromaRating,
-                      onChange: setAromaRating,
-                    },
-                  ] as const
-                ).map((param) => {
-                  const locked = isLocked(param.key);
-                  return (
-                    <RatingSegmentSlider
-                      key={param.key}
-                      label={param.label}
-                      value={param.value}
-                      onChange={param.onChange}
-                      disabled={locked}
-                      headerExtra={
-                        <button
-                          type="button"
-                          onClick={() => toggleLock(param.key)}
-                          className={`h-5 px-1.5 rounded border text-[9px] font-mono font-bold inline-flex items-center gap-0.5 cursor-pointer ${
-                            locked
-                              ? 'bg-amber-500/15 text-amber-300 border-amber-500/60'
-                              : 'bg-zinc-950 text-zinc-400 hover:text-white border-zinc-800'
-                          }`}
-                        >
-                          {locked ? (
-                            <Lock className="w-2.5 h-2.5" />
-                          ) : (
-                            <Unlock className="w-2.5 h-2.5" />
-                          )}
-                          <span>{locked ? 'Kunci' : 'Buka'}</span>
-                        </button>
-                      }
-                    />
-                  );
-                })}
-              </div>
-
-              <div>
-                {renderFieldLabel('Catatan Karakter & Pegangan', 'characterNotes')}
-                <textarea
-                  rows={2}
-                  disabled={isLocked('characterNotes')}
-                  value={characterNotes}
-                  onChange={(e) => setCharacterNotes(e.target.value)}
-                  placeholder="Catatan pegangan, gagang, warna, atau tarra penjual..."
-                  className={`${getTextboxClass('characterNotes')} h-auto py-2`}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Compact Footer */}
+          {/* Compact Footer with Save & Repeat Same Seller */}
           <div className="pt-3 border-t border-zinc-800 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-1.5">
-              {activeSection === 'main' && (
-                <button
-                  type="button"
-                  onClick={() => setActiveSection('character')}
-                  className="h-9 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-amber-400 border border-zinc-700 text-xs font-bold cursor-pointer"
-                >
-                  Ke Grade &amp; Karakter →
-                </button>
-              )}
-              {activeSection === 'character' && (
-                <button
-                  type="button"
-                  onClick={() => setActiveSection('main')}
-                  className="h-9 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 text-xs font-bold cursor-pointer"
-                >
-                  ← Ke Data &amp; Timbangan
-                </button>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-9 px-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Batal
+            </button>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-9 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
+            <div className="flex items-center gap-2 ml-auto flex-wrap">
+              {!editingTobacco && (
+                <button
+                  type="button"
+                  onClick={() => saveCurrentTobacco(true)}
+                  className="h-9 px-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-amber-500/50 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                  title="Simpan tembakau ini lalu langsung input keranjang berikutnya dari penjual/daerah/kemasan yang sama"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span>Simpan &amp; Lanjut Penjual Sama</span>
+                </button>
+              )}
               <button
                 type="submit"
-                className="btn-amber-outline h-9 px-5 rounded-xl font-black text-xs cursor-pointer"
+                className="btn-amber-outline h-9 px-5 rounded-xl font-black text-xs cursor-pointer inline-flex items-center gap-1.5"
               >
-                {editingTobacco ? 'Simpan Perubahan' : 'Simpan Barang'}
+                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>{editingTobacco ? 'Simpan Perubahan' : 'Simpan Barang'}</span>
               </button>
             </div>
           </div>

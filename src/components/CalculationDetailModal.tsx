@@ -345,7 +345,7 @@ export function buildRawTobaccoCalcDetail(params: {
   );
   const totalPricePerKg = basePrice + totalFeePerKg;
   const addCost = Number(params.additionalCost) || 0;
-  const focus: RawTobaccoCalcFocus = params.focus || 'WEIGHT_PROFIT';
+  const focus: RawTobaccoCalcFocus = params.focus || 'PAID_VALUE';
 
   const feeBreakdownText =
     validFees.length > 0
@@ -363,6 +363,17 @@ export function buildRawTobaccoCalcDetail(params: {
   const deductionKg = taraCalc.deductionKg;
   const netKg = taraCalc.netWeightKg;
 
+  const candidatePkgMass =
+    params.realPackagingMassKg !== undefined && params.realPackagingMassKg > 0
+      ? roundHalfUpKg(params.realPackagingMassKg)
+      : flat > 0
+        ? flat
+        : deductionKg;
+  const realPkgKg = gross > 0 ? Math.min(gross, candidatePkgMass) : 0;
+  const realNetKg = gross > 0 ? Math.max(0, gross - realPkgKg) : 0;
+  const weightProfitKg = gross > 0 ? Number((realNetKg - netKg).toFixed(2)) : 0;
+  const weightProfitRp = Math.round(weightProfitKg * basePrice);
+
   const baseTobaccoCostRp = Math.round(netKg * basePrice);
   const totalFeeCostRp = Math.round(netKg * totalFeePerKg);
   const totalModalPaidRp = Math.round(netKg * totalPricePerKg + addCost);
@@ -379,185 +390,157 @@ export function buildRawTobaccoCalcDetail(params: {
       ? `${gross} kg − ${pctKg} kg − ${flat} kg = ${netKg} kg`
       : `${gross} kg − ${deductionKg} kg = ${netKg} kg`;
 
+  // 1. TOTAL MODAL / INVENTORY VALUE (PAID_VALUE)
   if (focus === 'PAID_VALUE') {
     return {
-      title: `1. Harga Tembakau Dasar (Netto × Harga) — ${itemName}`,
-      subtitle: `Bruto ${gross} kg − Tarra ${deductionKg} kg = Netto ${netKg} kg`,
-      badgeText: 'PANEL 1 • HARGA TEMBAKAU DASAR (SEBELUM FEE)',
+      title: `1. Total Modal / Nilai Inventori — ${itemName}`,
+      subtitle: `Netto ${netKg} kg × (${formatRupiah(basePrice)} + Fee ${formatRupiah(totalFeePerKg)}) = ${formatRupiah(totalPricePerKg)}/kg`,
+      badgeText: 'PANEL 1 • TOTAL MODAL / NILAI INVENTORI',
       coreFormula:
-        'Harga Tembakau Dasar = Netto × Harga Tembakau / KG   |   Netto = Berat Bruto − Potongan Tarra',
-      appliedFormula: `Harga Tembakau Dasar = ${netKg} kg × ${formatRupiah(basePrice)} = ${formatRupiah(baseTobaccoCostRp)}   |   Netto = ${netStepSubstitution}`,
-      steps: [
-        {
-          stepNumber: 1,
-          title: 'Berat Bruto',
-          formula: 'Berat Bruto = Timbangan Kotor (Tembakau + Kemasan)',
-          substitution: `${gross} kg (${params.packagingType})`,
-          resultLabel: 'Berat Bruto',
-          resultValue: `${gross} kg`,
-          explanation: `Berat kotor kemasan ${params.packagingType} saat ditimbang adalah ${gross} kg.`,
-          highlight: 'white',
-        },
-        {
-          stepNumber: 2,
-          title: 'Potongan Tarra',
-          formula: 'Potongan Tarra = Pembulatan(Berat Bruto × % Tarra) + Tarra Flat',
-          substitution: pct > 0 ? pctSubstitutionText : `Tarra Flat = ${flat} kg`,
-          resultLabel: 'Potongan Tarra',
-          resultValue: `${deductionKg} kg (${formulaLabel})`,
-          explanation:
-            rawPctKg !== pctKg
-              ? `Potongan ${pct}% dari ${gross} kg adalah ${rawPctKg} kg (dibulatkan ke atas menjadi ${pctKg} kg), ditambah flat ${flat} kg menjadi ${deductionKg} kg.`
-              : `Total potongan tarra sesuai rumus (${formulaLabel}) adalah ${deductionKg} kg.`,
-          highlight: 'white',
-        },
-        {
-          stepNumber: 3,
-          title: 'Berat Netto',
-          formula: 'Netto = Berat Bruto − Potongan Tarra',
-          substitution: netStepSubstitution,
-          resultLabel: 'Netto',
-          resultValue: `${netKg} kg`,
-          explanation: `Berat bersih tembakau setelah dikurangi potongan tarra adalah ${netKg} kg.`,
-          highlight: 'white',
-        },
-        {
-          stepNumber: 4,
-          title: 'Harga Tembakau Dasar',
-          formula: 'Harga Tembakau Dasar = Netto × Harga Tembakau / KG',
-          substitution: `${netKg} kg × ${formatRupiah(basePrice)} = ${formatRupiah(baseTobaccoCostRp)}`,
-          resultLabel: 'Harga Tembakau Dasar',
-          resultValue: formatRupiah(baseTobaccoCostRp),
-          explanation: `Biaya murni pembelian tembakau sebelum ditambah biaya fee perantara.`,
-          highlight: 'amber',
-        },
-      ],
-      conclusion: `Harga Tembakau Dasar = ${netKg} kg × ${formatRupiah(basePrice)} = ${formatRupiah(baseTobaccoCostRp)}.`,
-    };
-  }
-
-  if (focus === 'REAL_VALUE') {
-    const perAgentSteps = validFees.map((f, idx) => {
-      const fKg = Math.max(0, Number(f.feePerKg) || 0);
-      const fTotal = Math.round(netKg * fKg);
-      const agentLabel = f.agentName?.trim() || `Agen #${idx + 1}`;
-      return {
-        stepNumber: idx + 3,
-        title: `Biaya Fee — ${agentLabel}`,
-        formula: 'Biaya Fee Agen = Netto × Fee / KG',
-        substitution: `${netKg} kg × ${formatRupiah(fKg)} = ${formatRupiah(fTotal)}`,
-        resultLabel: `Fee ${agentLabel}`,
-        resultValue: formatRupiah(fTotal),
-        explanation: `Biaya tambahan (added cost) untuk ${agentLabel} dihitung dari Netto (${netKg} kg) dikali ${formatRupiah(fKg)}/kg.`,
-        highlight: 'white' as const,
-      };
-    });
-
-    return {
-      title: `2. Biaya Tambahan Fee (Netto × Fee) — ${itemName}`,
-      subtitle: `Netto ${netKg} kg × Fee ${formatRupiah(totalFeePerKg)}/kg (Biaya Tambahan / Added Cost)`,
-      badgeText: 'PANEL 2 • RINCIAN BIAYA TAMBAHAN FEE PERANTARA',
-      coreFormula:
-        'Total Biaya Fee = Netto × Total Fee / KG   |   Netto = Berat Bruto − Potongan Tarra',
-      appliedFormula: `Total Biaya Fee = ${netKg} kg × ${formatRupiah(totalFeePerKg)} = ${formatRupiah(totalFeeCostRp)}   |   Netto = ${netStepSubstitution}`,
+        'Total Modal = Netto × (Harga Tembakau + Fee/KG)   |   Netto = Berat Bruto − Potongan Tarra',
+      appliedFormula: `Total Modal = ${netKg} kg × ${formatRupiah(totalPricePerKg)} = ${formatRupiah(totalModalPaidRp)}   (${formatRupiah(baseTobaccoCostRp)} + Fee ${formatRupiah(totalFeeCostRp)})`,
       steps: [
         {
           stepNumber: 1,
           title: 'Berat Netto (Bruto − Tarra)',
-          formula: 'Netto = Berat Bruto − Potongan Tarra',
+          formula: `Netto = Berat Bruto − Potongan Tarra (${formulaLabel})`,
           substitution: netStepSubstitution,
           resultLabel: 'Netto',
           resultValue: `${netKg} kg`,
-          explanation: `Bruto ${gross} kg dikurangi potongan tarra ${deductionKg} kg (${formulaLabel}) = ${netKg} kg.`,
+          explanation: `Bruto ${gross} kg dikurangi potongan tarra ${deductionKg} kg (${pctSubstitutionText}) = ${netKg} kg.`,
           highlight: 'white',
         },
         {
           stepNumber: 2,
-          title: 'Total Fee Perantara / KG',
-          formula: 'Total Fee / KG = Σ Fee Agen per KG',
-          substitution: `${feeBreakdownText} = ${formatRupiah(totalFeePerKg)}/kg`,
-          resultLabel: 'Fee / KG',
-          resultValue: `${formatRupiah(totalFeePerKg)}/kg`,
-          explanation: `Gabungan tarif fee per kilogram untuk barang ini.`,
+          title: 'Harga + Fee / KG',
+          formula: 'Harga Total / KG = Harga Tembakau + Fee Perantara / KG',
+          substitution: `${formatRupiah(basePrice)}/kg + ${formatRupiah(totalFeePerKg)}/kg (${feeBreakdownText}) = ${formatRupiah(totalPricePerKg)}/kg`,
+          resultLabel: 'Harga + Fee / KG',
+          resultValue: `${formatRupiah(totalPricePerKg)}/kg`,
+          explanation: `Fee perantara (${formatRupiah(totalFeePerKg)}/kg) adalah biaya tambahan (added cost) yang menambah harga modal per kg.`,
           highlight: 'white',
         },
-        ...perAgentSteps,
         {
-          stepNumber: perAgentSteps.length + 3,
-          title: 'Total Biaya Tambahan Fee',
-          formula: 'Total Biaya Fee = Netto × Total Fee / KG',
-          substitution: `${netKg} kg × ${formatRupiah(totalFeePerKg)} = ${formatRupiah(totalFeeCostRp)}`,
-          resultLabel: 'Total Biaya Fee',
-          resultValue: formatRupiah(totalFeeCostRp),
-          explanation: `Fee ini adalah biaya tambahan pembelian (added cost) sebesar ${formatRupiah(totalFeeCostRp)} yang menambah modal kita.`,
+          stepNumber: 3,
+          title: 'Total Modal / Nilai Inventori',
+          formula: 'Total Modal = Netto × (Harga Tembakau + Fee/KG)',
+          substitution: `${netKg} kg × ${formatRupiah(totalPricePerKg)} = ${formatRupiah(totalModalPaidRp)} (Tembakau ${formatRupiah(baseTobaccoCostRp)} + Fee ${formatRupiah(totalFeeCostRp)})`,
+          resultLabel: 'Total Modal',
+          resultValue: formatRupiah(totalModalPaidRp),
+          explanation: `Total modal keseluruhan yang kita bayar untuk barang ini.`,
           highlight: 'amber',
         },
       ],
-      conclusion: `Total Biaya Tambahan Fee = ${netKg} kg × ${formatRupiah(totalFeePerKg)} = ${formatRupiah(totalFeeCostRp)}.`,
+      conclusion: `Total Modal / Nilai Inventori = ${netKg} kg × ${formatRupiah(totalPricePerKg)} = ${formatRupiah(totalModalPaidRp)}.`,
     };
   }
 
-  // focus === 'WEIGHT_PROFIT' -> 3. Total Modal Bayar (Harga Tembakau + Biaya Fee)
+  // 2. WEIGHT PROFIT IN RUPIAH (REAL_VALUE)
+  if (focus === 'REAL_VALUE') {
+    return {
+      title: `2. Weight Profit dalam Rupiah — ${itemName}`,
+      subtitle: `Selisih Berat ${weightProfitKg >= 0 ? '+' : ''}${weightProfitKg} kg × Harga Tembakau ${formatRupiah(basePrice)}/kg`,
+      badgeText: 'PANEL 2 • WEIGHT PROFIT DALAM RUPIAH (UNTUNG TIMBANGAN)',
+      coreFormula:
+        'Weight Profit (Rp) = Weight Profit (KG) × Harga Tembakau / KG   |   Weight Profit (KG) = Netto Riil − Netto Nota',
+      appliedFormula: `Weight Profit (Rp) = (${realNetKg} kg − ${netKg} kg) × ${formatRupiah(basePrice)} = ${weightProfitKg >= 0 ? '+' : ''}${weightProfitKg} kg × ${formatRupiah(basePrice)} = ${weightProfitRp >= 0 ? '+' : ''}${formatRupiah(weightProfitRp)}`,
+      steps: [
+        {
+          stepNumber: 1,
+          title: 'Netto Fisik Riil (Bruto − Wadah Riil)',
+          formula: 'Netto Riil = Berat Bruto − Berat Wadah Riil',
+          substitution: `${gross} kg − ${realPkgKg} kg = ${realNetKg} kg`,
+          resultLabel: 'Netto Riil',
+          resultValue: `${realNetKg} kg`,
+          explanation: `Berat tembakau fisik sebenarnya setelah dikurangi berat wadah/keranjang (${realPkgKg} kg).`,
+          highlight: 'white',
+        },
+        {
+          stepNumber: 2,
+          title: 'Netto Nota (Bruto − Potongan Tarra)',
+          formula: `Netto Nota = Berat Bruto − Potongan Tarra (${formulaLabel})`,
+          substitution: netStepSubstitution,
+          resultLabel: 'Netto Nota',
+          resultValue: `${netKg} kg`,
+          explanation: `Berat bersih yang dibayar sesuai potongan tarra nota (${deductionKg} kg).`,
+          highlight: 'white',
+        },
+        {
+          stepNumber: 3,
+          title: 'Weight Profit dalam KG',
+          formula: 'Weight Profit (KG) = Netto Riil − Netto Nota',
+          substitution: `${realNetKg} kg − ${netKg} kg = ${weightProfitKg >= 0 ? '+' : ''}${weightProfitKg} kg`,
+          resultLabel: 'Weight Profit (KG)',
+          resultValue: `${weightProfitKg >= 0 ? '+' : ''}${weightProfitKg} kg`,
+          explanation: `Selisih berat fisik tembakau di gudang dibandingkan berat nota yang dibayar.`,
+          highlight: weightProfitKg >= 0 ? 'amber' : 'red',
+        },
+        {
+          stepNumber: 4,
+          title: 'Weight Profit dalam Rupiah',
+          formula: 'Weight Profit (Rp) = Weight Profit (KG) × Harga Tembakau Dasar / KG',
+          substitution: `${weightProfitKg >= 0 ? '+' : ''}${weightProfitKg} kg × ${formatRupiah(basePrice)} = ${weightProfitRp >= 0 ? '+' : ''}${formatRupiah(weightProfitRp)}`,
+          resultLabel: 'Weight Profit (Rp)',
+          resultValue: `${weightProfitRp >= 0 ? '+' : ''}${formatRupiah(weightProfitRp)}`,
+          explanation: `Dihitung murni dari Harga Tembakau (${formatRupiah(basePrice)}/kg). Fee perantara adalah biaya tambahan modal, bukan keuntungan.`,
+          highlight: weightProfitRp >= 0 ? 'amber' : 'red',
+        },
+      ],
+      conclusion: `Weight Profit (Rp) = ${weightProfitKg >= 0 ? '+' : ''}${weightProfitKg} kg × ${formatRupiah(basePrice)} = ${weightProfitRp >= 0 ? '+' : ''}${formatRupiah(weightProfitRp)}.`,
+    };
+  }
+
+  // 3. WEIGHT PROFIT IN KG (WEIGHT_PROFIT)
   return {
-    title: `3. Total Modal Bayar (Netto × Harga Total) — ${itemName}`,
-    subtitle: `Netto ${netKg} kg × (${formatRupiah(basePrice)} + Fee ${formatRupiah(totalFeePerKg)}) = ${formatRupiah(totalPricePerKg)}/kg`,
-    badgeText: 'PANEL 3 • TOTAL MODAL PEMBELIAN (HARGA + FEE)',
+    title: `3. Weight Profit dalam KG — ${itemName}`,
+    subtitle: `Netto Riil ${realNetKg} kg − Netto Nota ${netKg} kg = ${weightProfitKg >= 0 ? '+' : ''}${weightProfitKg} kg`,
+    badgeText: 'PANEL 3 • WEIGHT PROFIT DALAM KG (SELISIH TIMBANGAN)',
     coreFormula:
-      'Total Modal Bayar = Netto × (Harga Tembakau + Fee/KG)   |   Netto = Berat Bruto − Potongan Tarra',
-    appliedFormula: `Total Modal Bayar = ${netKg} kg × ${formatRupiah(totalPricePerKg)} = ${formatRupiah(totalModalPaidRp)}   (${formatRupiah(baseTobaccoCostRp)} + Fee ${formatRupiah(totalFeeCostRp)})`,
+      'Weight Profit (KG) = Netto Fisik Riil − Netto Nota   |   (Bruto − Wadah Riil) − (Bruto − Potongan Tarra)',
+    appliedFormula: `Weight Profit (KG) = ${realNetKg} kg − ${netKg} kg = ${weightProfitKg >= 0 ? '+' : ''}${weightProfitKg} kg   (Potongan Tarra ${deductionKg} kg − Wadah Riil ${realPkgKg} kg)`,
     steps: [
       {
         stepNumber: 1,
-        title: 'Berat Netto (Bruto − Tarra)',
-        formula: `Netto = Berat Bruto − Potongan Tarra (${formulaLabel})`,
-        substitution: netStepSubstitution,
-        resultLabel: 'Netto',
-        resultValue: `${netKg} kg`,
-        explanation: `Berat bersih tembakau yang dibayar setelah dikurangi potongan tarra (${deductionKg} kg).`,
+        title: 'Berat Bruto',
+        formula: 'Berat Bruto = Timbangan Kotor (Tembakau + Kemasan)',
+        substitution: `${gross} kg (${params.packagingType})`,
+        resultLabel: 'Berat Bruto',
+        resultValue: `${gross} kg`,
+        explanation: `Berat kotor saat ditimbang adalah ${gross} kg.`,
         highlight: 'white',
       },
       {
         stepNumber: 2,
-        title: 'Harga Total / KG (Harga + Fee)',
-        formula: 'Harga Total / KG = Harga Tembakau Dasar + Fee Perantara / KG',
-        substitution: `${formatRupiah(basePrice)}/kg + ${formatRupiah(totalFeePerKg)}/kg = ${formatRupiah(totalPricePerKg)}/kg`,
-        resultLabel: 'Harga + Fee / KG',
-        resultValue: `${formatRupiah(totalPricePerKg)}/kg`,
-        explanation: `Fee perantara (${formatRupiah(totalFeePerKg)}/kg) menambah harga modal per kg tembakau menjadi ${formatRupiah(totalPricePerKg)}/kg.`,
+        title: 'Netto Fisik Riil (Bruto − Wadah Riil)',
+        formula: 'Netto Riil = Berat Bruto − Berat Wadah Riil',
+        substitution: `${gross} kg − ${realPkgKg} kg = ${realNetKg} kg`,
+        resultLabel: 'Netto Riil',
+        resultValue: `${realNetKg} kg`,
+        explanation: `Berat isi tembakau fisik sebenarnya di gudang setelah dikurangi wadah (${realPkgKg} kg).`,
         highlight: 'white',
       },
       {
         stepNumber: 3,
-        title: 'Harga Tembakau Dasar',
-        formula: 'Harga Tembakau Dasar = Netto × Harga Tembakau / KG',
-        substitution: `${netKg} kg × ${formatRupiah(basePrice)} = ${formatRupiah(baseTobaccoCostRp)}`,
-        resultLabel: 'Harga Tembakau',
-        resultValue: formatRupiah(baseTobaccoCostRp),
-        explanation: `Biaya pokok tembakau untuk ${netKg} kg.`,
+        title: 'Netto Nota (Bruto − Potongan Tarra)',
+        formula: `Netto Nota = Berat Bruto − Potongan Tarra (${formulaLabel})`,
+        substitution: netStepSubstitution,
+        resultLabel: 'Netto Nota',
+        resultValue: `${netKg} kg`,
+        explanation: `Berat bersih yang kita bayar setelah dipotong tarra nota (${deductionKg} kg).`,
         highlight: 'white',
       },
       {
         stepNumber: 4,
-        title: 'Biaya Tambahan Fee (Added Cost)',
-        formula: 'Biaya Tambahan Fee = Netto × Fee / KG',
-        substitution: `${netKg} kg × ${formatRupiah(totalFeePerKg)} = ${formatRupiah(totalFeeCostRp)}`,
-        resultLabel: 'Biaya Fee',
-        resultValue: formatRupiah(totalFeeCostRp),
-        explanation: `Biaya tambahan yang dibayarkan kepada pencari barang/perantara.`,
-        highlight: 'white',
-      },
-      {
-        stepNumber: 5,
-        title: 'Total Modal Bayar',
-        formula: 'Total Modal Bayar = Netto × (Harga Tembakau + Fee/KG)',
-        substitution: `${netKg} kg × ${formatRupiah(totalPricePerKg)} = ${formatRupiah(totalModalPaidRp)} (${formatRupiah(baseTobaccoCostRp)} + ${formatRupiah(totalFeeCostRp)})`,
-        resultLabel: 'Total Modal Bayar',
-        resultValue: formatRupiah(totalModalPaidRp),
-        explanation: `Total modal keseluruhan yang kita keluarkan untuk barang ini.`,
-        highlight: 'amber',
+        title: 'Weight Profit dalam KG',
+        formula: 'Weight Profit (KG) = Netto Fisik Riil − Netto Nota',
+        substitution: `${realNetKg} kg − ${netKg} kg = ${weightProfitKg >= 0 ? '+' : ''}${weightProfitKg} kg`,
+        resultLabel: 'Weight Profit (KG)',
+        resultValue: `${weightProfitKg >= 0 ? '+' : ''}${weightProfitKg} kg`,
+        explanation: `Ekstra berat fisik tembakau yang didapat dari selisih potongan tarra (${deductionKg} kg) terhadap berat wadah (${realPkgKg} kg).`,
+        highlight: weightProfitKg >= 0 ? 'amber' : 'red',
       },
     ],
-    conclusion: `Total Modal Bayar = ${netKg} kg × ${formatRupiah(totalPricePerKg)} = ${formatRupiah(totalModalPaidRp)}.`,
+    conclusion: `Weight Profit (KG) = ${realNetKg} kg − ${netKg} kg = ${weightProfitKg >= 0 ? '+' : ''}${weightProfitKg} kg.`,
   };
 }
 

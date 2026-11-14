@@ -60,58 +60,8 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
   const [mobilePanel, setMobilePanel] = useState<'buy' | 'factory' | 'result'>('buy');
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
 
-  // 1. MULTI-TOBACCO COMBINATION STATE (Multiple kinds of tobacco combined into 1 blend before selling to factory)
-  const [simIngredients, setSimIngredients] = useState<SimulatedIngredient[]>(() => {
-    if (rawTobaccos.length >= 2) {
-      return rawTobaccos.slice(0, 3).map((raw, idx) => ({
-        id: `sim-ing-${idx + 1}`,
-        name: raw.name,
-        origin: raw.origin,
-        grossKg: raw.grossWeightKg || (idx === 0 ? 60 : idx === 1 ? 55 : 50),
-        realPackagingMassKg:
-          raw.taraFormula.packagingMassKg ?? raw.taraFormula.flatKg ?? 3,
-        taraFlatKg: raw.taraFormula.flatKg ?? 3,
-        taraPercent: raw.taraFormula.percent ?? 0,
-        pricePerKg: raw.pricePerKgPurchase,
-        pricingBasis: raw.taraFormula.pricingBasis || 'NET_WEIGHT',
-      }));
-    }
-    return [
-      {
-        id: 'sim-1',
-        name: 'Muntilan Super Grade E',
-        origin: 'Muntilan',
-        grossKg: 60,
-        realPackagingMassKg: 3,
-        taraFlatKg: 3,
-        taraPercent: 0,
-        pricePerKg: 95000,
-        pricingBasis: 'NET_WEIGHT',
-      },
-      {
-        id: 'sim-2',
-        name: 'Temanggung Kemloko Grade D+',
-        origin: 'Temanggung',
-        grossKg: 55,
-        realPackagingMassKg: 3,
-        taraFlatKg: 3,
-        taraPercent: 0,
-        pricePerKg: 82000,
-        pricingBasis: 'NET_WEIGHT',
-      },
-      {
-        id: 'sim-3',
-        name: 'Madura Prancak Manis (Karung Goni 2kg • Potongan 10%+2)',
-        origin: 'Madura',
-        grossKg: 50,
-        realPackagingMassKg: 2,
-        taraFlatKg: 2,
-        taraPercent: 10,
-        pricePerKg: 70000,
-        pricingBasis: 'NET_WEIGHT',
-      },
-    ];
-  });
+  // 1. MULTI-TOBACCO COMBINATION STATE (Empty by default; user adds from Stok Mentah, Gulungan, or custom row)
+  const [simIngredients, setSimIngredients] = useState<SimulatedIngredient[]>([]);
 
   const [selectedStockIdToAdd, setSelectedStockIdToAdd] = useState<string>(
     rawTobaccos[0]?.id || ''
@@ -119,8 +69,8 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
 
   // 2. Sisi Setor ke Pabrik (Combined Blend -> Divided into Keranjang/Seri)
   const [autoSyncWeightFromBlend, setAutoSyncWeightFromBlend] = useState<boolean>(true);
-  const [factoryPackageCount, setFactoryPackageCount] = useState<number>(3);
-  const [manualNetPerPack, setManualNetPerPack] = useState<number>(50);
+  const [factoryPackageCount, setFactoryPackageCount] = useState<number>(1);
+  const [manualNetPerPack, setManualNetPerPack] = useState<number>(0);
   const [factoryPackagingMassKg, setFactoryPackagingMassKg] = useState<number>(3);
   const [factoryTaraPercent, setFactoryTaraPercent] = useState<number>(0);
   const [factoryTaraFlatKg, setFactoryTaraFlatKg] = useState<number>(3);
@@ -310,7 +260,6 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
   };
 
   const removeIngredient = (id: string) => {
-    if (simIngredients.length <= 1) return;
     setSimIngredients((prev) => prev.filter((item) => item.id !== id));
   };
 
@@ -367,26 +316,40 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
               </div>
             </div>
 
-            {/* Optional: Load Preset from an Existing Gulungan */}
-            {rollSamples.length > 0 && (
-              <select
-                defaultValue=""
-                onChange={(e) => {
-                  if (e.target.value) handleLoadFromRoll(e.target.value);
-                }}
-                className="h-8 px-2.5 bg-black border border-zinc-700 hover:border-zinc-700 rounded-lg text-[11px] text-zinc-200 font-bold cursor-pointer"
-                title="Muat komposisi bahan dari Arsip Gulungan yang sudah ada"
-              >
-                <option value="" disabled>
-                  Muat Komposisi Gulungan...
-                </option>
-                {rollSamples.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.rollNumber} — {r.recipeName}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Optional: Load Preset from an Existing Gulungan */}
+              {rollSamples.length > 0 && (
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (e.target.value) handleLoadFromRoll(e.target.value);
+                  }}
+                  className="h-8 px-2.5 bg-black border border-zinc-700 hover:border-zinc-700 rounded-lg text-[11px] text-zinc-200 font-bold cursor-pointer"
+                  title="Muat komposisi bahan dari Arsip Gulungan yang sudah ada"
+                >
+                  <option value="" disabled>
+                    Muat Komposisi Gulungan...
                   </option>
-                ))}
-              </select>
-            )}
+                  {rollSamples.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.rollNumber} — {r.recipeName}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {simIngredients.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSimIngredients([])}
+                  className="h-8 px-2.5 rounded-lg bg-black hover:bg-red-950/70 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/70 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Kosongkan semua bahan dari simulator"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Kosongkan</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Quick-Add Bar: Pick from Stok Mentah or Add Custom Tobacco Row */}
@@ -427,38 +390,48 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
 
           {/* List of Combined Tobacco Types */}
           <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
-            {calculatedIngredients.map((item, idx) => {
-              const sharePercent =
-                totalCombinedNetKg > 0
-                  ? ((item.netWeightKg / totalCombinedNetKg) * 100).toFixed(1)
-                  : '0.0';
+            {calculatedIngredients.length === 0 ? (
+              <div className="p-6 rounded-xl bg-black/95 border border-dashed border-zinc-800 text-center space-y-2">
+                <Calculator className="w-8 h-8 text-zinc-600 mx-auto" />
+                <p className="text-xs sm:text-sm font-extrabold text-zinc-200">
+                  Simulator Masih Kosong (0 Bahan)
+                </p>
+                <p className="text-[11px] text-zinc-400 max-w-md mx-auto">
+                  Pilih tembakau dari dropdown lalu klik <b className="text-amber-400">+ Dari Stok</b>, atau klik <b className="text-white">+ Jenis Tembakau Lain</b> untuk mulai menghitung simulasi tarra &amp; profit.
+                </p>
+              </div>
+            ) : (
+              calculatedIngredients.map((item, idx) => {
+                const sharePercent =
+                  totalCombinedNetKg > 0
+                    ? ((item.netWeightKg / totalCombinedNetKg) * 100).toFixed(1)
+                    : '0.0';
 
-              return (
-                <div
-                  key={item.id}
-                  className="p-3.5 rounded-xl bg-black/95 border border-zinc-800 hover:border-zinc-800 transition-colors space-y-2.5"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-amber-400 font-mono font-black text-[10px] shrink-0">
-                        BAHAN #{idx + 1}
-                      </span>
-                      <input
-                        type="text"
-                        value={item.name}
-                        onChange={(e) =>
-                          updateIngredient(item.id, { name: e.target.value })
-                        }
-                        placeholder="Nama jenis tembakau..."
-                        className="h-8 flex-1 min-w-0 px-2.5 bg-zinc-950 border border-zinc-800 focus:border-zinc-700 rounded-lg text-xs font-bold text-white focus:outline-hidden"
-                      />
-                    </div>
+                return (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-xl bg-black/95 border border-zinc-800 hover:border-zinc-800 transition-colors space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-amber-400 font-mono font-black text-[10px] shrink-0">
+                          BAHAN #{idx + 1}
+                        </span>
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={(e) =>
+                            updateIngredient(item.id, { name: e.target.value })
+                          }
+                          placeholder="Nama jenis tembakau..."
+                          className="h-8 flex-1 min-w-0 px-2.5 bg-zinc-950 border border-zinc-800 focus:border-zinc-700 rounded-lg text-xs font-bold text-white focus:outline-hidden"
+                        />
+                      </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-[10px] font-mono text-zinc-200 font-bold">
-                        {sharePercent}% Campuran
-                      </span>
-                      {simIngredients.length > 1 && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-[10px] font-mono text-zinc-200 font-bold">
+                          {sharePercent}% Campuran
+                        </span>
                         <button
                           type="button"
                           onClick={() => removeIngredient(item.id)}
@@ -467,9 +440,8 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      )}
+                      </div>
                     </div>
-                  </div>
 
                   {/* Inputs Row: Bruto, Wadah Riil, Tarra Flat, Tarra %, Harga Beli/KG (Symmetrical & Inline) */}
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
@@ -569,7 +541,8 @@ export const TaraSimulator: React.FC<TaraSimulatorProps> = ({
                   </button>
                 </div>
               );
-            })}
+              })
+            )}
           </div>
 
           {/* Combined Multi-Tobacco Totals Box with Paid vs Real Value & Buy-Side Weight Profit (Specific Per-Panel Breakdown) */}

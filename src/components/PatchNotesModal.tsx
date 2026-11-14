@@ -11,7 +11,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-export const CURRENT_APP_VERSION = 'v4.0.2';
+export const CURRENT_APP_VERSION = 'v4.2.0';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -30,11 +30,339 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v4.2.0',
+    date: '11 November 2026',
+    codename:
+      'Simulator Kosong (Clean Default) & Penyederhanaan Status Barang Pabrik Hanya Diterima (Accepted) vs Reject',
+    isLatest: true,
+    highlights:
+      'Mengubah nama tombol "Simulator Tarra" menjadi "Simulator" serta mengosongkannya secara default saat dibuka (0 bahan awal), dan menyederhanakan status barang kiriman pabrik menjadi murni keputusan pabrik: Menunggu Pabrik, Diterima / Accepted, dan Reject (tanpa status Cair / Belum Cair).',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Tombol "Simulator" Ringkas & Kosong Secara Default (0 Bahan)',
+        description:
+          'Mengubah label "Simulator Tarra" menjadi "Simulator" dan tampil bersih tanpa bahan bawaan saat pertama kali dibuka. Pengguna dapat menambahkan bahan dari Stok Mentah, memuat komposisi Gulungan, atau mengosongkan kembali kapan saja.',
+      },
+      {
+        type: 'ui',
+        title: 'Penyederhanaan Status Barang Pabrik: Fokus Diterima (Accepted) & Reject',
+        description:
+          'Menghapus filter dan tombol status pembayaran Cair / Belum Cair pada Status Barang, Gulungan, Seri Jadi, dan Riwayat sehingga fokus penuh pada status barang di pabrik: Menunggu Pabrik, Diterima / Accepted, dan Reject.',
+      },
+      {
+        type: 'fix',
+        title: 'Nolan AI 24/7 Anti-503 (Multi-Model Failover Cascade + Local Live Engine)',
+        description:
+          'Mencegah error 503 High Demand dengan sistem failover otomatis antar-pool model (gemini-3.8-flash → gemini-flash-latest → gemini-3.1-flash-lite), dukungan rotasi multi-API key, serta mesin kalkulasi lokal 24/7 yang tetap menjawab stok, profit, dan rekomendasi racikan secara instan kapan pun.',
+      },
+    ],
+  },
+  {
+    version: 'v4.1.9',
+    date: '11 November 2026',
+    codename:
+      'Optimasi Alur Kerja Nyata Juragan Tembakau: Pembersihan Tombol Redundan, Bagi Keranjang @45/50/55kg, Buat Gulungan Otomatis & Aksi Massal Terima/Cair Pabrik',
+    isLatest: false,
+    highlights:
+      'Merampingkan antarmuka dengan menghapus tombol-tombol duplikat di Header & Seri Jadi, memperbaiki penomoran Seri mulai dari #1 (dengan auto-increment AK 1 → AK 2), menambahkan tombol 1-klik Bagi Keranjang (@45kg, @50kg, @55kg), pembuatan Gulungan Baru Otomatis saat Simpan Seri, serta tombol 1-klik Terima Semua Pending & Tandai Semua Cair di Gulungan/Status Barang.',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Pembersihan Tombol Redundan di Header Atas & Seri Jadi',
+        description:
+          'Menghapus tombol duplikat Backup JSON, Restore JSON, Patch Notes, Logout, dan ikon Nolan dari bilah atas (karena sudah ada di menu Setting & tombol melayang Nolan), serta menghapus tombol Hapus Semua Seri dan sub-tab Sinkron CSV yang redundan di halaman Seri Jadi.',
+      },
+      {
+        type: 'feature',
+        title: 'Bagi Otomatis per Keranjang (@45kg / @50kg / @55kg) & Buat Gulungan Baru Otomatis di Racikan',
+        description:
+          'Menambahkan tombol 1-klik @45kg, @50kg, dan @55kg untuk membagi total racikan ke jumlah keranjang secara otomatis, memperbaiki urutan nomor seri mulai dari 1 (serta auto-urut AK 1 → AK 2 saat klik Samakan Seri #1), dan menambahkan opsi "+ Buat Gulungan Baru Otomatis" langsung saat menerbitkan seri.',
+      },
+      {
+        type: 'feature',
+        title: 'Aksi Massal 1-Klik "Terima Semua Pending" & "Tandai Semua Cair" + Ubah Grade Langsung di Gulungan',
+        description:
+          'Memudahkan proses timbang & pencairan nota pabrik dengan tombol 1-klik Terima Semua Pending, 1-klik Tandai Semua Diterima → Cair, serta dropdown ubah Grade langsung pada setiap kartu Seri dan Tabel Nota.',
+      },
+    ],
+  },
+  {
+    version: 'v4.1.8',
+    date: '11 November 2026',
+    codename:
+      'Hapus Tombol "Bersihkan Data Demo" yang Berisiko Menghapus Data Asli & Sinkronisasi Memori Nolan 100% Otomatis (Always-On)',
+    highlights:
+      'Menghapus seluruh tombol massal "Bersihkan Data Demo" dan "Reset Data" dari Stok, Riwayat, Setting, serta Header agar data riil yang sudah diinput tidak pernah terhapus secara tidak sengaja, sekaligus menjadikan sinkronisasi memori Nolan ke GitHub A-Brain 100% otomatis (Always-On) tanpa perlu centang manual.',
+    changes: [
+      {
+        type: 'fix',
+        title: 'Hapus Tombol "Bersihkan Data Demo" & "Reset Data" untuk Proteksi Data Asli',
+        description:
+          'Menghapus tombol Bersihkan Data Demo pada halaman Stok, Riwayat, dan Setting agar tidak berisiko mengosongkan data asli yang telah Anda input.',
+      },
+      {
+        type: 'feature',
+        title: 'Sinkronisasi Memori Nolan ke GitHub A-Brain 100% Otomatis (Always-On)',
+        description:
+          'Menghapus kotak centang manual Auto-Sync di Setting karena seluruh pembelajaran, histori aktivitas gudang, racikan, status pabrik, dan diskusi dengan Nolan kini otomatis tercatat dan disinkronkan ke GitHub A-Brain di latar belakang.',
+      },
+    ],
+  },
+  {
+    version: 'v4.1.7',
+    date: '11 November 2026',
+    codename:
+      '6 Segmen Kategori di Menu Setting (Termasuk Format Kemasan, Pabrik & Gulungan), Hapus Tombol Kemasan di Header, serta Slider Atribut Tembakau 0.0–5.0',
+    highlights:
+      'Menambahkan 6 segmen kategori di dalam menu Setting (GitHub A-Brain, Cloud & Sheets, Format Kemasan, Master Pabrik, Master Gulungan, serta Data & Backup), menghapus tombol duplikat Format Kemasan dari header atas, mengganti judul karakter menjadi "Atribut Tembakau (Tobacco Attributes)", dan mendukung penuh rentang slider 0.0 s/d 5.0 (termasuk nilai 0).',
+    changes: [
+      {
+        type: 'feature',
+        title: '6 Segmen Kategori Terpisah di Dalam Menu Setting',
+        description:
+          'Memisahkan isi menu Setting menjadi 6 segmen rapi (GitHub A-Brain, Cloud & Sheets, Format Kemasan, Master Pabrik, Master Gulungan, dan Data & Backup) lengkap dengan fitur tambah/edit/hapus langsung di setiap segmen.',
+      },
+      {
+        type: 'ui',
+        title: 'Hapus Tombol Duplikat Format Kemasan di Header Atas',
+        description:
+          'Menghapus ikon tombol Format Kemasan di bilah atas karena pengelolaan Format Kemasan, Pabrik, dan Gulungan sudah tersedia lengkap di segmen Setting.',
+      },
+      {
+        type: 'fix',
+        title: 'Atribut Tembakau (Tobacco Attributes) Mendukung Slider & Input Nilai 0 (0.0 – 5.0)',
+        description:
+          'Memperbaiki slider dan input angka pada Atribut Tembakau di Auto-Racik agar dapat digeser atau diisi hingga 0 (0.0 – 5.0) ketika stok memiliki atribut bernilai 0 (seperti Sugar = 0).',
+      },
+    ],
+  },
+  {
+    version: 'v4.1.6',
+    date: '11 November 2026',
+    codename:
+      'Menu Setting Terpusat (GitHub A-Brain, Cloud & Master Data), Nolan Chat & Memori Ringkas, serta Indikator Visual Zona Stok Auto-Racik',
+    isLatest: false,
+    highlights:
+      'Memindahkan pengaturan GitHub A-Brain dari chatbox Nolan ke segmen navigasi baru "Setting" yang menyatukan seluruh pengaturan sistem, menyederhanakan chatbox Nolan menjadi 2 tab fokus ("Chat" & "Memori"), serta merombak panel 6 Karakter Rasa dan HPP pada Auto-Racik menjadi indikator bar visual Zona Stok [Min–Maks] yang ringkas langsung di bawah tiap parameter.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Segmen Navigasi Baru: "Setting" (Pengaturan Sistem & Integrasi Terpusat)',
+        description:
+          'Menyatukan koneksi GitHub A-Brain (OAuth, Personal Access Token ghp_..., Pull/Push Aldi-ang/A-Brain), akun Google Cloud & Google Sheets, Master Data Gudang/Pabrik, serta Backup/Restore & Bersihkan Data Demo di satu halaman Setting.',
+      },
+      {
+        type: 'ui',
+        title: 'Panel Nolan Fokus 2 Tab: "Chat" & "Memori"',
+        description:
+          'Mengubah label "Chat WA" menjadi "Chat" dan memindahkan tab konfigurasi GitHub A-Brain ke menu Setting agar jendela chat Nolan lebih bersih dan fokus pada percakapan serta memori belajar.',
+      },
+      {
+        type: 'ui',
+        title: 'Indikator Bar Visual Zona Stok [Min–Maks] & Alasan Ringkas di Bawah Tiap Parameter Auto-Racik',
+        description:
+          'Menampilkan pita visual Zona Stok Tersedia [Min–Maks], pin Target, dan titik Hasil langsung pada bar tiap karakter (Power, Impact, Bitter, Burn, Sugar, Aroma, serta HPP/KG) lengkap dengan alasan singkat 1 baris dan tombol 1-klik "Set Min/Maks" tepat di bawah parameter terkait.',
+      },
+    ],
+  },
+  {
+    version: 'v4.1.5',
+    date: '11 November 2026',
+    codename:
+      'Mesin Auto-Racik Presisi (4 Parameter & Notifikasi Kejujuran Matematika), Default Racikan Bersih & Konfirmasi + Undo Hapus Data',
+    isLatest: false,
+    highlights:
+      'Menghadirkan Mesin Auto-Racik berbasis 4 Parameter (Pilihan Stok, Sortir Otomatis Grade -1 s/d +2 Level, Target 6 Karakter Rasa /5 dengan Cek Kejujuran Matematika, serta Filter Daerah Asal & Target HPP/KG), mengosongkan meja Racikan secara default agar bersih saat dibuka, dan menambahkan fitur Konfirmasi (Confirm) beserta tombol Urungkan (Undo) pada setiap penghapusan data.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Mesin Auto-Racik 4 Parameter & Sortir Grade Otomatis (-1 Level s/d +2 Level)',
+        description:
+          'Memungkinkan racikan otomatis dari seluruh stok atau stok terpilih, menyortir kandidat Grade secara otomatis (1 tingkat di bawah dan 2 tingkat di atas, contoh target D/D+ menyortir C, C+, E, E+, F), memfilter Daerah Asal, dan mengoptimalkan rata-rata HPP/KG serta 6 Karakter Rasa.',
+      },
+      {
+        type: 'feature',
+        title: 'Notifikasi Kejujuran Matematika (Tanpa Rekayasa Angka)',
+        description:
+          'Jika target karakter atau harga modal secara matematis berada di luar batas [Min – Max] stok terfilter sehingga mustahil di-average turun/naik, sistem memberikan peringatan transparan lengkap dengan batas stok riil dan menampilkan komposisi paling mendekati.',
+      },
+      {
+        type: 'feature',
+        title: 'Konfirmasi Hapus (Confirm Modal) & Tombol Urungkan (Undo) + Default Racikan Bersih',
+        description:
+          'Setiap aksi penghapusan (Stok Mentah, Seri Jadi, Gulungan, Riwayat, maupun Bahan Racikan) kini dilindungi dialog konfirmasi dan tombol Undo untuk memulihkan data dalam 1 klik, serta halaman Racikan kini dimulai dalam keadaan bersih (0 bahan).',
+      },
+    ],
+  },
+  {
+    version: 'v4.1.4',
+    date: '10 November 2026',
+    codename:
+      'Tombol Hapus (Trash2) Langsung pada Seri Jadi, Gulungan & Riwayat + Fitur Bersihkan Semua Data Demo & Sinkronisasi Aldi-ang/A-Brain',
+    isLatest: false,
+    highlights:
+      'Menambahkan tombol Hapus (ikon Trash2 dengan tooltip hover) langsung pada setiap kartu Seri Jadi, Gulungan, Status Barang, dan Riwayat, serta tombol "Bersihkan Data Demo" untuk mengosongkan seluruh data awal dalam 1 klik agar aplikasi siap diisi data riil.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Tombol Hapus (Trash2) pada Seri Jadi, Gulungan, Status Barang & Riwayat',
+        description:
+          'Setiap kartu Seri Jadi, Gulungan (Gudang & Dikirim), serta Riwayat Nota & Status Seri kini dilengkapi tombol ikon hapus langsung yang otomatis menyinkronkan perubahan ke LocalStorage dan Firestore Cloud.',
+      },
+      {
+        type: 'feature',
+        title: 'Tombol "Bersihkan Data Demo" (1-Klik Kosongkan Semua Data Awal)',
+        description:
+          'Menambahkan tombol Bersihkan Data Demo pada menu Stok Gudang dan Riwayat untuk menghapus seluruh data contoh awal (Stok Mentah, Seri Jadi, dan Gulungan) sehingga akun bersih untuk input data asli.',
+      },
+      {
+        type: 'feature',
+        title: 'Koneksi Otomatis Repositori Aldi-ang/A-Brain (Folder Tobacco-Business/)',
+        description:
+          'Menghubungkan memori Nolan secara otomatis ke repositori GitHub Aldi-ang/A-Brain pada folder Tobacco-Business/nolan-brain.json serta membaca catatan pengetahuan Tobacco-Business/index.md.',
+      },
+    ],
+  },
+  {
+    version: 'v4.1.3',
+    date: '10 November 2026',
+    codename:
+      'Dukungan Penuh Vercel (https://tobaccolab.vercel.app/) untuk API Server Nolan, GitHub A-Brain & Callback OAuth',
+    isLatest: false,
+    highlights:
+      'Menambahkan dukungan penuh untuk deployment Vercel (https://tobaccolab.vercel.app/) melalui serverless function /api/index.ts dan konfigurasi vercel.json, serta menambahkan URL callback https://tobaccolab.vercel.app/auth/github/callback pada pengaturan GitHub OAuth Nolan.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Serverless Handler /api/index.ts & Rewrites vercel.json untuk https://tobaccolab.vercel.app/',
+        description:
+          'Mengekspor Express app ke /api/index.ts dan memperbarui vercel.json agar seluruh endpoint /api/nolan/*, /api/github/*, dan /auth/github/callback berjalan otomatis di Vercel.',
+      },
+      {
+        type: 'feature',
+        title: 'Dukungan Origin & Callback URL https://tobaccolab.vercel.app/auth/github/callback',
+        description:
+          'Menampilkan URL callback produksi Vercel (https://tobaccolab.vercel.app/auth/github/callback) di tab A-Brain GitHub dan mengizinkan domain .vercel.app pada komunikasi popup OAuth.',
+      },
+    ],
+  },
+  {
+    version: 'v4.1.2',
+    date: '10 November 2026',
+    codename:
+      'Perbaikan Deployment Cloud Run (ESM Type-Only Import Express & Dynamic Port / Vite Production Mode)',
+    isLatest: false,
+    highlights:
+      'Memperbaiki error startup pada container produksi Cloud Run (node server.ts di Node.js v22 ESM) dengan menggunakan import type untuk Request/Response Express, dynamic import untuk Vite saat mode development, serta dukungan variabel PORT dan direktori fallback /tmp pada Cloud Run.',
+    changes: [
+      {
+        type: 'fix',
+        title: 'Perbaikan Named Export Express pada Node.js v22 Production Runtime',
+        description:
+          'Mengubah import Request dan Response dari modul CommonJS express menjadi type-only import (import express, { type Request, type Response } from "express") agar node server.ts berjalan mulus saat proses deployment Cloud Run.',
+      },
+      {
+        type: 'fix',
+        title: 'Dukungan Dynamic Port & Direktori Penyimpanan Aman di Cloud Run',
+        description:
+          'Menggunakan Number(process.env.PORT) || 3000 dan fallback penyimpanan sementara os.tmpdir() agar health check Cloud Run langsung berhasil saat rollout.',
+      },
+    ],
+  },
+  {
+    version: 'v4.1.1',
+    date: '10 November 2026',
+    codename:
+      'Gelembung Chat Nolan Bergaya Facebook Messenger (Menempel di Tepi Layar + Tarik ke X Bawah untuk Hapus) & Tampilan Chatbox Bergaya WhatsApp',
+    isLatest: false,
+    highlights:
+      'Mengubah antarmuka Nolan AI menjadi gelembung melayang (Chat Head) bergaya Facebook Messenger yang otomatis menempel ke tepi kiri/kanan layar saat digeser, dapat ditutup/dihapus dengan menarik gelembung ke zona (X) di tengah bawah layar, serta membuka percakapan dalam jendela Chatbox bergaya WhatsApp lengkap dengan centang dua biru dan kartu rekomendasi racikan interaktif.',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Gelembung Chat Melayang (Facebook Messenger Chat Head) yang Menempel di Tepi Layar',
+        description:
+          'Saat ada percakapan aktif, gelembung Nolan melayang di layar dan dapat digeser ke mana saja. Ketika dilepas, gelembung otomatis menempel (snap) ke tepi kiri atau tepi kanan layar terdekat.',
+      },
+      {
+        type: 'feature',
+        title: 'Zona Hapus (X) di Tengah Bawah Saat Gelembung Ditarik',
+        description:
+          'Saat Anda menahan dan menggeser gelembung Nolan, tombol (X) muncul di tengah bawah layar. Arahkan dan lepaskan gelembung tepat di atas (X) untuk menghapus gelembung dari layar.',
+      },
+      {
+        type: 'ui',
+        title: 'Kotak Percakapan (Chatbox) Bergaya WhatsApp',
+        description:
+          'Percakapan Nolan kini tampil sebagai jendela chatbox WhatsApp (header hijau tua, indikator "sedang mengetik...", bubble pesan kiri/kanan dengan jam & centang biru ✓✓, serta tombol 1-klik "Terapkan ke Kalkulator Racikan").',
+      },
+    ],
+  },
+  {
+    version: 'v4.1.0',
+    date: '10 November 2026',
+    codename:
+      'Integrasi AI Agent "Nolan" (Rekomendasi Racikan, Info Cepat Profit & Stok, Self-Learning) & Sinkronisasi Dua Arah GitHub A-Brain',
+    isLatest: false,
+    highlights:
+      'Menghadirkan "Nolan", AI Agent cerdas di dalam aplikasi Tobacco Lab yang membaca seluruh data stok mentah, seri jadi, dan profit pada akun yang sedang login. Nolan mampu merekomendasikan komposisi racikan terbaik (lengkap dengan tombol 1-klik "Terapkan ke Kalkulator Racikan"), memberikan laporan cepat profit & piutang, terus belajar otomatis dari setiap keputusan racikan maupun status QC pabrik (Diterima/Reject), serta menyinkronkan memori pembelajarannya secara dua arah ke repository GitHub "A-Brain".',
+    changes: [
+      {
+        type: 'feature',
+        title: 'AI Agent "Nolan" untuk Rekomendasi Racikan, Profit & Stok Akun',
+        description:
+          'Nolan menganalisis sisa stok tembakau mentah (currentStockNetKg), HPP bersih (termasuk Fee Perantara), Weight Profit (Rp & KG), serta 6 parameter rasa (/5) untuk menyusun rekomendasi racikan yang dapat langsung diterapkan ke Kalkulator Racikan dengan 1 klik.',
+      },
+      {
+        type: 'feature',
+        title: 'Continuous Self-Learning dari Setiap Keputusan Racikan & Status Pabrik',
+        description:
+          'Nolan otomatis mencatat dan mempelajari pola setiap kali Anda menerbitkan racikan baru, menerima hasil QC pabrik (Diterima/Accepted vs Reject), atau mengajarkan aturan khusus lewat chat.',
+      },
+      {
+        type: 'feature',
+        title: 'Sinkronisasi Memori Dua Arah dengan GitHub Repository "A-Brain"',
+        description:
+          'Menghubungkan memori Nolan ke repository GitHub A-Brain (mendukung GitHub OAuth Popup maupun GITHUB_TOKEN) untuk menarik (Pull) dan menyimpan/commit otomatis (Push) file nolan/tobacco-lab-brain.json serta dokumentasi nolan/tobacco-lab-brain.md.',
+      },
+    ],
+  },
+  {
+    version: 'v4.0.3',
+    date: '10 November 2026',
+    codename:
+      '3 Metrik Utama Gudang (Total Modal, Weight Profit Rp & Weight Profit KG), Info Sisa Berat Bahan di Racikan & Tombol Ikon Posisi Tetap (Deskripsi Saat Hover)',
+    isLatest: false,
+    highlights:
+      'Mengganti metrik Harga Tembakau dan Biaya Fee di ringkasan gudang menjadi 3 metrik paling berguna: (1) Total Modal / Nilai Inventori, (2) Weight Profit dalam Rupiah, dan (3) Weight Profit dalam KG. Menambahkan informasi Sisa Berat Bahan (Stok Gudang vs Dipakai vs Sisa Bahan) pada Komposisi Racikan, serta menyederhanakan tombol aksi menjadi ikon saja secara default (deskripsi hanya tampil saat di-hover) dengan posisi tombol yang 100% terkunci/tetap agar mudah ditekan.',
+    changes: [
+      {
+        type: 'feature',
+        title: '3 Metrik Utama Gudang Mentah: Total Modal / Nilai Inventori, Weight Profit (Rp) & Weight Profit (KG)',
+        description:
+          'Menghapus panel Harga Tembakau Dasar dan Biaya Fee yang kurang relevan di ringkasan utama, menggantikannya dengan 3 metrik inti: (1) Total Modal / Nilai Inventori (Netto × (Harga + Fee)), (2) Weight Profit dalam Rupiah ((Netto Riil − Netto Nota) × Harga Tembakau), dan (3) Weight Profit dalam KG (Netto Riil − Netto Nota).',
+      },
+      {
+        type: 'feature',
+        title: 'Informasi Sisa Berat Bahan (Remaining Weight) di Komposisi Racikan',
+        description:
+          'Pada setiap bahan di dalam panel 1. Komposisi Bahan, kini ditampilkan rincian Stok Gudang, Berat Dipakai Racikan, dan Sisa Bahan (KG) secara real-time, lengkap dengan tombol cepat "50%" dan "Semua" untuk memudahkan penggunaan sebagian stok bahan.',
+      },
+      {
+        type: 'ui',
+        title: 'Tombol Ikon Saja Secara Default (Deskripsi Muncul Saat Hover) dengan Posisi Tetap (Fixed Position)',
+        description:
+          'Menyembunyikan teks deskripsi tombol secara default (hanya menampilkan logo/ikon yang jelas seperti ƒx, Filter, Kunci/Buka, Info, Hapus, Simulator, Format, + Bahan) dan menampilkan deskripsinya saat kursor diarahkan (hover) tanpa menggeser posisi tombol.',
+      },
+    ],
+  },
+  {
     version: 'v4.0.2',
     date: '10 November 2026',
     codename:
       'Perbaikan Perhitungan Fee Perantara sebagai Biaya Tambahan (Netto × Fee) & Total Modal = Netto × (Harga + Fee)',
-    isLatest: true,
+    isLatest: false,
     highlights:
       'Memperbaiki rumus perhitungan Fee Perantara pada pembelian tembakau mentah agar dihitung murni sebagai Biaya Tambahan (Added Cost), bukan keuntungan: Netto = Bruto − Tarra, Biaya Fee = Netto × Fee/KG, dan Total Modal = Netto × (Harga Tembakau + Fee/KG). Contoh: 50 kg dengan potongan 10% + 2 kg menghasilkan Netto = 50 − 5 − 2 = 43 kg; dengan harga Rp 50.000/kg dan fee Rp 1.000/kg, maka Biaya Fee = 43 × Rp 1.000 = Rp 43.000 dan Total Modal = 43 × Rp 51.000 = Rp 2.193.000.',
     changes: [

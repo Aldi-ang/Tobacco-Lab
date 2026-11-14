@@ -21,6 +21,7 @@ import {
   BarChart3,
   TrendingUp,
   DollarSign,
+  Trash2,
 } from 'lucide-react';
 import {
   FactoryMaster,
@@ -52,6 +53,9 @@ interface HistoryViewProps {
   packagingList?: PackagingMaster[];
   factoryList?: FactoryMaster[];
   onUpdateSerial?: (updated: FinishedTobaccoSerial) => void;
+  onDeleteRoll?: (rollId: string) => void;
+  onDeleteSerial?: (serialId: string) => void;
+  onClearAllDemoData?: () => void;
   onOpenGoogleSheetsModal: () => void;
   onGoToRejectedStock?: () => void;
 }
@@ -62,6 +66,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   packagingList = [],
   factoryList = [],
   onUpdateSerial,
+  onDeleteRoll,
+  onDeleteSerial,
+  onClearAllDemoData,
   onOpenGoogleSheetsModal,
   onGoToRejectedStock,
 }) => {
@@ -73,8 +80,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<
     | 'ALL'
     | 'ACCEPTED_CAIR'
-    | 'PAID_CAIR'
-    | 'UNPAID_BELUM_CAIR'
     | 'PENDING'
     | 'REJECTED_STOCK'
     | 'RENAMED_LINEAGE'
@@ -244,10 +249,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     if (focus === 'CAIR_VALUE') {
       setCalcDetail({
         title: `2. Total Nilai Diterima / Accepted — ${activeFactoryLabel} (${cairBatches.length} Seri)`,
-        subtitle: `Total Nota Seri yang Diterima Pabrik (Cair: ${formatRupiah(totalPaidCairRp)} • Belum Cair: ${formatRupiah(totalUnpaidAcceptedRp)})`,
-        badgeText: 'RIWAYAT DITERIMA / ACCEPTED • CAIR VS BELUM CAIR',
+        subtitle: `Total Nota Seri yang Diterima Pabrik (${activeFactoryLabel})`,
+        badgeText: 'RIWAYAT DITERIMA / ACCEPTED • RUMUS NILAI DITERIMA',
         coreFormula: 'Total Diterima = Σ (Netto Tagih × Harga Pabrik) untuk Seri DITERIMA / ACCEPTED',
-        appliedFormula: `Total Diterima (${cairBatches.length} Seri) = ${formatRupiah(totalCairRp)} (Cair: ${formatRupiah(totalPaidCairRp)} + Belum Cair: ${formatRupiah(totalUnpaidAcceptedRp)})`,
+        appliedFormula: `Total Diterima (${cairBatches.length} Seri) = ${formatRupiah(totalCairRp)}`,
         steps: [
           {
             stepNumber: 1,
@@ -256,26 +261,25 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             substitution: `${cairBatches.length} Seri DITERIMA (${activeFactoryLabel}) = ${formatRupiah(totalCairRp)}`,
             resultLabel: 'Total Diterima / Accepted',
             resultValue: formatRupiah(totalCairRp),
-            explanation: `Terdiri dari ${paidAcceptedBatches.length} Seri Sudah Cair (${formatRupiah(totalPaidCairRp)}) dan ${unpaidAcceptedBatches.length} Seri Belum Cair (${formatRupiah(totalUnpaidAcceptedRp)}).`,
+            explanation: `Total nilai nota dari ${cairBatches.length} Nomor Seri yang diterima pabrik (${activeFactoryLabel}).`,
             highlight: 'amber',
           },
           ...cairBatches.map((s, idx) => {
             const netto = Math.max(0, s.packaging.grossWeightPerPackage - s.factoryDeductionKg);
             const nota = getSerialNotaRp(s);
-            const payLabel = s.paymentStatus === 'CAIR' ? 'CAIR (Paid)' : 'BELUM CAIR (Not Paid)';
             return {
               stepNumber: idx + 2,
-              title: `Seri ${formatSerialLineage(s)} (${payLabel})`,
+              title: `Seri ${formatSerialLineage(s)} (Diterima / Accepted)`,
               formula: `Nilai Diterima = Netto Tagih × Harga Pabrik`,
               substitution: `${netto} kg × ${formatRupiah(s.factoryTargetPricePerKg)} = ${formatRupiah(nota)}`,
               resultLabel: `Seri ${formatSerialLineage(s)}`,
               resultValue: formatRupiah(nota),
-              explanation: `Gulungan ${s.rollNumber || '-'} • Pabrik ${s.targetFactory} • Status Bayar: ${payLabel}.`,
+              explanation: `Gulungan ${s.rollNumber || '-'} • Pabrik ${s.targetFactory} • Status: Diterima / Accepted.`,
               highlight: 'white' as const,
             };
           }),
         ],
-        conclusion: `Total Diterima / Accepted (${activeFactoryLabel}) = ${formatRupiah(totalCairRp)} (Sudah Cair: ${formatRupiah(totalPaidCairRp)} | Belum Cair: ${formatRupiah(totalUnpaidAcceptedRp)}).`,
+        conclusion: `Total Diterima / Accepted (${activeFactoryLabel}) = ${formatRupiah(totalCairRp)}.`,
       });
       return;
     }
@@ -459,11 +463,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         ? true
         : statusFilter === 'RENAMED_LINEAGE'
           ? hasSerialLineage(b) || (b.transferHistory && b.transferHistory.length > 0)
-          : statusFilter === 'PAID_CAIR'
-            ? st === 'ACCEPTED_CAIR' && b.paymentStatus === 'CAIR'
-            : statusFilter === 'UNPAID_BELUM_CAIR'
-              ? st === 'ACCEPTED_CAIR' && b.paymentStatus !== 'CAIR'
-              : st === statusFilter;
+          : st === statusFilter;
     const matchFactory =
       factoryFilter === 'ALL' ||
       b.targetFactory === factoryFilter ||
@@ -570,8 +570,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               {formatRupiah(totalCairRp)}
             </div>
             <div className="text-[10px] font-mono text-zinc-400 truncate">
-              Cair: <b className="text-amber-300">{paidAcceptedBatches.length}</b> • Belum Cair:{' '}
-              <b className="text-white">{unpaidAcceptedBatches.length}</b> • Reject:{' '}
+              Diterima: <b className="text-amber-300">{cairBatches.length}</b> • Reject:{' '}
               <b className="text-red-400">{rejectedBatches.length}</b>
             </div>
           </button>
@@ -942,8 +941,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             {[
               { id: 'ALL', label: `Semua Seri (${kpiBatches.length})` },
               { id: 'ACCEPTED_CAIR', label: `Diterima / Accepted (${cairBatches.length})` },
-              { id: 'PAID_CAIR', label: `Cair / Paid (${paidAcceptedBatches.length})` },
-              { id: 'UNPAID_BELUM_CAIR', label: `Belum Cair / Not Paid (${unpaidAcceptedBatches.length})` },
               { id: 'PENDING', label: `Menunggu Pabrik (${pendingBatches.length})` },
               { id: 'REJECTED_STOCK', label: `Reject di Gudang (${rejectedBatches.length})` },
               {
@@ -1096,28 +1093,44 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedNotaRollIds((prev) => ({
-                            ...prev,
-                            [roll.id]: !prev[roll.id],
-                          }))
-                        }
-                        className="btn-amber-outline h-9 px-3.5 rounded-xl font-black text-xs inline-flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-                      >
-                        {isExpanded ? (
-                          <>
-                            <EyeOff className="w-3.5 h-3.5" />
-                            <span>Sembunyikan Nota</span>
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Lihat Tabel Nota</span>
-                          </>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedNotaRollIds((prev) => ({
+                              ...prev,
+                              [roll.id]: !prev[roll.id],
+                            }))
+                          }
+                          className="btn-amber-outline h-9 px-3.5 rounded-xl font-black text-xs inline-flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                        >
+                          {isExpanded ? (
+                            <>
+                              <EyeOff className="w-3.5 h-3.5" />
+                              <span>Sembunyikan Nota</span>
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Lihat Tabel Nota</span>
+                            </>
+                          )}
+                        </button>
+
+                        {onDeleteRoll && (
+                          <button
+                            type="button"
+                            aria-label={`Hapus Riwayat Gulungan ${roll.rollNumber}`}
+                            onClick={() => onDeleteRoll(roll.id)}
+                            className="group relative h-9 w-9 shrink-0 rounded-xl bg-black hover:bg-red-950/70 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/70 flex items-center justify-center cursor-pointer transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4 shrink-0" />
+                            <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-red-500/70 text-red-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
+                              Hapus Gulungan {roll.rollNumber}
+                            </span>
+                          </button>
                         )}
-                      </button>
+                      </div>
                     </div>
                   </div>
 
@@ -1266,7 +1279,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                                         </span>
                                       ) : s.factoryStatus === 'ACCEPTED_CAIR' ? (
                                         <span className="px-2 py-0.5 rounded bg-black text-amber-400 border border-amber-500 font-black">
-                                          DITERIMA ({s.paymentStatus === 'CAIR' ? 'CAIR' : 'BELUM CAIR'})
+                                          DITERIMA / ACCEPTED
                                         </span>
                                       ) : s.factoryStatus === 'REJECTED_STOCK' ? (
                                         <span className="px-2 py-0.5 rounded bg-zinc-900 text-white border border-zinc-600 font-bold">
@@ -1436,6 +1449,19 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                                 <span>Edit</span>
                               </button>
                             )}
+                            {onDeleteSerial && (
+                              <button
+                                type="button"
+                                aria-label={`Hapus Seri ${s.serialNumber}`}
+                                onClick={() => onDeleteSerial(s.id)}
+                                className="group/del relative h-7 w-7 shrink-0 rounded-lg bg-black hover:bg-red-950/70 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/70 flex items-center justify-center cursor-pointer transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                                <span className="pointer-events-none opacity-0 group-hover/del:opacity-100 transition-opacity duration-150 absolute -top-7 right-0 z-50 px-2 py-0.5 rounded bg-black border border-red-500/70 text-red-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
+                                  Hapus Seri {s.serialNumber}
+                                </span>
+                              </button>
+                            )}
                             <span
                               className={`px-2.5 py-1 rounded-lg font-mono font-black text-[10px] border inline-flex items-center gap-1 ${
                                 status === 'ACCEPTED_CAIR'
@@ -1462,31 +1488,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                                 </>
                               )}
                             </span>
-                            {status === 'ACCEPTED_CAIR' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!onUpdateSerial) return;
-                                  const nextPayment =
-                                    s.paymentStatus === 'CAIR' ? 'BELUM_CAIR' : 'CAIR';
-                                  onUpdateSerial({
-                                    ...s,
-                                    paymentStatus: nextPayment,
-                                  });
-                                }}
-                                title="Klik untuk ubah status bayar: Cair (Paid) / Belum Cair (Not Paid)"
-                                className={`px-2 py-1 rounded-lg font-mono font-black text-[10px] border inline-flex items-center gap-1 cursor-pointer transition-colors ${
-                                  s.paymentStatus === 'CAIR'
-                                    ? 'bg-amber-500 text-black border-amber-400'
-                                    : 'bg-zinc-950 text-zinc-300 border-zinc-700 hover:border-amber-500/60'
-                                }`}
-                              >
-                                <DollarSign className="w-3 h-3" />
-                                <span>
-                                  {s.paymentStatus === 'CAIR' ? 'CAIR (PAID)' : 'BELUM CAIR'}
-                                </span>
-                              </button>
-                            )}
                           </div>
                         </div>
 

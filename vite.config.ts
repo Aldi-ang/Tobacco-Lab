@@ -7,6 +7,27 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(() => {
   return {
     plugins: [
+      {
+        name: 'pwa-safe-dev-sw',
+        enforce: 'pre',
+        apply: 'serve',
+        resolveId(id) {
+          if (id === '/@vite-plugin-pwa/pwa-entry-point-loaded') {
+            return '\0pwa-safe-dev-sw';
+          }
+          return null;
+        },
+        load(id) {
+          if (id === '\0pwa-safe-dev-sw') {
+            return `export default function registerDevSW() {
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/dev-sw.js?dev-sw', { scope: '/', type: 'classic' }).catch(() => {});
+  }
+}`;
+          }
+          return null;
+        },
+      },
       react(),
       tailwindcss(),
       VitePWA({

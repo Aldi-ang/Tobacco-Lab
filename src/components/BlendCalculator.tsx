@@ -15,6 +15,9 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
+  Bot,
+  Zap,
+  Undo2,
 } from 'lucide-react';
 import {
   RawTobacco,
@@ -46,6 +49,7 @@ import {
   CalcSymbolBadge,
   buildSerialFactoryCalcDetail,
 } from './CalculationDetailModal';
+import { AutoRacikModal } from './AutoRacikModal';
 
 const DRAFT_STORAGE_KEY = 'kretek_master_save_draft_v3';
 
@@ -57,6 +61,7 @@ interface BlendCalculatorProps {
   existingSerialCount: number;
   onSaveMultipleFinished: (finishedList: FinishedTobaccoSerial[]) => void;
   initialIngredients?: BlendIngredient[];
+  onAskNolanRecommendation?: () => void;
 }
 
 export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
@@ -67,6 +72,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
   existingSerialCount,
   onSaveMultipleFinished,
   initialIngredients = [],
+  onAskNolanRecommendation,
 }) => {
   // Mobile one-by-one snapped panel switcher (< lg)
   const [mobilePanel, setMobilePanel] = useState<'ingredients' | 'packaging' | 'summary'>(
@@ -78,55 +84,20 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
   const [isPerSeriCostExpanded, setIsPerSeriCostExpanded] = useState<boolean>(false);
   const [isSensoryExpanded, setIsSensoryExpanded] = useState<boolean>(false);
 
-  // Selected ingredients in the blend
+  // Selected ingredients in the blend (Default clean [] unless prefilled from Stock/Nolan)
   const [ingredients, setIngredients] = useState<BlendIngredient[]>(() => {
     if (initialIngredients.length > 0) return initialIngredients;
-    if (rawTobaccos.length >= 2) {
-      return [
-        {
-          tobaccoId: rawTobaccos[0].id,
-          tobaccoName: rawTobaccos[0].name,
-          origin: rawTobaccos[0].origin,
-          usedNetKg: 52,
-          percentageInBlend: 50,
-          realCostPerNetKg: rawTobaccos[0].realCostPerNetKg,
-          effectiveCostPerRealKg:
-            rawTobaccos[0].effectiveCostPerRealKg ?? rawTobaccos[0].realCostPerNetKg,
-          subtotalCost: 52 * rawTobaccos[0].realCostPerNetKg,
-          powerRating: clampRating5(rawTobaccos[0].powerRating),
-          impactRating: clampRating5(rawTobaccos[0].impactRating),
-          bitterRating: clampRating5(rawTobaccos[0].bitterRating),
-          burnRating: clampRating5(rawTobaccos[0].burnRating ?? 4.5),
-          sugarRating: clampRating5(rawTobaccos[0].sugarRating ?? 4.2),
-          aromaRating: clampRating5(rawTobaccos[0].aromaRating ?? 4.3),
-          sellerName: rawTobaccos[0].sellerName,
-          colorGrade: rawTobaccos[0].colorGrade,
-          characterNotes: rawTobaccos[0].characterNotes,
-        },
-        {
-          tobaccoId: rawTobaccos[1].id,
-          tobaccoName: rawTobaccos[1].name,
-          origin: rawTobaccos[1].origin,
-          sellerName: rawTobaccos[1].sellerName,
-          usedNetKg: 51,
-          percentageInBlend: 50,
-          realCostPerNetKg: rawTobaccos[1].realCostPerNetKg,
-          effectiveCostPerRealKg:
-            rawTobaccos[1].effectiveCostPerRealKg ?? rawTobaccos[1].realCostPerNetKg,
-          subtotalCost: 51 * rawTobaccos[1].realCostPerNetKg,
-          powerRating: clampRating5(rawTobaccos[1].powerRating),
-          impactRating: clampRating5(rawTobaccos[1].impactRating),
-          bitterRating: clampRating5(rawTobaccos[1].bitterRating),
-          burnRating: clampRating5(rawTobaccos[1].burnRating ?? 4.8),
-          sugarRating: clampRating5(rawTobaccos[1].sugarRating ?? 3.9),
-          aromaRating: clampRating5(rawTobaccos[1].aromaRating ?? 4.2),
-          colorGrade: rawTobaccos[1].colorGrade,
-          characterNotes: rawTobaccos[1].characterNotes,
-        },
-      ];
-    }
     return [];
   });
+
+  const [isAutoRacikOpen, setIsAutoRacikOpen] = useState(false);
+  const [autoRacikBannerMsg, setAutoRacikBannerMsg] = useState<string | null>(null);
+  const [confirmRemoveIngIdx, setConfirmRemoveIngIdx] = useState<number | null>(null);
+  const [confirmClearAllBlend, setConfirmClearAllBlend] = useState<boolean>(false);
+  const [undoBlendSnapshot, setUndoBlendSnapshot] = useState<{
+    label: string;
+    previousIngredients: BlendIngredient[];
+  } | null>(null);
 
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
@@ -152,10 +123,11 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
       name: 'CELLO MUNTILAN',
       sampleDeductionKg: 0,
     };
-    const defaultRoll = rollSamples[0]?.id || 'gul-2026-001';
+    const activeWarehouseRoll = rollSamples.find((r) => !r.isSentToFactory);
+    const defaultRoll = activeWarehouseRoll?.id || 'NEW_AUTO_ROLL';
     const evenNet = totalCount > 0 ? Number((totalNetKg / totalCount).toFixed(2)) : totalNetKg;
     const bruto = Number((evenNet + defaultPkg.packagingMassKg).toFixed(2));
-    const nextNum = 73 + baseSerialIndex + index;
+    const nextNum = 1 + baseSerialIndex + index;
 
     return {
       serialNumber: String(nextNum),
@@ -252,7 +224,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
         const basePkg =
           currentPackages[0] ||
           buildDefaultPackageItem(i, validCount, totalNetKg, existingSerialCount);
-        const nextNum = 73 + existingSerialCount + i;
+        const nextNum = 1 + existingSerialCount + i;
         const itemNet =
           i === validCount - 1
             ? Number(Math.max(0, totalNetKg - evenNet * (validCount - 1)).toFixed(2))
@@ -290,6 +262,46 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
       packageCount: validCount,
       packages: redistributeWeightsEvenly(validCount, prev.packages, metrics.totalBlendNetKg),
     }));
+  };
+
+  const handleSplitByBasketKg = (targetBasketKg: number) => {
+    const totalKg = metrics.totalBlendNetKg;
+    if (totalKg <= 0 || targetBasketKg <= 0) return;
+    const count = Math.max(1, Math.min(50, Math.ceil(totalKg / targetBasketKg)));
+    setDraft((prev) => {
+      const basePkg =
+        prev.packages[0] || buildDefaultPackageItem(0, count, totalKg, existingSerialCount);
+      const firstSerial = (prev.packages[0]?.serialNumber || String(1 + existingSerialCount)).trim();
+      const trailingMatch = firstSerial.match(/^(.*?)(\d+)$/);
+
+      const nextPackages: PackageDraftItem[] = [];
+      let remaining = totalKg;
+      for (let i = 0; i < count; i++) {
+        const existing = prev.packages[i];
+        const itemNet =
+          i === count - 1
+            ? Number(Math.max(0, remaining).toFixed(2))
+            : Number(Math.min(remaining, targetBasketKg).toFixed(2));
+        remaining = Number(Math.max(0, remaining - itemNet).toFixed(2));
+
+        const autoSerial = trailingMatch
+          ? `${trailingMatch[1]}${Number(trailingMatch[2]) + i}`
+          : String(1 + existingSerialCount + i);
+
+        const pkgMass = existing?.packagingMassKg ?? basePkg.packagingMassKg;
+        nextPackages.push({
+          ...(existing || basePkg),
+          serialNumber: existing?.serialNumber || autoSerial,
+          netWeightKg: itemNet,
+          brutoWeightKg: Number((itemNet + pkgMass).toFixed(2)),
+        });
+      }
+      return {
+        ...prev,
+        packageCount: count,
+        packages: nextPackages,
+      };
+    });
   };
 
   const handleUpdatePackageItem = (index: number, patch: Partial<PackageDraftItem>) => {
@@ -342,25 +354,37 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
   const handleBulkApplyFromFirst = () => {
     if (draft.packages.length <= 1) return;
     const first = draft.packages[0];
+    const firstSerial = first.serialNumber.trim();
+    const trailingMatch = firstSerial.match(/^(.*?)(\d+)$/);
+
     setDraft((prev) => ({
       ...prev,
-      packages: prev.packages.map((pkg) => ({
-        ...pkg,
-        packagingId: first.packagingId,
-        packagingType: first.packagingType,
-        packagingMassKg: first.packagingMassKg,
-        packagingCostRp: first.packagingCostRp,
-        pressCostRp: first.pressCostRp,
-        brutoWeightKg: Number((pkg.netWeightKg + first.packagingMassKg).toFixed(2)),
-        targetFactoryId: first.targetFactoryId,
-        targetFactoryName: first.targetFactoryName,
-        taraPercent: first.taraPercent,
-        taraFlatKg: first.taraFlatKg,
-        sampleDeductionKg: first.sampleDeductionKg,
-        rollId: first.rollId,
-        targetPricePerKg: first.targetPricePerKg,
-        grade: first.grade,
-      })),
+      packages: prev.packages.map((pkg, idx) => {
+        const nextSerial =
+          idx === 0
+            ? first.serialNumber
+            : trailingMatch
+            ? `${trailingMatch[1]}${Number(trailingMatch[2]) + idx}`
+            : pkg.serialNumber;
+        return {
+          ...pkg,
+          serialNumber: nextSerial,
+          packagingId: first.packagingId,
+          packagingType: first.packagingType,
+          packagingMassKg: first.packagingMassKg,
+          packagingCostRp: first.packagingCostRp,
+          pressCostRp: first.pressCostRp,
+          brutoWeightKg: Number((pkg.netWeightKg + first.packagingMassKg).toFixed(2)),
+          targetFactoryId: first.targetFactoryId,
+          targetFactoryName: first.targetFactoryName,
+          taraPercent: first.taraPercent,
+          taraFlatKg: first.taraFlatKg,
+          sampleDeductionKg: first.sampleDeductionKg,
+          rollId: first.rollId,
+          targetPricePerKg: first.targetPricePerKg,
+          grade: first.grade,
+        };
+      }),
     }));
   };
 
@@ -413,9 +437,26 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
   };
 
   const handleRemoveIngredient = (index: number) => {
+    const target = ingredients[index];
+    if (!target) return;
+    setUndoBlendSnapshot({
+      label: `Bahan "${target.tobaccoName}" dihapus dari racikan`,
+      previousIngredients: [...ingredients],
+    });
     const newIngredients = [...ingredients];
     newIngredients.splice(index, 1);
     setIngredients(newIngredients);
+    setConfirmRemoveIngIdx(null);
+  };
+
+  const handleClearAllIngredients = () => {
+    if (ingredients.length === 0) return;
+    setUndoBlendSnapshot({
+      label: `Semua bahan racikan (${ingredients.length} jenis) dikosongkan`,
+      previousIngredients: [...ingredients],
+    });
+    setIngredients([]);
+    setConfirmClearAllBlend(false);
   };
 
   const handleSaveFinished = (e: React.FormEvent) => {
@@ -490,7 +531,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
 
       return {
         id: `tbk-fin-${Date.now()}-${idx}`,
-        serialNumber: pkg.serialNumber.trim() || `${73 + existingSerialCount + idx}`,
+        serialNumber: pkg.serialNumber.trim() || `${1 + existingSerialCount + idx}`,
         mixtureBatchId,
         packageIndex: idx + 1,
         totalPackagesInMixture: draft.packages.length,
@@ -589,15 +630,41 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 ml-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsAutoRacikOpen(true)}
+            className="h-9 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/80 font-black text-xs flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors"
+            title="Auto-Racik Otomatis dari Stok Tersedia (4 Parameter)"
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>Auto-Racik</span>
+          </button>
+
+          {onAskNolanRecommendation && (
+            <button
+              type="button"
+              aria-label="Minta Rekomendasi Racikan Nolan AI"
+              onClick={onAskNolanRecommendation}
+              className="group relative h-9 w-9 shrink-0 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/70 flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <Bot className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-amber-500/70 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                Tanya Nolan (Rekomendasi Racikan AI)
+              </span>
+            </button>
+          )}
+
           {ingredients.length > 0 && (
             <button
               type="button"
-              title="Kosongkan Bahan Campuran"
-              onClick={() => setIngredients([])}
-              className="h-9 px-3 rounded-xl bg-black hover:bg-zinc-900 text-white text-xs font-bold border border-zinc-800 flex items-center gap-1 whitespace-nowrap transition-colors cursor-pointer"
+              aria-label="Kosongkan Bahan Campuran"
+              onClick={() => setConfirmClearAllBlend(true)}
+              className="group relative h-9 w-9 shrink-0 rounded-xl bg-black hover:bg-zinc-900 text-white border border-zinc-800 flex items-center justify-center transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-              <span>Reset</span>
+              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                Reset Komposisi
+              </span>
             </button>
           )}
 
@@ -613,6 +680,74 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Undo or Confirm Clear Banner inside Racikan */}
+      {confirmClearAllBlend && (
+        <div className="p-3 rounded-xl bg-red-950/30 border border-red-500/70 flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 text-xs text-white font-bold">
+            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+            <span>Konfirmasi: Kosongkan semua ({ingredients.length} jenis) bahan dari racikan ini?</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmClearAllBlend(false)}
+              className="h-7 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-bold cursor-pointer"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              onClick={handleClearAllIngredients}
+              className="h-7 px-3 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-black cursor-pointer"
+            >
+              Ya, Kosongkan
+            </button>
+          </div>
+        </div>
+      )}
+
+      {undoBlendSnapshot && (
+        <div className="p-2.5 rounded-xl bg-zinc-950 border border-amber-500/60 flex items-center justify-between flex-wrap gap-2">
+          <span className="text-xs text-zinc-200 font-bold">{undoBlendSnapshot.label}</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setIngredients(undoBlendSnapshot.previousIngredients);
+                setUndoBlendSnapshot(null);
+              }}
+              className="h-7 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-black inline-flex items-center gap-1 cursor-pointer"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              <span>Urungkan (Undo)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setUndoBlendSnapshot(null)}
+              className="h-7 px-2 rounded-lg bg-zinc-900 text-zinc-400 hover:text-white text-xs font-bold cursor-pointer"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
+
+      {autoRacikBannerMsg && (
+        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/50 flex items-center justify-between gap-2 text-xs text-amber-200">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>{autoRacikBannerMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAutoRacikBannerMsg(null)}
+            className="text-zinc-400 hover:text-white text-[11px] font-bold cursor-pointer shrink-0"
+          >
+            Tutup
+          </button>
+        </div>
+      )}
 
       {/* Main Grid: Desktop shows 2 columns; Mobile shows 1 snapped panel at a time */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -630,6 +765,25 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                   <Layers className="w-4 h-4 text-zinc-300 shrink-0" />
                   <span>1. Komposisi Bahan ({ingredients.length} Jenis)</span>
                 </h2>
+                {ingredients.length > 0 && (
+                  <p className="text-[11px] font-mono text-zinc-400 mt-0.5">
+                    Total Dipakai: <b className="text-white">{metrics.totalBlendNetKg} kg</b>
+                    {' • '}
+                    Total Sisa Bahan Terpilih:{' '}
+                    <b className="text-amber-400">
+                      {Number(
+                        ingredients
+                          .reduce((acc, ing) => {
+                            const r = rawTobaccos.find((t) => t.id === ing.tobaccoId);
+                            const stok = r ? r.currentStockNetKg : ing.usedNetKg;
+                            return acc + Math.max(0, stok - ing.usedNetKg);
+                          }, 0)
+                          .toFixed(2)
+                      )}{' '}
+                      kg
+                    </b>
+                  </p>
+                )}
               </div>
 
               {unusedTobaccos.length > 0 && (
@@ -641,7 +795,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                     }
                   }}
                   defaultValue=""
-                  className="h-9 px-3 bg-black border border-zinc-800 rounded-xl text-xs font-bold text-white focus:outline-hidden focus:border-zinc-700 cursor-pointer max-w-[230px] sm:max-w-xs truncate"
+                  className="h-9 px-3 bg-black border border-zinc-800 rounded-xl text-xs font-bold text-white focus:outline-hidden focus:border-zinc-700 cursor-pointer max-w-[250px] sm:max-w-xs truncate"
                   aria-label="Tambah Bahan Tembakau"
                 >
                   <option value="" disabled>
@@ -649,7 +803,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                   </option>
                   {unusedTobaccos.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name} [{t.colorGrade}] - {formatRupiah(t.realCostPerNetKg)}/kg
+                      {t.name} [{t.colorGrade}] • Stok: {t.currentStockNetKg} kg • {formatRupiah(t.realCostPerNetKg)}/kg
                     </option>
                   ))}
                 </select>
@@ -657,11 +811,26 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
             </div>
 
             {ingredients.length === 0 ? (
-              <div className="py-8 text-center border-2 border-dashed border-zinc-800 rounded-xl bg-black/80">
-                <Scale className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
-                <p className="text-white text-xs font-bold">
-                  Belum ada bahan tembakau dalam campuran
-                </p>
+              <div className="py-8 px-4 text-center border-2 border-dashed border-zinc-800 rounded-xl bg-black/80 space-y-3">
+                <Scale className="w-8 h-8 text-zinc-500 mx-auto" />
+                <div className="space-y-1">
+                  <p className="text-white text-xs sm:text-sm font-extrabold">
+                    Meja Racikan Bersih (Belum Ada Bahan Tembakau)
+                  </p>
+                  <p className="text-[11px] text-zinc-400 max-w-md mx-auto">
+                    Pilih bahan satu per satu melalui menu <b>+ Tambah Bahan...</b> di kanan atas, atau gunakan mesin <b>Auto-Racik</b> untuk meracik otomatis berdasarkan Grade, 6 Karakter, Daerah Asal & Target HPP.
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsAutoRacikOpen(true)}
+                    className="btn-amber-outline h-9 px-4 rounded-xl font-black text-xs inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Buka Mesin Auto-Racik (4 Parameter)</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -672,13 +841,19 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       : '0';
 
                   const rawData = rawTobaccos.find((t) => t.id === item.tobaccoId);
-                  const isStockWarning = rawData && item.usedNetKg > rawData.currentStockNetKg;
+                  const availableStockKg = Number(
+                    (rawData ? rawData.currentStockNetKg : item.usedNetKg).toFixed(2)
+                  );
+                  const remainingStockKg = Number(
+                    (availableStockKg - item.usedNetKg).toFixed(2)
+                  );
+                  const isStockWarning = remainingStockKg < 0;
                   const isExpanded = expandedIngId === item.tobaccoId;
 
                   return (
                     <div
                       key={item.tobaccoId}
-                      className="bg-black/90 p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-800 transition-all space-y-2.5"
+                      className="bg-black/90 p-3.5 rounded-xl border border-zinc-800 hover:border-zinc-700 transition-all space-y-2.5"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -696,26 +871,97 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             type="button"
-                            title="Lihat / Sembunyikan Info Karakter Bahan"
+                            aria-label="Lihat / Sembunyikan Info Karakter Bahan"
                             onClick={() =>
                               setExpandedIngId(isExpanded ? null : item.tobaccoId)
                             }
-                            className="h-7 px-2 inline-flex items-center gap-1 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border border-zinc-800 text-[10px] font-bold cursor-pointer"
+                            className={`group relative h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-lg border cursor-pointer transition-colors ${
+                              isExpanded
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500'
+                                : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                            }`}
                           >
-                            <Info className="w-3 h-3 text-zinc-300" />
-                            <span>Info</span>
+                            <Info className="w-3.5 h-3.5 shrink-0" />
+                            <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-8 right-0 z-50 px-2 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                              Info 6 Karakter Bahan
+                            </span>
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveIngredient(index)}
-                            className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-900 border border-transparent hover:border-zinc-800 transition-colors cursor-pointer"
-                            title="Hapus bahan dari campuran"
-                            aria-label={`Hapus ${item.tobaccoName}`}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {confirmRemoveIngIdx === index ? (
+                            <div className="inline-flex items-center gap-1 bg-red-950/60 border border-red-500/70 rounded-lg px-1.5 py-0.5">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveIngredient(index)}
+                                className="px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white text-[10px] font-black cursor-pointer"
+                              >
+                                Ya, Hapus
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmRemoveIngIdx(null)}
+                                className="px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-300 hover:text-white text-[10px] font-bold cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmRemoveIngIdx(index)}
+                              className="group relative h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-lg text-zinc-400 hover:text-white bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 transition-colors cursor-pointer"
+                              aria-label={`Hapus ${item.tobaccoName}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-8 right-0 z-50 px-2 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                                Hapus dari Racikan
+                              </span>
+                            </button>
+                          )}
                         </div>
+                      </div>
+
+                      {/* Remaining Weight Info Strip (Stok Gudang vs Dipakai vs Sisa Bahan) */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800/90 text-[11px] font-mono">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-zinc-400">
+                            Stok Gudang: <b className="text-white">{availableStockKg} kg</b>
+                          </span>
+                          <span className="text-zinc-600">•</span>
+                          <span className="text-zinc-400">
+                            Dipakai: <b className="text-white">{item.usedNetKg} kg</b>
+                          </span>
+                          <span className="text-zinc-600">•</span>
+                          <span className={isStockWarning ? 'text-rose-400 font-bold' : 'text-amber-300 font-bold'}>
+                            Sisa Bahan:{' '}
+                            <b className={isStockWarning ? 'text-rose-400' : 'text-amber-400'}>
+                              {remainingStockKg} kg
+                            </b>
+                          </span>
+                        </div>
+
+                        {availableStockKg > 0 && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleWeightChange(
+                                  index,
+                                  Number((availableStockKg * 0.5).toFixed(1))
+                                )
+                              }
+                              className="px-1.5 py-0.5 rounded bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 text-[10px] font-bold cursor-pointer"
+                            >
+                              50% ({Number((availableStockKg * 0.5).toFixed(1))} kg)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleWeightChange(index, availableStockKg)}
+                              className="px-1.5 py-0.5 rounded bg-black hover:bg-zinc-900 text-amber-400 border border-zinc-800 text-[10px] font-bold cursor-pointer"
+                            >
+                              Semua ({availableStockKg} kg)
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Collapsible Sensory Info (Hidden until pressed) */}
@@ -763,7 +1009,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       <div className="grid grid-cols-12 gap-2.5 items-center pt-1.5 border-t border-zinc-900">
                         <div className="col-span-6 sm:col-span-5 flex items-center gap-2">
                           <label className="text-[11px] text-zinc-300 font-bold shrink-0">
-                            Netto:
+                            Pakai:
                           </label>
                           <div className="relative flex-1 min-w-[70px]">
                             <NumericInput
@@ -792,10 +1038,11 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                       </div>
 
                       {isStockWarning && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-zinc-200 bg-zinc-950 p-2 rounded-lg border border-zinc-800">
-                          <AlertTriangle className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
+                        <div className="flex items-center gap-1.5 text-[11px] text-rose-300 bg-zinc-950 p-2 rounded-lg border border-rose-500/40">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                           <span>
-                            Melebihi sisa stok bersih ({rawData?.currentStockNetKg} kg).
+                            Pemakaian melebihi stok gudang ({availableStockKg} kg) sebesar{' '}
+                            <b>{Math.abs(remainingStockKg)} kg</b>.
                           </span>
                         </div>
                       )}
@@ -824,7 +1071,24 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {metrics.totalBlendNetKg > 0 && (
+                  <div className="inline-flex items-center gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+                    <span className="text-[10px] font-bold text-zinc-400 px-1.5">Bagi Keranjang:</span>
+                    {[45, 50, 55].map((kgVal) => (
+                      <button
+                        key={kgVal}
+                        type="button"
+                        onClick={() => handleSplitByBasketKg(kgVal)}
+                        className="h-7 px-2 rounded-lg bg-black hover:bg-amber-500/20 text-zinc-200 hover:text-amber-300 border border-zinc-800 hover:border-amber-500/60 text-[10px] font-mono font-bold cursor-pointer transition-colors"
+                        title={`Bagi otomatis ${metrics.totalBlendNetKg} kg menjadi keranjang @${kgVal} kg`}
+                      >
+                        @{kgVal}kg
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <div className="inline-flex items-center gap-2 bg-black px-3 h-9 rounded-xl border border-zinc-800">
                   <span className="text-xs font-bold text-zinc-300 whitespace-nowrap">
                     Jumlah Seri:
@@ -1651,17 +1915,26 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                               Gulungan
                             </label>
                             <select
-                              value={pkg.rollId}
+                              value={
+                                rollSamples.some((r) => !r.isSentToFactory && r.id === pkg.rollId)
+                                  ? pkg.rollId
+                                  : 'NEW_AUTO_ROLL'
+                              }
                               onChange={(e) =>
                                 handleUpdatePackageItem(idx, { rollId: e.target.value })
                               }
                               className="w-full h-9 px-2 bg-zinc-950 border border-zinc-700 rounded-lg text-white font-bold text-xs focus:outline-hidden"
                             >
-                              {rollSamples.map((r) => (
-                                <option key={r.id} value={r.id}>
-                                  {r.rollNumber} — {r.recipeName}
-                                </option>
-                              ))}
+                              <option value="NEW_AUTO_ROLL">
+                                + Buat Gulungan Baru Otomatis
+                              </option>
+                              {rollSamples
+                                .filter((r) => !r.isSentToFactory)
+                                .map((r) => (
+                                  <option key={r.id} value={r.id}>
+                                    {r.rollNumber} — {r.recipeName}
+                                  </option>
+                                ))}
                             </select>
                           </div>
 
@@ -1705,6 +1978,22 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
       </AnimatePresence>
 
       <CalculationDetailModal data={calcDetail} onClose={() => setCalcDetail(null)} />
+
+      <AutoRacikModal
+        isOpen={isAutoRacikOpen}
+        onClose={() => setIsAutoRacikOpen(false)}
+        rawTobaccos={rawTobaccos}
+        onApplyAutoBlend={(recommendedIngs, summaryNote) => {
+          if (ingredients.length > 0) {
+            setUndoBlendSnapshot({
+              label: 'Komposisi sebelumnya diganti oleh Auto-Racik',
+              previousIngredients: [...ingredients],
+            });
+          }
+          setIngredients(recommendedIngs);
+          setAutoRacikBannerMsg(summaryNote);
+        }}
+      />
     </div>
   );
 };

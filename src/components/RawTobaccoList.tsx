@@ -18,13 +18,21 @@ import {
   SlidersHorizontal,
   X,
   Calculator,
+  Clock,
+  DollarSign,
+  Sparkles,
+  Hand,
 } from 'lucide-react';
 import {
   RawTobacco,
   FinishedTobaccoSerial,
   TobaccoRollSample,
   FactoryMaster,
+  PackagingMaster,
 } from '../types/tobacco';
+import { getRawTobaccoMissingFlags } from '../utils/tobaccoCompleteness';
+import { HoldQuickMenuOverlay, useHoldDragMenu } from './HoldQuickMenu';
+import { QuickEditSection, RawQuickEditModal } from './RawQuickEditModal';
 import {
   GRADE_LABELS,
   TOBACCO_GRADE_ORDER,
@@ -48,10 +56,14 @@ interface RawTobaccoListProps {
   finishedBatches: FinishedTobaccoSerial[];
   rollSamples: TobaccoRollSample[];
   factoryList?: FactoryMaster[];
+  packagingList?: PackagingMaster[];
   initialStockPanel?: 'raw' | 'rejected-finished';
   onAddNew: () => void;
   onEdit: (tobacco: RawTobacco) => void;
+  onQuickUpdate?: (updated: RawTobacco) => void;
   onDelete: (id: string) => void;
+  onDeleteFinished?: (serialId: string) => void;
+  onClearAllDemoData?: () => void;
   onAddToBlend: (tobacco: RawTobacco) => void;
   onReassignRejectedToRoll: (
     serialId: string,
@@ -67,10 +79,14 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
   finishedBatches,
   rollSamples,
   factoryList = [],
+  packagingList = [],
   initialStockPanel = 'raw',
   onAddNew,
   onEdit,
+  onQuickUpdate,
   onDelete,
+  onDeleteFinished,
+  onClearAllDemoData,
   onAddToBlend,
   onReassignRejectedToRoll,
   onUnpackRejectedToBlend,
@@ -84,6 +100,9 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrigin, setSelectedOrigin] = useState<string>('ALL');
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL');
+  const [missingFilter, setMissingFilter] = useState<
+    'ALL' | 'INCOMPLETE' | 'NEED_WEIGHT' | 'NEED_PRICE' | 'NEED_ATTR'
+  >('ALL');
   const [sortBy, setSortBy] = useState<'name' | 'stock' | 'hpp' | 'power' | 'weightProfit'>('name');
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
 
@@ -93,6 +112,11 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
     null
   );
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
+  const [quickEditState, setQuickEditState] = useState<{
+    tobacco: RawTobacco;
+    section: QuickEditSection;
+  } | null>(null);
+  const holdMenu = useHoldDragMenu();
 
   const newestRollId = rollSamples[rollSamples.length - 1]?.id || rollSamples[0]?.id || '';
   const [selectedTargetRollMap, setSelectedTargetRollMap] = useState<Record<string, string>>({});
@@ -107,30 +131,41 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
 
   const origins = ['ALL', ...Array.from(new Set(tobaccos.map((t) => t.origin.split(' ')[0])))];
 
-  // Helper to compute Netto (Bruto - Tarra), Base Tobacco Cost (Netto * Harga), Added Fee Cost (Netto * Fee), and Total Modal (Netto * (Harga + Fee))
+  // Helper to compute Total Modal / Inventory Value, Weight Profit (Rp), Weight Profit (KG), and Sisa Stok
   const getRawWeightMetrics = (t: RawTobacco) => {
     const calc = calculateRawTobaccoCost({
       grossWeightKg: t.grossWeightKg,
       pricePerKgPurchase: t.pricePerKgPurchase,
+      realPackagingMassKg: t.packagingMassKg ?? t.taraFormula.packagingMassKg,
       taraFormula: t.taraFormula,
       agentFees: t.agentFees,
       totalAgentFeePerKg: t.totalAgentFeePerKg,
       additionalCost: t.additionalPurchaseCost || 0,
     });
     const netWeightKg = calc.netWeightKg;
+    const realNetKg = calc.realNetWeightKg;
+    const realPkgMassKg = calc.realPackagingMassKg;
     const baseTobaccoCostRp = calc.baseTobaccoCostRp;
     const totalAgentFeePerKg = calc.totalAgentFeePerKg;
     const totalAgentFeeRp = calc.totalAgentFeeRp;
     const effectivePricePerKgWithFee = calc.effectivePricePerKgWithFee;
     const totalModalAsal = calc.totalModalAsal;
+    const weightProfitKg = calc.purchaseWeightProfitKg;
+    const weightProfitRp = calc.purchaseWeightProfitRp;
+    const currentStockKg = Number((t.currentStockNetKg ?? realNetKg).toFixed(2));
 
     return {
       netWeightKg,
+      realNetKg,
+      realPkgMassKg,
       baseTobaccoCostRp,
       totalAgentFeePerKg,
       totalAgentFeeRp,
       effectivePricePerKgWithFee,
       totalModalAsal,
+      weightProfitKg,
+      weightProfitRp,
+      currentStockKg,
       deductionKg: calc.deductionKg,
     };
   };
@@ -146,8 +181,15 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
 
       const matchOrigin = selectedOrigin === 'ALL' || t.origin.startsWith(selectedOrigin);
       const matchGrade = selectedGrade === 'ALL' || t.colorGrade === selectedGrade;
+      const flags = getRawTobaccoMissingFlags(t);
+      const matchMissing =
+        missingFilter === 'ALL' ||
+        (missingFilter === 'INCOMPLETE' && flags.isIncomplete) ||
+        (missingFilter === 'NEED_WEIGHT' && flags.missingWeight) ||
+        (missingFilter === 'NEED_PRICE' && flags.missingPrice) ||
+        (missingFilter === 'NEED_ATTR' && flags.missingAttributes);
 
-      return matchSearch && matchOrigin && matchGrade;
+      return matchSearch && matchOrigin && matchGrade && matchMissing;
     })
     .sort((a, b) => {
       if (sortBy === 'stock') return b.currentStockNetKg - a.currentStockNetKg;
@@ -156,7 +198,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
       }
       if (sortBy === 'power') return b.powerRating - a.powerRating;
       if (sortBy === 'weightProfit') {
-        return getRawWeightMetrics(b).totalModalAsal - getRawWeightMetrics(a).totalModalAsal;
+        return getRawWeightMetrics(b).weightProfitRp - getRawWeightMetrics(a).weightProfitRp;
       }
       return a.name.localeCompare(b.name);
     });
@@ -188,23 +230,27 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
       {/* PANEL 1: STOK TEMBAKAU MENTAH */}
       {activeStockPanel === 'raw' && (
         <>
-          {/* Warehouse Summary Strip: 1. Harga Tembakau Dasar | 2. Biaya Tambahan Fee | 3. Total Modal (Harga + Fee) */}
+          {/* Warehouse Summary Strip: 1. Total Modal / Nilai Inventori | 2. Weight Profit (Rupiah) | 3. Weight Profit (KG) */}
           {(() => {
             const totals = filteredRaw.reduce(
               (acc, t) => {
                 const m = getRawWeightMetrics(t);
                 return {
                   netWeightKg: Number((acc.netWeightKg + m.netWeightKg).toFixed(2)),
-                  baseTobaccoCostRp: acc.baseTobaccoCostRp + m.baseTobaccoCostRp,
-                  totalAgentFeeRp: acc.totalAgentFeeRp + m.totalAgentFeeRp,
+                  realNetKg: Number((acc.realNetKg + m.realNetKg).toFixed(2)),
+                  currentStockKg: Number((acc.currentStockKg + m.currentStockKg).toFixed(2)),
                   totalModalAsal: acc.totalModalAsal + m.totalModalAsal,
+                  weightProfitKg: Number((acc.weightProfitKg + m.weightProfitKg).toFixed(2)),
+                  weightProfitRp: acc.weightProfitRp + m.weightProfitRp,
                 };
               },
               {
                 netWeightKg: 0,
-                baseTobaccoCostRp: 0,
-                totalAgentFeeRp: 0,
+                realNetKg: 0,
+                currentStockKg: 0,
                 totalModalAsal: 0,
+                weightProfitKg: 0,
+                weightProfitRp: 0,
               }
             );
 
@@ -215,52 +261,52 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   return {
                     stepNumber: idx + 3,
                     title: `${item.name} (${item.origin})`,
-                    formula: `Harga Tembakau = (Bruto − Tarra) × Harga Beli / KG`,
-                    substitution: `(${item.grossWeightKg} kg − ${m.deductionKg} kg) × ${formatRupiah(item.pricePerKgPurchase)} = ${m.netWeightKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${formatRupiah(m.baseTobaccoCostRp)}`,
+                    formula: `Total Modal = Netto Nota × (Harga Tembakau + Fee/KG)`,
+                    substitution: `${m.netWeightKg} kg × (${formatRupiah(item.pricePerKgPurchase)} + ${formatRupiah(m.totalAgentFeePerKg)}) = ${m.netWeightKg} kg × ${formatRupiah(m.effectivePricePerKgWithFee)} = ${formatRupiah(m.totalModalAsal)}`,
                     resultLabel: `${item.name}`,
-                    resultValue: `${formatRupiah(m.baseTobaccoCostRp)} (${m.netWeightKg} kg)`,
-                    explanation: `Bruto ${item.grossWeightKg} kg dipotong tarra ${m.deductionKg} kg (${item.taraFormula.rawFormula}) menjadi Netto ${m.netWeightKg} kg.`,
-                    highlight: 'white' as const,
+                    resultValue: `${formatRupiah(m.totalModalAsal)} (Sisa: ${m.currentStockKg} kg)`,
+                    explanation: `Bruto ${item.grossWeightKg} kg − Tarra ${m.deductionKg} kg = Netto Nota ${m.netWeightKg} kg. Sisa stok saat ini: ${m.currentStockKg} kg.`,
+                    highlight: 'amber' as const,
                   };
                 });
 
                 setCalcDetail({
-                  title: `1. Total Harga Tembakau Dasar (Netto × Harga) — ${filteredRaw.length} Stok`,
-                  subtitle: `Total Netto (Bruto − Tarra): ${totals.netWeightKg} kg`,
-                  badgeText: 'PANEL 1 GUDANG • RUMUS HARGA TEMBAKAU DASAR',
+                  title: `1. Total Modal / Nilai Inventori — ${filteredRaw.length} Stok`,
+                  subtitle: `Sisa Stok Tersedia: ${totals.currentStockKg} kg • Total Netto Beli: ${totals.netWeightKg} kg`,
+                  badgeText: 'METRIK 1 GUDANG • TOTAL MODAL / NILAI INVENTORI',
                   coreFormula:
-                    'Total Harga Tembakau = Σ (Netto × Harga Tembakau / KG)   |   Netto = Bruto − Tarra',
-                  appliedFormula: `Total Harga Tembakau = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).baseTobaccoCostRp)).join(' + ')} = ${formatRupiah(totals.baseTobaccoCostRp)}   |   Total Netto = ${totals.netWeightKg} kg`,
+                    'Total Modal / Nilai Inventori = Σ [Netto Nota × (Harga Tembakau + Fee/KG)]',
+                  appliedFormula: `Total Modal = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).totalModalAsal)).join(' + ')} = ${formatRupiah(totals.totalModalAsal)}`,
                   steps: [
                     {
                       stepNumber: 1,
-                      title: 'Total Netto (Bruto − Tarra)',
-                      formula: 'Total Netto = Σ (Berat Bruto − Potongan Tarra)',
+                      title: 'Total Netto Nota & Sisa Stok Gudang',
+                      formula: 'Netto Nota = Σ (Bruto − Potongan Tarra)',
                       substitution:
                         filteredRaw
                           .map((item) => `${getRawWeightMetrics(item).netWeightKg} kg (${item.name})`)
                           .join(' + ') + ` = ${totals.netWeightKg} kg`,
-                      resultLabel: 'Total Netto',
-                      resultValue: `${totals.netWeightKg} kg`,
-                      explanation: `Jumlah berat bersih (Bruto − Tarra) dari seluruh ${filteredRaw.length} stok tembakau.`,
+                      resultLabel: 'Total Netto Nota',
+                      resultValue: `${totals.netWeightKg} kg (Sisa: ${totals.currentStockKg} kg)`,
+                      explanation: `Total berat bersih yang kita bayar dari ${filteredRaw.length} stok tembakau mentah.`,
                       highlight: 'white',
                     },
                     {
                       stepNumber: 2,
-                      title: 'Total Harga Tembakau Dasar',
-                      formula: 'Total Harga Tembakau = Σ (Netto × Harga Tembakau / KG)',
+                      title: 'Total Modal / Nilai Inventori (Harga Tembakau + Biaya Fee)',
+                      formula: 'Total Modal = Σ [Netto × (Harga Tembakau + Fee/KG)]',
                       substitution:
                         filteredRaw
-                          .map((item) => formatRupiah(getRawWeightMetrics(item).baseTobaccoCostRp))
-                          .join(' + ') + ` = ${formatRupiah(totals.baseTobaccoCostRp)}`,
-                      resultLabel: 'Total Harga Tembakau Dasar',
-                      resultValue: formatRupiah(totals.baseTobaccoCostRp),
-                      explanation: `Total harga pokok tembakau murni sebelum ditambah fee pencari barang/perantara.`,
+                          .map((item) => formatRupiah(getRawWeightMetrics(item).totalModalAsal))
+                          .join(' + ') + ` = ${formatRupiah(totals.totalModalAsal)}`,
+                      resultLabel: 'Total Modal / Nilai Inventori',
+                      resultValue: formatRupiah(totals.totalModalAsal),
+                      explanation: `Seluruh modal pembelian tembakau beserta biaya tambahan fee perantara.`,
                       highlight: 'amber',
                     },
                     ...itemSteps,
                   ],
-                  conclusion: `Total Harga Tembakau Dasar = ${formatRupiah(totals.baseTobaccoCostRp)} (${totals.netWeightKg} kg).`,
+                  conclusion: `Total Modal / Nilai Inventori = ${formatRupiah(totals.totalModalAsal)} (${totals.currentStockKg} kg stok tersedia).`,
                 });
                 return;
               }
@@ -268,127 +314,105 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
               if (focus === 'REAL_VALUE') {
                 const itemSteps = filteredRaw.map((item, idx) => {
                   const m = getRawWeightMetrics(item);
-                  const feeNames =
-                    Array.isArray(item.agentFees) && item.agentFees.length > 0
-                      ? item.agentFees
-                          .map((f) => `${f.agentName || 'Agen'} (+${formatRupiah(f.feePerKg)}/kg)`)
-                          .join(', ')
-                      : 'Tanpa Fee Perantara (Rp 0/kg)';
                   return {
                     stepNumber: idx + 3,
                     title: `${item.name} (${item.origin})`,
-                    formula: `Biaya Tambahan Fee = Netto × Fee / KG`,
-                    substitution: `${m.netWeightKg} kg × ${formatRupiah(m.totalAgentFeePerKg)}/kg = ${formatRupiah(m.totalAgentFeeRp)}`,
+                    formula: `Weight Profit (Rp) = Weight Profit (KG) × Harga Tembakau Dasar/KG`,
+                    substitution: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg × ${formatRupiah(item.pricePerKgPurchase)} = ${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)}`,
                     resultLabel: `${item.name}`,
-                    resultValue: `+${formatRupiah(m.totalAgentFeeRp)} (${formatRupiah(m.totalAgentFeePerKg)}/kg)`,
-                    explanation: `Rincian Fee: ${feeNames}. Merupakan biaya tambahan pembelian (bukan keuntungan).`,
-                    highlight: (m.totalAgentFeeRp > 0 ? 'amber' : 'white') as 'amber' | 'white',
+                    resultValue: `${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)} (${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg)`,
+                    explanation: `Netto Riil ${m.realNetKg} kg − Netto Nota ${m.netWeightKg} kg = ${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg × ${formatRupiah(item.pricePerKgPurchase)}/kg.`,
+                    highlight: (m.weightProfitRp >= 0 ? 'amber' : 'red') as 'amber' | 'red',
                   };
                 });
 
                 setCalcDetail({
-                  title: `2. Total Biaya Tambahan Fee (Netto × Fee) — ${filteredRaw.length} Stok`,
-                  subtitle: `Biaya Tambahan Perantara • Total Netto: ${totals.netWeightKg} kg`,
-                  badgeText: 'PANEL 2 GUDANG • RUMUS BIAYA TAMBAHAN FEE PERANTARA',
+                  title: `2. Weight Profit dalam Rupiah — ${filteredRaw.length} Stok`,
+                  subtitle: `Total Weight Profit (KG): ${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
+                  badgeText: 'METRIK 2 GUDANG • WEIGHT PROFIT DALAM RUPIAH',
                   coreFormula:
-                    'Total Biaya Fee = Σ (Netto × Fee / KG)   |   Netto = Bruto − Tarra (Biaya Tambahan / Added Cost)',
-                  appliedFormula: `Total Biaya Tambahan Fee = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).totalAgentFeeRp)).join(' + ')} = +${formatRupiah(totals.totalAgentFeeRp)}`,
+                    'Total Weight Profit (Rp) = Σ [(Netto Riil − Netto Nota) × Harga Tembakau Dasar/KG]',
+                  appliedFormula: `Total Weight Profit (Rp) = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).weightProfitRp)).join(' + ')} = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
                   steps: [
                     {
                       stepNumber: 1,
-                      title: 'Rumus Fee per Barang (Netto × Fee)',
-                      formula: 'Biaya Fee Barang = (Bruto − Tarra) × Total Fee / KG',
-                      substitution: `Contoh: 50 kg dengan potongan 10% + 2 kg → Netto = 50 − 5 − 2 = 43 kg × Rp 1.000 = Rp 43.000 biaya tambahan`,
-                      resultLabel: 'Sifat Perhitungan',
-                      resultValue: 'Biaya Tambahan (Added Cost)',
-                      explanation: `Fee perantara menambah harga modal per kg tembakau yang harus kita bayar.`,
+                      title: 'Total Weight Profit dalam KG (Selisih Timbangan)',
+                      formula: 'Total Weight Profit (KG) = Σ (Netto Fisik Riil − Netto Nota)',
+                      substitution: `${totals.realNetKg} kg (Netto Riil) − ${totals.netWeightKg} kg (Netto Nota) = ${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
+                      resultLabel: 'Total Weight Profit (KG)',
+                      resultValue: `${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
+                      explanation: `Selisih antara berat isi tembakau fisik sebenarnya dengan berat yang ditagihkan di nota pembelian.`,
                       highlight: 'white',
                     },
                     {
                       stepNumber: 2,
-                      title: 'Total Biaya Tambahan Fee Gudang',
-                      formula: 'Total Biaya Fee = Σ (Netto × Fee / KG)',
+                      title: 'Total Weight Profit dalam Rupiah',
+                      formula: 'Total Weight Profit (Rp) = Σ (Weight Profit KG × Harga Tembakau / KG)',
                       substitution:
                         filteredRaw
-                          .map((item) => formatRupiah(getRawWeightMetrics(item).totalAgentFeeRp))
-                          .join(' + ') + ` = ${formatRupiah(totals.totalAgentFeeRp)}`,
-                      resultLabel: 'Total Biaya Tambahan Fee',
-                      resultValue: `+${formatRupiah(totals.totalAgentFeeRp)}`,
-                      explanation: `Total seluruh ongkos fee pencari barang/perantara dari ${filteredRaw.length} stok.`,
-                      highlight: 'amber',
+                          .map((item) => formatRupiah(getRawWeightMetrics(item).weightProfitRp))
+                          .join(' + ') + ` = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
+                      resultLabel: 'Total Weight Profit (Rp)',
+                      resultValue: `${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
+                      explanation: `Dihitung menggunakan harga tembakau dasar per kg (Fee perantara adalah biaya tambahan, bukan profit).`,
+                      highlight: totals.weightProfitRp >= 0 ? 'amber' : 'red',
                     },
                     ...itemSteps,
                   ],
-                  conclusion: `Total Biaya Tambahan Fee = +${formatRupiah(totals.totalAgentFeeRp)} (Biaya Tambahan Pembelian).`,
+                  conclusion: `Total Weight Profit (Rupiah) = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)} dari ${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg.`,
                 });
                 return;
               }
 
-              // focus === 'WEIGHT_PROFIT' -> Total Modal Pembelian (Harga Tembakau + Fee)
+              // focus === 'WEIGHT_PROFIT' -> Weight Profit dalam KG
               const itemSteps = filteredRaw.map((item, idx) => {
                 const m = getRawWeightMetrics(item);
                 return {
-                  stepNumber: idx + 4,
+                  stepNumber: idx + 3,
                   title: `${item.name} (${item.origin})`,
-                  formula: `Total Modal = Netto × (Harga Beli + Fee/KG)`,
-                  substitution: `${m.netWeightKg} kg × (${formatRupiah(item.pricePerKgPurchase)} + ${formatRupiah(m.totalAgentFeePerKg)}) = ${m.netWeightKg} kg × ${formatRupiah(m.effectivePricePerKgWithFee)} = ${formatRupiah(m.totalModalAsal)}`,
+                  formula: `Weight Profit (KG) = Netto Riil − Netto Nota`,
+                  substitution: `(${item.grossWeightKg} − ${m.realPkgMassKg}) − (${item.grossWeightKg} − ${m.deductionKg}) = ${m.realNetKg} kg − ${m.netWeightKg} kg = ${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg`,
                   resultLabel: `${item.name}`,
-                  resultValue: `${formatRupiah(m.totalModalAsal)} (${formatRupiah(m.effectivePricePerKgWithFee)}/kg)`,
-                  explanation: `Harga Tembakau ${formatRupiah(m.baseTobaccoCostRp)} + Biaya Fee ${formatRupiah(m.totalAgentFeeRp)} = Total Modal ${formatRupiah(m.totalModalAsal)}.`,
-                  highlight: 'amber' as const,
+                  resultValue: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg`,
+                  explanation: `Potongan Tarra Nota ${m.deductionKg} kg vs Berat Wadah Riil ${m.realPkgMassKg} kg.`,
+                  highlight: (m.weightProfitKg >= 0 ? 'amber' : 'red') as 'amber' | 'red',
                 };
               });
 
-              const avgEffectiveModalPerKg =
-                totals.netWeightKg > 0 ? Math.round(totals.totalModalAsal / totals.netWeightKg) : 0;
-
               setCalcDetail({
-                title: `3. Total Modal Pembelian (Harga + Fee) — ${filteredRaw.length} Stok`,
-                subtitle: `Total Netto: ${totals.netWeightKg} kg • Rata-rata ${formatRupiah(avgEffectiveModalPerKg)}/kg`,
-                badgeText: 'PANEL 3 GUDANG • RUMUS TOTAL MODAL (HARGA + FEE)',
+                title: `3. Weight Profit dalam KG — ${filteredRaw.length} Stok`,
+                subtitle: `Netto Fisik Riil ${totals.realNetKg} kg vs Netto Nota ${totals.netWeightKg} kg`,
+                badgeText: 'METRIK 3 GUDANG • WEIGHT PROFIT DALAM KG',
                 coreFormula:
-                  'Total Modal = Σ [Netto × (Harga Tembakau + Fee)] = Total Harga Tembakau + Total Biaya Fee',
-                appliedFormula: `Total Modal = ${formatRupiah(totals.baseTobaccoCostRp)} (Tembakau) + ${formatRupiah(totals.totalAgentFeeRp)} (Fee) = ${formatRupiah(totals.totalModalAsal)}`,
+                  'Weight Profit (KG) = Σ (Netto Fisik Riil − Netto Nota) = Σ (Potongan Tarra Nota − Berat Wadah Riil)',
+                appliedFormula: `Weight Profit (KG) = ${totals.realNetKg} kg (Netto Riil) − ${totals.netWeightKg} kg (Netto Nota) = ${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
                 steps: [
                   {
                     stepNumber: 1,
-                    title: 'Total Harga Tembakau Dasar (Netto × Harga)',
-                    formula: 'Total Harga Tembakau = Σ (Netto × Harga Beli / KG)',
+                    title: 'Total Netto Nota (Bruto − Potongan Tarra)',
+                    formula: 'Total Netto Nota = Σ (Bruto − Tarra Nota)',
                     substitution:
                       filteredRaw
-                        .map((item) => formatRupiah(getRawWeightMetrics(item).baseTobaccoCostRp))
-                        .join(' + ') + ` = ${formatRupiah(totals.baseTobaccoCostRp)}`,
-                    resultLabel: 'Total Harga Tembakau',
-                    resultValue: formatRupiah(totals.baseTobaccoCostRp),
-                    explanation: `Total harga pokok tembakau murni untuk ${totals.netWeightKg} kg.`,
+                        .map((item) => `${getRawWeightMetrics(item).netWeightKg} kg (${item.name})`)
+                        .join(' + ') + ` = ${totals.netWeightKg} kg`,
+                    resultLabel: 'Total Netto Nota',
+                    resultValue: `${totals.netWeightKg} kg`,
+                    explanation: `Berat bersih yang kita bayar sesuai potongan tarra nota.`,
                     highlight: 'white',
                   },
                   {
                     stepNumber: 2,
-                    title: 'Total Biaya Tambahan Fee (Netto × Fee)',
-                    formula: 'Total Biaya Fee = Σ (Netto × Fee / KG)',
-                    substitution:
-                      filteredRaw
-                        .map((item) => formatRupiah(getRawWeightMetrics(item).totalAgentFeeRp))
-                        .join(' + ') + ` = +${formatRupiah(totals.totalAgentFeeRp)}`,
-                    resultLabel: 'Total Biaya Tambahan Fee',
-                    resultValue: `+${formatRupiah(totals.totalAgentFeeRp)}`,
-                    explanation: `Total biaya tambahan untuk agen/perantara pencari barang.`,
-                    highlight: 'white',
-                  },
-                  {
-                    stepNumber: 3,
-                    title: 'Total Modal Pembelian (Harga Tembakau + Fee)',
-                    formula: 'Total Modal = Total Harga Tembakau + Total Biaya Fee',
-                    substitution: `${formatRupiah(totals.baseTobaccoCostRp)} + ${formatRupiah(totals.totalAgentFeeRp)} = ${formatRupiah(totals.totalModalAsal)}`,
-                    resultLabel: 'Total Modal Kita Bayar',
-                    resultValue: formatRupiah(totals.totalModalAsal),
-                    explanation: `Rata-rata harga modal efektif = ${formatRupiah(totals.totalModalAsal)} ÷ ${totals.netWeightKg} kg = ${formatRupiah(avgEffectiveModalPerKg)}/kg.`,
-                    highlight: 'amber',
+                    title: 'Total Netto Fisik Riil & Weight Profit (KG)',
+                    formula: 'Weight Profit (KG) = Total Netto Fisik Riil − Total Netto Nota',
+                    substitution: `${totals.realNetKg} kg − ${totals.netWeightKg} kg = ${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
+                    resultLabel: 'Total Weight Profit (KG)',
+                    resultValue: `${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
+                    explanation: `Total selisih berat menguntungkan (dalam KG) dari seluruh stok mentah di gudang.`,
+                    highlight: totals.weightProfitKg >= 0 ? 'amber' : 'red',
                   },
                   ...itemSteps,
                 ],
-                conclusion: `Total Modal Pembelian = ${formatRupiah(totals.baseTobaccoCostRp)} + ${formatRupiah(totals.totalAgentFeeRp)} = ${formatRupiah(totals.totalModalAsal)}.`,
+                conclusion: `Total Weight Profit (KG) = ${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg (Senilai ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}).`,
               });
             };
 
@@ -397,35 +421,35 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 slides={[
                   {
                     id: 'paid-value',
-                    tabLabel: '1. Harga Tembakau',
-                    title: '1. Total Harga Tembakau Dasar (Netto × Harga)',
-                    mainValue: formatRupiah(totals.baseTobaccoCostRp),
-                    subLabel: 'Total Netto (Bruto − Tarra)',
-                    subValue: `${totals.netWeightKg} kg`,
-                    formulaHint: 'Σ (Netto × Harga Beli)',
-                    accent: 'white',
+                    tabLabel: '1. Total Modal',
+                    title: '1. Total Modal / Nilai Inventori (Netto × Harga + Fee)',
+                    mainValue: formatRupiah(totals.totalModalAsal),
+                    subLabel: 'Sisa Stok / Netto Nota',
+                    subValue: `${totals.currentStockKg} kg / ${totals.netWeightKg} kg`,
+                    formulaHint: 'Σ [Netto × (Harga + Fee)]',
+                    accent: 'amber',
                     onOpenCalc: () => openWarehouseCalcModal('PAID_VALUE'),
                   },
                   {
                     id: 'real-value',
-                    tabLabel: '2. Biaya Fee',
-                    title: '2. Total Biaya Tambahan Fee (Netto × Fee)',
-                    mainValue: `+${formatRupiah(totals.totalAgentFeeRp)}`,
-                    subLabel: 'Biaya Tambahan Perantara',
-                    subValue: `${totals.netWeightKg} kg`,
-                    formulaHint: 'Σ (Netto × Fee/KG)',
-                    accent: 'white',
+                    tabLabel: '2. Weight Profit (Rp)',
+                    title: '2. Weight Profit dalam Rupiah (KG Profit × Harga)',
+                    mainValue: `${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
+                    subLabel: 'Dari Weight Profit (KG)',
+                    subValue: `${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
+                    formulaHint: 'Σ (Weight Profit KG × Harga)',
+                    accent: totals.weightProfitRp >= 0 ? 'amber' : 'red',
                     onOpenCalc: () => openWarehouseCalcModal('REAL_VALUE'),
                   },
                   {
                     id: 'weight-profit',
-                    tabLabel: '3. Total Modal',
-                    title: '3. Total Modal Pembelian (Harga + Fee)',
-                    mainValue: formatRupiah(totals.totalModalAsal),
-                    subLabel: 'Total Netto Dibayar',
-                    subValue: `${totals.netWeightKg} kg`,
-                    formulaHint: 'Σ [Netto × (Harga + Fee)]',
-                    accent: 'amber',
+                    tabLabel: '3. Weight Profit (KG)',
+                    title: '3. Weight Profit dalam KG (Netto Riil − Netto Nota)',
+                    mainValue: `${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
+                    subLabel: 'Netto Riil vs Netto Nota',
+                    subValue: `${totals.realNetKg} kg vs ${totals.netWeightKg} kg`,
+                    formulaHint: 'Σ (Netto Riil − Netto Nota)',
+                    accent: totals.weightProfitKg >= 0 ? 'white' : 'red',
                     onOpenCalc: () => openWarehouseCalcModal('WEIGHT_PROFIT'),
                   },
                 ]}
@@ -433,7 +457,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
             );
           })()}
 
-          {/* Compact Search Bar + Collapsible Filters (Hidden Until Pressed) */}
+          {/* Compact Search Bar + Fixed Icon-Only Filter Button (Shows Description Only on Hover) */}
           <div className="requiem-card p-3 rounded-xl border border-zinc-800/90 space-y-3">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -449,12 +473,18 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
 
               <button
                 type="button"
-                title="Buka / Sembunyikan Filter Daerah, Grade & Urutan"
+                aria-label="Filter & Urutan"
                 onClick={() => setIsFilterOpen((v) => !v)}
-                className="min-h-9 sm:min-h-10 px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-900 text-amber-400 border border-zinc-800 hover:border-zinc-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0"
+                className={`group relative h-9 w-9 sm:h-10 sm:w-10 shrink-0 rounded-xl border flex items-center justify-center cursor-pointer transition-colors ${
+                  isFilterOpen
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500'
+                    : 'bg-black hover:bg-zinc-900 text-amber-400 border-zinc-800 hover:border-zinc-700'
+                }`}
               >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                <span>Filter</span>
+                <SlidersHorizontal className="w-4 h-4 shrink-0" />
+                <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                  {isFilterOpen ? 'Tutup Filter & Urutan' : 'Filter Daerah, Grade & Urutan'}
+                </span>
               </button>
             </div>
 
@@ -511,6 +541,104 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 </motion.div>
               )}
             </AnimatePresence>
+            {/* Quick Completeness Status Pills + Hold Instruction */}
+            {(() => {
+              const allFlags = tobaccos.map((t) => getRawTobaccoMissingFlags(t));
+              const incompleteCount = allFlags.filter((f) => f.isIncomplete).length;
+              const needWeightCount = allFlags.filter((f) => f.missingWeight).length;
+              const needPriceCount = allFlags.filter((f) => f.missingPrice).length;
+              const needAttrCount = allFlags.filter((f) => f.missingAttributes).length;
+
+              return (
+                <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => setMissingFilter('ALL')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                        missingFilter === 'ALL'
+                          ? 'bg-amber-500 text-black border-amber-400 font-black'
+                          : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                      }`}
+                    >
+                      Semua ({tobaccos.length})
+                    </button>
+
+                    {incompleteCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMissingFilter(missingFilter === 'INCOMPLETE' ? 'ALL' : 'INCOMPLETE')
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer inline-flex items-center gap-1 ${
+                          missingFilter === 'INCOMPLETE'
+                            ? 'bg-amber-500 text-black border-amber-400 font-black'
+                            : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/50'
+                        }`}
+                      >
+                        <Clock className="w-3 h-3" />
+                        <span>Belum Lengkap ({incompleteCount})</span>
+                      </button>
+                    )}
+
+                    {needWeightCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMissingFilter(
+                            missingFilter === 'NEED_WEIGHT' ? 'ALL' : 'NEED_WEIGHT'
+                          )
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                          missingFilter === 'NEED_WEIGHT'
+                            ? 'bg-amber-500 text-black border-amber-400 font-black'
+                            : 'bg-black hover:bg-zinc-900 text-amber-300 border-zinc-800'
+                        }`}
+                      >
+                        ⏳ Butuh Timbangan ({needWeightCount})
+                      </button>
+                    )}
+
+                    {needPriceCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMissingFilter(missingFilter === 'NEED_PRICE' ? 'ALL' : 'NEED_PRICE')
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                          missingFilter === 'NEED_PRICE'
+                            ? 'bg-amber-500 text-black border-amber-400 font-black'
+                            : 'bg-black hover:bg-zinc-900 text-amber-300 border-zinc-800'
+                        }`}
+                      >
+                        ⏳ Butuh Harga ({needPriceCount})
+                      </button>
+                    )}
+
+                    {needAttrCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMissingFilter(missingFilter === 'NEED_ATTR' ? 'ALL' : 'NEED_ATTR')
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                          missingFilter === 'NEED_ATTR'
+                            ? 'bg-amber-500 text-black border-amber-400 font-black'
+                            : 'bg-black hover:bg-zinc-900 text-amber-300 border-zinc-800'
+                        }`}
+                      >
+                        ⏳ Butuh Atribut ({needAttrCount})
+                      </button>
+                    )}
+                  </div>
+
+                  <span className="text-[10px] text-zinc-400 inline-flex items-center gap-1">
+                    <Hand className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span>Tahan &amp; geser pada kartu untuk edit cepat</span>
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Dynamic CSS Grid: 1 card per row on small phones (<420px), 2 per row when space permits (>=420px), 3-4 on larger screens */}
@@ -531,6 +659,233 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 const aroma5 = clampRating5(tobacco.aromaRating ?? 4.2);
                 const pkgName = tobacco.taraFormula.packagingType || 'Keranjang';
                 const m = getRawWeightMetrics(tobacco);
+                const missingFlags = getRawTobaccoMissingFlags(tobacco);
+                const isBeingHeld = holdMenu.isHoldingProgressId === tobacco.id;
+
+                const buildHoldOptions = () => [
+                  {
+                    id: 'timbangan',
+                    label: 'Timbangan & Potongan Tarra',
+                    shortLabel: 'Timbangan',
+                    sublabel:
+                      tobacco.grossWeightKg > 0
+                        ? `Bruto ${tobacco.grossWeightKg} kg • Netto ${m.netWeightKg} kg`
+                        : 'Timbangan menyusul (0 kg)',
+                    detailRows: [
+                      {
+                        label: 'Bruto Timbangan',
+                        value:
+                          tobacco.grossWeightKg > 0
+                            ? `${tobacco.grossWeightKg} kg`
+                            : 'Belum diisi (0 kg)',
+                        tone: (tobacco.grossWeightKg > 0 ? 'emerald' : 'rose') as
+                          | 'emerald'
+                          | 'rose',
+                      },
+                      {
+                        label: 'Kemasan & Tarra',
+                        value: `${pkgName} (−${m.deductionKg} kg)`,
+                        tone: 'white' as const,
+                      },
+                      {
+                        label: 'Netto Nota vs Riil',
+                        value: `${m.netWeightKg} kg • Riil ${m.realNetKg} kg`,
+                        tone: 'amber' as const,
+                      },
+                      {
+                        label: 'Sisa Stok Aktif',
+                        value: `${tobacco.currentStockNetKg} kg`,
+                        tone: 'white' as const,
+                      },
+                    ],
+                    icon: <Scale className="w-3.5 h-3.5" />,
+                    isMissing: missingFlags.missingWeight,
+                    missingLabel: 'Belum Diisi',
+                  },
+                  {
+                    id: 'harga',
+                    label: 'Harga Beli & Modal',
+                    shortLabel: 'Harga / KG',
+                    sublabel:
+                      tobacco.pricePerKgPurchase > 0
+                        ? `${formatRupiah(tobacco.pricePerKgPurchase)}/kg`
+                        : 'Harga menyusul (Rp 0)',
+                    detailRows: [
+                      {
+                        label: 'Harga Beli / KG',
+                        value:
+                          tobacco.pricePerKgPurchase > 0
+                            ? `${formatRupiah(tobacco.pricePerKgPurchase)}/kg`
+                            : 'Belum diisi (Rp 0)',
+                        tone: (tobacco.pricePerKgPurchase > 0 ? 'emerald' : 'rose') as
+                          | 'emerald'
+                          | 'rose',
+                      },
+                      {
+                        label: 'Total Modal Nota',
+                        value:
+                          m.totalModalAsal > 0
+                            ? `${formatRupiah(m.totalModalAsal)} (${m.netWeightKg} kg)`
+                            : 'Menyusul',
+                        tone: 'amber' as const,
+                      },
+                      {
+                        label: 'Weight Profit',
+                        value: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg (${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)})`,
+                        tone: (m.weightProfitKg >= 0 ? 'emerald' : 'rose') as
+                          | 'emerald'
+                          | 'rose',
+                      },
+                    ],
+                    icon: <DollarSign className="w-3.5 h-3.5" />,
+                    isMissing: missingFlags.missingPrice,
+                    missingLabel: 'Belum Diisi',
+                  },
+                  {
+                    id: 'grade_attr',
+                    label: 'Grade & 6 Karakter (/5)',
+                    shortLabel: '6 Atribut',
+                    sublabel: `Grade ${tobacco.colorGrade} · Pwr ${power5.toFixed(1)} · Arm ${aroma5.toFixed(1)}`,
+                    detailRows: [
+                      {
+                        label: 'Grade Warna',
+                        value: `Grade ${tobacco.colorGrade} (${gradeInfo.name})`,
+                        tone: 'amber' as const,
+                      },
+                      {
+                        label: 'Power · Impact · Bitter',
+                        value: `${power5.toFixed(1)} · ${impact5.toFixed(1)} · ${bitter5.toFixed(1)} /5`,
+                        tone: (missingFlags.missingAttributes ? 'rose' : 'emerald') as
+                          | 'emerald'
+                          | 'rose',
+                      },
+                      {
+                        label: 'Burn · Sugar · Aroma',
+                        value: `${burn5.toFixed(1)} · ${sugar5.toFixed(1)} · ${aroma5.toFixed(1)} /5`,
+                        tone: (missingFlags.missingAttributes ? 'rose' : 'emerald') as
+                          | 'emerald'
+                          | 'rose',
+                      },
+                    ],
+                    icon: <Sparkles className="w-3.5 h-3.5" />,
+                    isMissing: missingFlags.missingAttributes,
+                    missingLabel: 'Belum Diisi',
+                  },
+                  {
+                    id: 'info',
+                    label: 'Penjual, Daerah & Kemasan',
+                    shortLabel: 'Info & Kms',
+                    sublabel:
+                      tobacco.sellerName?.trim()
+                        ? `${tobacco.sellerName} · ${pkgName}`
+                        : `Penjual belum diisi · ${pkgName}`,
+                    detailRows: [
+                      {
+                        label: 'Penjual / Petani',
+                        value: tobacco.sellerName?.trim() || 'Belum diisi',
+                        tone: (missingFlags.missingSeller ? 'rose' : 'emerald') as
+                          | 'emerald'
+                          | 'rose',
+                      },
+                      {
+                        label: 'Jenis & Daerah',
+                        value: `${tobacco.name} · ${tobacco.origin}`,
+                        tone: (missingFlags.missingOrigin ? 'rose' : 'white') as
+                          | 'rose'
+                          | 'white',
+                      },
+                      {
+                        label: 'Kemasan',
+                        value: pkgName,
+                        tone: (missingFlags.missingPackaging ? 'rose' : 'amber') as
+                          | 'rose'
+                          | 'amber',
+                      },
+                    ],
+                    icon: <UserCheck className="w-3.5 h-3.5" />,
+                    isMissing:
+                      missingFlags.missingSeller ||
+                      missingFlags.missingOrigin ||
+                      missingFlags.missingPackaging,
+                    missingLabel: 'Belum Lengkap',
+                  },
+                  {
+                    id: 'blend',
+                    label: 'Masukkan ke Kalkulator Racikan',
+                    shortLabel: 'Ke Racikan',
+                    sublabel: 'Kirim ke Kalkulator Campuran',
+                    detailRows: [
+                      {
+                        label: 'Stok Tersedia',
+                        value: `${tobacco.currentStockNetKg} kg siap diracik`,
+                        tone: 'emerald' as const,
+                      },
+                      {
+                        label: 'HPP / KG',
+                        value:
+                          m.effectivePricePerKgWithFee > 0
+                            ? `${formatRupiah(m.effectivePricePerKgWithFee)}/kg`
+                            : 'Menyusul',
+                        tone: 'amber' as const,
+                      },
+                    ],
+                    actionHint: 'Lepas → Racik',
+                    icon: <Calculator className="w-3.5 h-3.5" />,
+                    tone: 'emerald' as const,
+                  },
+                  {
+                    id: 'full_edit',
+                    label: 'Edit Lengkap (Semua Kolom)',
+                    shortLabel: 'Edit Semua',
+                    sublabel: 'Buka form lengkap + Lot & Fee',
+                    detailRows: [
+                      {
+                        label: 'Lot & Tanggal',
+                        value: `${tobacco.lotNumber || '-'} · ${tobacco.purchaseDate}`,
+                        tone: 'white' as const,
+                      },
+                      {
+                        label: 'Kelengkapan Data',
+                        value: missingFlags.isIncomplete
+                          ? `Kurang: ${missingFlags.missingLabels.join(', ')}`
+                          : 'Semua kolom utama sudah terisi',
+                        tone: (missingFlags.isIncomplete ? 'rose' : 'emerald') as
+                          | 'emerald'
+                          | 'rose',
+                      },
+                    ],
+                    icon: <Edit3 className="w-3.5 h-3.5" />,
+                  },
+                ];
+
+                const handleSelectHoldOption = (optId: string) => {
+                  if (optId === 'blend') {
+                    onAddToBlend(tobacco);
+                    return;
+                  }
+                  if (optId === 'full_edit') {
+                    onEdit(tobacco);
+                    return;
+                  }
+                  if (
+                    optId === 'timbangan' ||
+                    optId === 'harga' ||
+                    optId === 'grade_attr' ||
+                    optId === 'info'
+                  ) {
+                    setQuickEditState({ tobacco, section: optId });
+                  }
+                };
+
+                const holdHandlers = holdMenu.bindHoldHandlers({
+                  id: tobacco.id,
+                  title: tobacco.name,
+                  subtitle: missingFlags.isIncomplete
+                    ? `Belum diisi: ${missingFlags.missingLabels.join(', ')}`
+                    : `Grade ${tobacco.colorGrade} · ${tobacco.origin}`,
+                  options: buildHoldOptions(),
+                  onSelect: handleSelectHoldOption,
+                });
 
                 const tickerItems = [
                   {
@@ -548,34 +903,31 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     ],
                   },
                   {
-                    id: 'timbangan-beli',
-                    shortTab: 'Berat',
-                    label: 'Timbangan (Bruto − Tarra)',
-                    value: `Netto ${m.netWeightKg} kg`,
-                    subValue: `Tarra -${m.deductionKg} kg`,
+                    id: 'total-modal',
+                    shortTab: 'Modal',
+                    label: 'Total Modal / Nilai Inventori',
+                    value: formatRupiah(m.totalModalAsal),
+                    subValue: `${formatRupiah(m.effectivePricePerKgWithFee)}/kg`,
+                    detailLine: `Netto ${m.netWeightKg} kg • Sisa Stok: ${m.currentStockKg} kg`,
+                    accent: 'amber' as const,
+                  },
+                  {
+                    id: 'weight-profit-rp',
+                    shortTab: 'Profit Rp',
+                    label: 'Weight Profit (Rupiah)',
+                    value: `${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)}`,
+                    subValue: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg`,
+                    detailLine: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg × ${formatRupiah(tobacco.pricePerKgPurchase)}/kg`,
+                    accent: (m.weightProfitRp >= 0 ? 'emerald' : 'rose') as 'emerald' | 'rose',
+                  },
+                  {
+                    id: 'weight-profit-kg',
+                    shortTab: 'Profit KG',
+                    label: 'Weight Profit (KG)',
+                    value: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg`,
+                    subValue: `Riil ${m.realNetKg} kg`,
                     detailLine: `Bruto ${tobacco.grossWeightKg} kg • ${pkgName} (${tobacco.taraFormula.rawFormula})`,
                     accent: 'white' as const,
-                  },
-                  {
-                    id: 'biaya-fee',
-                    shortTab: 'Fee',
-                    label: 'Biaya Tambahan Fee (Netto × Fee)',
-                    value:
-                      m.totalAgentFeePerKg > 0
-                        ? `+${formatRupiah(m.totalAgentFeeRp)}`
-                        : 'Rp 0 (Tanpa Fee)',
-                    subValue: `+${formatRupiah(m.totalAgentFeePerKg)}/kg`,
-                    detailLine: `${m.netWeightKg} kg × ${formatRupiah(m.totalAgentFeePerKg)}/kg`,
-                    accent: 'amber' as const,
-                  },
-                  {
-                    id: 'harga-modal',
-                    shortTab: 'Modal',
-                    label: 'Total Modal (Harga + Fee)',
-                    value: `${formatRupiah(m.totalModalAsal)}`,
-                    subValue: `${formatRupiah(m.effectivePricePerKgWithFee)}/kg`,
-                    detailLine: `Tembakau ${formatRupiah(m.baseTobaccoCostRp)} + Fee ${formatRupiah(m.totalAgentFeeRp)}`,
-                    accent: 'amber' as const,
                   },
                 ];
 
@@ -586,12 +938,22 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     animate={{ opacity: 1, y: 0 }}
                     whileHover={{ y: -3 }}
                     transition={{ duration: 0.18, delay: Math.min(idx * 0.02, 0.15) }}
-                    className="requiem-card border-2 border-zinc-700/90 hover:border-amber-500/80 rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between shadow-[0_7px_0_0_#18181b,0_14px_26px_rgba(0,0,0,0.9)] hover:shadow-[0_8px_0_0_#f59e0b,0_16px_30px_rgba(245,158,11,0.18)] transition-all duration-200 group min-h-[308px] sm:min-h-[320px]"
+                    {...holdHandlers}
+                    className={`requiem-card border-2 rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between shadow-[0_7px_0_0_#18181b,0_14px_26px_rgba(0,0,0,0.9)] hover:shadow-[0_8px_0_0_#f59e0b,0_16px_30px_rgba(245,158,11,0.18)] transition-all duration-200 group min-h-[308px] sm:min-h-[320px] select-none ${
+                      isBeingHeld
+                        ? 'border-amber-400 scale-[0.985] ring-2 ring-amber-400/70'
+                        : missingFlags.isIncomplete
+                          ? 'border-amber-500/55 hover:border-amber-400'
+                          : 'border-zinc-700/90 hover:border-amber-500/80'
+                    }`}
                   >
-                    {/* Clickable Area -> Opens Full Detail Modal */}
+                    {/* Clickable Area -> Opens Detail Modal (or Hold >= 280ms pops Quick-Edit Menu) */}
                     <div
-                      onClick={() => setSelectedRawDetail(tobacco)}
-                      className="cursor-pointer space-y-2.5"
+                      onClick={() => {
+                        if (holdMenu.consumeRecentHoldFlag()) return;
+                        setSelectedRawDetail(tobacco);
+                      }}
+                      className="cursor-pointer space-y-2"
                     >
                       <div className="flex items-center justify-between gap-1">
                         <span
@@ -605,47 +967,100 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         </span>
                       </div>
 
-                      <h3 className="font-extrabold text-white text-xs sm:text-sm line-clamp-2 min-h-[2.1rem] sm:min-h-[2.4rem] leading-snug group-hover:text-white transition-colors">
-                        {tobacco.name}
-                      </h3>
-
-                      {/* Permanent Summary Box with Netto (Bruto - Tarra), Harga + Fee, and Total Modal */}
-                      <div className="bg-zinc-950/95 border border-zinc-800/90 rounded-xl px-2.5 py-2 space-y-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-[9px] font-bold uppercase text-zinc-400">
-                            Netto (Bruto − Tarra)
-                          </span>
-                          <span className="font-mono font-black text-[11px] sm:text-xs text-white whitespace-nowrap">
-                            {m.netWeightKg} kg{' '}
-                            <span className="text-zinc-400 text-[10px]">
-                              ({tobacco.grossWeightKg}−{m.deductionKg})
-                            </span>
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-                          <span className="text-[9px] font-bold uppercase text-zinc-400">
-                            Harga Tembakau / KG
-                          </span>
-                          <span className="font-mono font-bold text-[11px] text-zinc-200 whitespace-nowrap">
-                            {formatRupiah(tobacco.pricePerKgPurchase)}
-                          </span>
-                        </div>
-                        {m.totalAgentFeePerKg > 0 && (
-                          <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-                            <span className="text-[9px] font-bold uppercase text-amber-300 truncate">
-                              + Fee ({tobacco.agentFees?.length || 1} Agen)
-                            </span>
-                            <span className="font-mono font-bold text-[10px] text-amber-400 whitespace-nowrap">
-                              +{formatRupiah(m.totalAgentFeePerKg)}/kg ({formatRupiah(m.totalAgentFeeRp)})
-                            </span>
+                      <div>
+                        <h3 className="font-extrabold text-white text-xs sm:text-sm line-clamp-2 leading-snug group-hover:text-white transition-colors">
+                          {tobacco.name}
+                        </h3>
+                        {tobacco.sellerName && (
+                          <div className="text-[10px] text-zinc-400 truncate mt-0.5">
+                            Penjual: <b className="text-zinc-200">{tobacco.sellerName}</b>
                           </div>
                         )}
-                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
+                      </div>
+
+                      {/* Unfilled Marks Strip (Shows clearly which data is still menyusul / empty) */}
+                      {missingFlags.isIncomplete && (
+                        <div className="flex items-center gap-1 flex-wrap" data-no-card-hold="true">
+                          {missingFlags.missingWeight && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickEditState({ tobacco, section: 'timbangan' });
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 border border-dashed border-amber-500/70 text-[9px] font-black text-amber-300 cursor-pointer"
+                            >
+                              ⏳ Timbangan
+                            </button>
+                          )}
+                          {missingFlags.missingPrice && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickEditState({ tobacco, section: 'harga' });
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 border border-dashed border-amber-500/70 text-[9px] font-black text-amber-300 cursor-pointer"
+                            >
+                              ⏳ Harga
+                            </button>
+                          )}
+                          {missingFlags.missingAttributes && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickEditState({ tobacco, section: 'grade_attr' });
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/25 border border-dashed border-amber-500/50 text-[9px] font-bold text-amber-200 cursor-pointer"
+                            >
+                              ⏳ Atribut
+                            </button>
+                          )}
+                          {(missingFlags.missingSeller || missingFlags.missingPackaging) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setQuickEditState({ tobacco, section: 'info' });
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 border border-dashed border-zinc-600 text-[9px] font-bold text-zinc-300 cursor-pointer"
+                            >
+                              ⏳ {missingFlags.missingSeller ? 'Penjual' : 'Kemasan'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Permanent Summary Box with 3 Key Metrics: Total Modal, Weight Profit (Rp), Weight Profit (KG) */}
+                      <div className="bg-zinc-950/95 border border-zinc-800/90 rounded-xl px-2.5 py-2 space-y-1">
+                        <div className="flex items-center justify-between gap-1">
                           <span className="text-[9px] font-black uppercase text-amber-400">
-                            Total Modal ({formatRupiah(m.effectivePricePerKgWithFee)}/kg)
+                            Total Modal ({m.netWeightKg} kg)
                           </span>
                           <span className="font-mono font-black text-[11px] sm:text-xs text-amber-400 whitespace-nowrap">
-                            {formatRupiah(m.totalModalAsal)}
+                            {missingFlags.missingPrice ? 'Menyusul' : formatRupiah(m.totalModalAsal)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
+                          <span className="text-[9px] font-bold uppercase text-zinc-300">
+                            Weight Profit (Rp)
+                          </span>
+                          <span className="font-mono font-black text-[11px] text-white whitespace-nowrap">
+                            {m.weightProfitRp >= 0 ? '+' : ''}
+                            {formatRupiah(m.weightProfitRp)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
+                          <span className="text-[9px] font-bold uppercase text-zinc-400">
+                            Weight Profit (KG)
+                          </span>
+                          <span className="font-mono font-bold text-[10px] text-amber-300 whitespace-nowrap">
+                            {m.weightProfitKg >= 0 ? '+' : ''}
+                            {m.weightProfitKg} kg{' '}
+                            <span className="text-zinc-400">
+                              (Sisa: {m.currentStockKg} kg)
+                            </span>
                           </span>
                         </div>
                       </div>
@@ -654,25 +1069,64 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       <SpinningStatTicker items={tickerItems} intervalMs={3200 + (idx % 3) * 350} />
                     </div>
 
-                    {/* Minimalist Compact Card Footer */}
-                    <div className="mt-3 pt-2.5 border-t border-zinc-900 flex items-center justify-between gap-1.5">
+                    {/* Minimalist Compact Card Footer with Quick Hold/Edit Menu Trigger */}
+                    <div
+                      className="mt-3 pt-2.5 border-t border-zinc-900 flex items-center justify-between gap-1.5"
+                      data-no-card-hold="true"
+                    >
                       <button
                         type="button"
-                        onClick={() => setSelectedRawDetail(tobacco)}
-                        className="text-[10px] sm:text-[11px] font-bold text-zinc-400 hover:text-white transition-colors cursor-pointer truncate"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          holdMenu.openMenuImmediate({
+                            anchorEl: e.currentTarget,
+                            title: tobacco.name,
+                            subtitle: missingFlags.isIncomplete
+                              ? `Belum diisi: ${missingFlags.missingLabels.join(', ')}`
+                              : `Grade ${tobacco.colorGrade} · ${tobacco.origin}`,
+                            options: buildHoldOptions(),
+                            onSelect: handleSelectHoldOption,
+                          });
+                        }}
+                        aria-label={`Edit Cepat ${tobacco.name}`}
+                        className={`h-8 px-2.5 rounded-lg border text-[10px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                          missingFlags.isIncomplete
+                            ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/60'
+                            : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800'
+                        }`}
                       >
-                        Detail →
+                        <Hand className="w-3 h-3 shrink-0" />
+                        <span>{missingFlags.isIncomplete ? `Lengkapi (${missingFlags.missingCount})` : 'Menu Edit'}</span>
                       </button>
 
-                      <button
-                        type="button"
-                        title="Masukkan ke Kalkulator Racikan"
-                        onClick={() => onAddToBlend(tobacco)}
-                        className="btn-amber-outline min-h-7 sm:min-h-8 px-2.5 py-1 rounded-lg font-black text-[10px] sm:text-xs flex items-center gap-1 cursor-pointer shrink-0"
-                      >
-                        <Scale className="w-3 h-3 stroke-[2.2] shrink-0" />
-                        <span>Campur</span>
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          aria-label={`Hapus ${tobacco.name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(tobacco.id);
+                          }}
+                          className="group/del relative h-8 w-8 shrink-0 rounded-lg bg-black hover:bg-red-950/70 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/70 flex items-center justify-center cursor-pointer transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                          <span className="pointer-events-none opacity-0 group-hover/del:opacity-100 transition-opacity duration-150 absolute -top-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-red-500/70 text-red-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
+                            Hapus Tembakau
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          aria-label="Masukkan ke Kalkulator Racikan"
+                          onClick={() => onAddToBlend(tobacco)}
+                          className="group/btn relative btn-amber-outline h-8 w-8 shrink-0 rounded-lg font-black text-xs flex items-center justify-center cursor-pointer"
+                        >
+                          <Scale className="w-3.5 h-3.5 stroke-[2.2] shrink-0" />
+                          <span className="pointer-events-none opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 absolute -top-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-amber-500/70 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                            Campur ke Racikan
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -755,11 +1209,29 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         </p>
                       </div>
 
-                      <div className="text-right font-mono text-xs shrink-0">
-                        <div className="text-amber-400 font-black">
-                          Netto: {item.factoryNetBillableKg} kg
+                      <div className="flex items-start gap-2 shrink-0">
+                        <div className="text-right font-mono text-xs shrink-0">
+                          <div className="text-amber-400 font-black">
+                            Netto: {item.factoryNetBillableKg} kg
+                          </div>
+                          <span className="text-[10px] text-zinc-400 underline">Detail →</span>
                         </div>
-                        <span className="text-[10px] text-zinc-400 underline">Detail →</span>
+                        {onDeleteFinished && (
+                          <button
+                            type="button"
+                            aria-label={`Hapus Seri Reject ${item.serialNumber}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteFinished(item.id);
+                            }}
+                            className="group/del relative h-8 w-8 shrink-0 rounded-lg bg-black hover:bg-red-950/70 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/70 flex items-center justify-center cursor-pointer transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                            <span className="pointer-events-none opacity-0 group-hover/del:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-red-500/70 text-red-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
+                              Hapus Seri {item.serialNumber}
+                            </span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -992,19 +1464,19 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       </div>
                     )}
 
-                    {/* Rincian Harga Tembakau, Biaya Tambahan Fee & Total Modal (Specific Per-Panel Breakdown) */}
+                    {/* 3 Useful Metrics Breakdown: 1. Total Modal / Nilai Inventori | 2. Weight Profit (Rp) | 3. Weight Profit (KG) */}
                     <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2.5">
                       <div className="flex items-center justify-between flex-wrap gap-1.5 text-zinc-400">
                         <span>
-                          Kemasan: <b className="text-white">{t.taraFormula.packagingType || 'Standar'}</b> • Netto:{' '}
+                          Kemasan: <b className="text-white">{t.taraFormula.packagingType || 'Standar'}</b> • Sisa Stok:{' '}
                           <b className="text-amber-400 font-mono">
-                            {t.grossWeightKg} − {m.deductionKg} = {m.netWeightKg} kg
+                            {m.currentStockKg} kg
                           </b>
                         </span>
                         <CalcSymbolBadge />
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-zinc-900 items-stretch">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-zinc-900 items-stretch">
                         <button
                           type="button"
                           onClick={() =>
@@ -1013,6 +1485,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                                 name: t.name,
                                 packagingType: t.taraFormula.packagingType || 'Standar',
                                 grossWeightKg: t.grossWeightKg,
+                                realPackagingMassKg: m.realPkgMassKg,
                                 percentTara: t.taraFormula.percent,
                                 flatKgTara: t.taraFormula.flatKg,
                                 pricePerKg: t.pricePerKgPurchase,
@@ -1022,25 +1495,21 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                               })
                             )
                           }
-                          className="text-left group bg-zinc-950 p-3 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1.5"
+                          className="text-left group bg-zinc-950 p-3 rounded-lg border border-amber-500/40 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1.5"
                         >
                           <div className="space-y-1 w-full">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] text-zinc-400 font-bold uppercase block truncate">
-                                1. Harga Tembakau (Netto × Harga)
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[10px] text-amber-400 font-black uppercase block truncate">
+                                1. Total Modal / Inventori
                               </span>
                               <CalcSymbolBadge />
                             </div>
-                            <div className="font-mono text-white">
-                              Bruto {t.grossWeightKg} − Tarra {m.deductionKg} ={' '}
-                              <b className="text-white">{m.netWeightKg} kg</b>
-                            </div>
-                            <div className="font-mono font-black text-white text-sm">
-                              {formatRupiah(m.baseTobaccoCostRp)}
+                            <div className="font-mono font-black text-amber-400 text-sm">
+                              {formatRupiah(m.totalModalAsal)}
                             </div>
                           </div>
                           <div className="pt-1.5 border-t border-zinc-900 text-[10px] font-mono text-zinc-400">
-                            {m.netWeightKg} kg × {formatRupiah(t.pricePerKgPurchase)}/kg
+                            {m.netWeightKg} kg × {formatRupiah(m.effectivePricePerKgWithFee)}/kg
                           </div>
                         </button>
 
@@ -1052,6 +1521,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                                 name: t.name,
                                 packagingType: t.taraFormula.packagingType || 'Standar',
                                 grossWeightKg: t.grossWeightKg,
+                                realPackagingMassKg: m.realPkgMassKg,
                                 percentTara: t.taraFormula.percent,
                                 flatKgTara: t.taraFormula.flatKg,
                                 pricePerKg: t.pricePerKgPurchase,
@@ -1064,62 +1534,60 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                           className="text-left group bg-zinc-950 p-3 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1.5"
                         >
                           <div className="space-y-1 w-full">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] text-amber-300 font-bold uppercase block truncate">
-                                2. Biaya Tambahan Fee (Netto × Fee)
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[10px] text-zinc-200 font-bold uppercase block truncate">
+                                2. Weight Profit (Rp)
                               </span>
                               <CalcSymbolBadge />
                             </div>
-                            <div className="font-mono text-zinc-200">
-                              Netto <b className="text-white">{m.netWeightKg} kg</b> × Fee{' '}
-                              <b className="text-amber-300">+{formatRupiah(m.totalAgentFeePerKg)}/kg</b>
-                            </div>
-                            <div className="font-mono font-black text-amber-400 text-sm">
-                              +{formatRupiah(m.totalAgentFeeRp)}
+                            <div className="font-mono font-black text-white text-sm">
+                              {m.weightProfitRp >= 0 ? '+' : ''}
+                              {formatRupiah(m.weightProfitRp)}
                             </div>
                           </div>
                           <div className="pt-1.5 border-t border-zinc-900 text-[10px] font-mono text-zinc-400">
-                            Biaya Tambahan ({t.agentFees?.length || 0} Orang Perantara)
+                            {m.weightProfitKg >= 0 ? '+' : ''}
+                            {m.weightProfitKg} kg × {formatRupiah(t.pricePerKgPurchase)}
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCalcDetail(
+                              buildRawTobaccoCalcDetail({
+                                name: t.name,
+                                packagingType: t.taraFormula.packagingType || 'Standar',
+                                grossWeightKg: t.grossWeightKg,
+                                realPackagingMassKg: m.realPkgMassKg,
+                                percentTara: t.taraFormula.percent,
+                                flatKgTara: t.taraFormula.flatKg,
+                                pricePerKg: t.pricePerKgPurchase,
+                                agentFees: t.agentFees,
+                                additionalCost: t.additionalPurchaseCost || 0,
+                                focus: 'WEIGHT_PROFIT',
+                              })
+                            )
+                          }
+                          className="text-left group bg-zinc-950 p-3 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1.5"
+                        >
+                          <div className="space-y-1 w-full">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[10px] text-zinc-300 font-bold uppercase block truncate">
+                                3. Weight Profit (KG)
+                              </span>
+                              <CalcSymbolBadge />
+                            </div>
+                            <div className="font-mono font-black text-amber-300 text-sm">
+                              {m.weightProfitKg >= 0 ? '+' : ''}
+                              {m.weightProfitKg} kg
+                            </div>
+                          </div>
+                          <div className="pt-1.5 border-t border-zinc-900 text-[10px] font-mono text-zinc-400">
+                            Riil {m.realNetKg} kg − Nota {m.netWeightKg} kg
                           </div>
                         </button>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCalcDetail(
-                            buildRawTobaccoCalcDetail({
-                              name: t.name,
-                              packagingType: t.taraFormula.packagingType || 'Standar',
-                              grossWeightKg: t.grossWeightKg,
-                              percentTara: t.taraFormula.percent,
-                              flatKgTara: t.taraFormula.flatKg,
-                              pricePerKg: t.pricePerKgPurchase,
-                              agentFees: t.agentFees,
-                              additionalCost: t.additionalPurchaseCost || 0,
-                              focus: 'WEIGHT_PROFIT',
-                            })
-                          )
-                        }
-                        className="w-full text-left group bg-zinc-950 p-3 rounded-lg border border-amber-500/40 hover:border-amber-500 transition-all cursor-pointer flex items-center justify-between flex-wrap gap-2"
-                      >
-                        <div>
-                          <span className="text-[10px] font-black uppercase text-amber-400 block">
-                            3. Total Modal Kita Bayar (Harga + Fee)
-                          </span>
-                          <span className="text-[11px] font-mono text-zinc-300">
-                            {m.netWeightKg} kg × ({formatRupiah(t.pricePerKgPurchase)} +{' '}
-                            {formatRupiah(m.totalAgentFeePerKg)}) ={' '}
-                            <b className="text-white">{formatRupiah(m.effectivePricePerKgWithFee)}/kg</b>
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2.5">
-                          <div className="font-mono font-black text-amber-400 text-sm text-right">
-                            {formatRupiah(m.totalModalAsal)}
-                          </div>
-                          <CalcSymbolBadge />
-                        </div>
-                      </button>
                     </div>
 
                     {/* 6 Sensory Ratings (/5) */}
@@ -1169,9 +1637,13 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                           onEdit(t);
                           setSelectedRawDetail(null);
                         }}
-                        className="min-h-9 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                        aria-label="Edit Data Tembakau"
+                        className="group relative h-9 w-9 shrink-0 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 flex items-center justify-center cursor-pointer"
                       >
-                        <Edit3 className="w-3.5 h-3.5 text-zinc-300" /> Edit
+                        <Edit3 className="w-4 h-4 text-zinc-200 shrink-0" />
+                        <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-8 left-0 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                          Edit Barang
+                        </span>
                       </button>
                       <button
                         type="button"
@@ -1179,9 +1651,13 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                           onDelete(t.id);
                           setSelectedRawDetail(null);
                         }}
-                        className="min-h-9 px-3 py-1.5 rounded-xl bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                        aria-label="Hapus Data Tembakau"
+                        className="group relative h-9 w-9 shrink-0 rounded-xl bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 flex items-center justify-center cursor-pointer"
                       >
-                        <Trash2 className="w-3.5 h-3.5" /> Hapus
+                        <Trash2 className="w-4 h-4 shrink-0" />
+                        <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-8 left-0 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                          Hapus Barang
+                        </span>
                       </button>
                     </div>
 
@@ -1191,9 +1667,13 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         onAddToBlend(t);
                         setSelectedRawDetail(null);
                       }}
-                      className="btn-amber-outline min-h-9 px-4 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer"
+                      aria-label="Campur ke Racikan"
+                      className="group relative btn-amber-outline h-9 w-9 shrink-0 rounded-xl font-black text-xs flex items-center justify-center cursor-pointer"
                     >
-                      <Scale className="w-3.5 h-3.5" /> Campur
+                      <Scale className="w-4 h-4 shrink-0" />
+                      <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-amber-500/70 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                        Campur ke Racikan
+                      </span>
                     </button>
                   </div>
                 </motion.div>
@@ -1289,6 +1769,28 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
       </AnimatePresence>
 
       <CalculationDetailModal data={calcDetail} onClose={() => setCalcDetail(null)} />
+
+      <HoldQuickMenuOverlay
+        menu={holdMenu.activeMenu}
+        hoveredOptionId={holdMenu.hoveredOptionId}
+        onSelectOption={holdMenu.selectOption}
+        onClose={holdMenu.closeMenu}
+      />
+
+      <RawQuickEditModal
+        tobacco={quickEditState?.tobacco || null}
+        initialSection={quickEditState?.section || 'timbangan'}
+        packagingList={packagingList}
+        onClose={() => setQuickEditState(null)}
+        onSave={(updated) => {
+          if (onQuickUpdate) {
+            onQuickUpdate(updated);
+          } else {
+            onEdit(updated);
+          }
+          setQuickEditState(null);
+        }}
+      />
     </div>
   );
 };

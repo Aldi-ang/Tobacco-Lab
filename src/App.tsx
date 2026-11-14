@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Calculator } from 'lucide-react';
+import { X, Calculator, AlertTriangle, Trash2, Undo2 } from 'lucide-react';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { RawTobaccoList } from './components/RawTobaccoList';
 import { RawTobaccoModal } from './components/RawTobaccoModal';
@@ -21,6 +21,20 @@ import { CloudLoginScreen } from './components/CloudLoginScreen';
 import { HistoryView } from './components/HistoryView';
 import { GoogleSheetsExportModal } from './components/GoogleSheetsExportModal';
 import { BackupRestoreModal, TobaccoBackupPayload } from './components/BackupRestoreModal';
+import { NolanAgentModal } from './components/NolanAgentModal';
+import { SettingsView } from './components/SettingsView';
+import {
+  NolanBrainMemory,
+  NolanDecisionEpisode,
+  NolanNavTarget,
+  NolanPendingAction,
+} from './types/nolan';
+import {
+  getNolanStorageKey,
+  buildDefaultNolanBrain,
+  deriveFactoryProfilesFromData,
+  computeAccountSummaryForABrain,
+} from './utils/nolanBrain';
 import {
   auth,
   db,
@@ -214,6 +228,26 @@ export default function App() {
   const [isGoogleSheetsModalOpen, setIsGoogleSheetsModalOpen] = useState<boolean>(false);
   const [backupModalMode, setBackupModalMode] = useState<'backup' | 'restore' | null>(null);
   const [stockInitialPanel, setStockInitialPanel] = useState<'raw' | 'rejected-finished'>('raw');
+  const [isNolanModalOpen, setIsNolanModalOpen] = useState<boolean>(false);
+  const [nolanInitialPrompt, setNolanInitialPrompt] = useState<string | null>(null);
+
+  // Confirm Deletion & Undo Deletion State
+  const [pendingDeletion, setPendingDeletion] = useState<{
+    title: string;
+    description: string;
+    confirmLabel?: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const [undoDeletionSnapshot, setUndoDeletionSnapshot] = useState<{
+    label: string;
+    rawTobaccos: RawTobacco[];
+    finishedBatches: FinishedTobaccoSerial[];
+    rollSamples: TobaccoRollSample[];
+    packagingList: PackagingMaster[];
+    factoryList: FactoryMaster[];
+  } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Firebase Auth & Real-Time Cloud Sync State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -238,6 +272,206 @@ export default function App() {
       setToastMessage(null);
     }, 3500);
   }, []);
+
+  const recordUndoSnapshot = useCallback(
+    (label: string) => {
+      if (undoTimerRef.current) {
+        clearTimeout(undoTimerRef.current);
+      }
+      setUndoDeletionSnapshot({
+        label,
+        rawTobaccos: [...rawTobaccos],
+        finishedBatches: [...finishedBatches],
+        rollSamples: [...rollSamples],
+        packagingList: [...packagingList],
+        factoryList: [...factoryList],
+      });
+      undoTimerRef.current = setTimeout(() => {
+        setUndoDeletionSnapshot(null);
+      }, 15000);
+    },
+    [rawTobaccos, finishedBatches, rollSamples, packagingList, factoryList]
+  );
+
+  const handleRestoreUndoSnapshot = useCallback(() => {
+    if (!undoDeletionSnapshot) return;
+    if (undoTimerRef.current) {
+      clearTimeout(undoTimerRef.current);
+    }
+    hasLocalUserMutationRef.current = true;
+    setRawTobaccos(undoDeletionSnapshot.rawTobaccos);
+    setFinishedBatches(undoDeletionSnapshot.finishedBatches);
+    setRollSamples(undoDeletionSnapshot.rollSamples);
+    setPackagingList(undoDeletionSnapshot.packagingList);
+    setFactoryList(undoDeletionSnapshot.factoryList);
+    setUndoDeletionSnapshot(null);
+    showToast('Penghapusan dibatalkan (Undo) — Data berhasil dipulihkan utuh!');
+  }, [undoDeletionSnapshot, showToast]);
+
+  // Nolan Agentic Brain State (persisted per user email + synced with server & GitHub A-Brain)
+  const [nolanBrain, setNolanBrain] = useState<NolanBrainMemory>(() => {
+    try {
+      const saved = localStorage.getItem(getNolanStorageKey(null));
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return buildDefaultNolanBrain(null, rawTobaccos, finishedBatches, factoryList);
+  });
+
+  // Load account-specific Nolan Brain when user logs in
+  useEffect(() => {
+    const email = currentUser?.email || 'adikaryasukses99@gmail.com';
+    const storageKey = getNolanStorageKey(email);
+    let localBrain: NolanBrainMemory | null = null;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) localBrain = JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+
+    fetch(`/api/nolan/brain?accountEmail=${encodeURIComponent(email)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.found && data?.brain) {
+          setNolanBrain({
+            ...data.brain,
+            accountEmail: email,
+            factoryProfiles: deriveFactoryProfilesFromData(finishedBatches, factoryList),
+          });
+        } else if (localBrain) {
+          setNolanBrain({
+            ...localBrain,
+            accountEmail: email,
+            factoryProfiles: deriveFactoryProfilesFromData(finishedBatches, factoryList),
+          });
+        } else {
+          setNolanBrain(buildDefaultNolanBrain(email, rawTobaccos, finishedBatches, factoryList));
+        }
+      })
+      .catch(() => {
+        if (localBrain) {
+          setNolanBrain(localBrain);
+        }
+      });
+  }, [currentUser?.email]);
+
+  const handleUpdateNolanBrain = useCallback(
+    (nextBrain: NolanBrainMemory, triggerGithubAutoSync = true) => {
+      const email = currentUser?.email || nextBrain.accountEmail || 'adikaryasukses99@gmail.com';
+      const enriched: NolanBrainMemory = {
+        ...nextBrain,
+        accountEmail: email,
+        autoSyncGithub: true,
+        githubRepo: nextBrain.githubRepo || 'Aldi-ang/A-Brain',
+        githubBranch: nextBrain.githubBranch || 'main',
+        githubFilePath: nextBrain.githubFilePath || 'Tobacco-Business/nolan-brain.json',
+        lastUpdated: new Date().toISOString(),
+        factoryProfiles: deriveFactoryProfilesFromData(finishedBatches, factoryList),
+      };
+      setNolanBrain(enriched);
+      try {
+        localStorage.setItem(getNolanStorageKey(email), JSON.stringify(enriched));
+      } catch {
+        // ignore
+      }
+      fetch('/api/nolan/brain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountEmail: email, brain: enriched }),
+      }).catch(() => {});
+
+      if (
+        triggerGithubAutoSync &&
+        enriched.githubRepo &&
+        enriched.githubRepo.includes('/')
+      ) {
+        const ghToken = localStorage.getItem('kretek_master_github_oauth_token') || '';
+        const accountSummary = computeAccountSummaryForABrain(
+          rawTobaccos,
+          finishedBatches,
+          rollSamples
+        );
+        fetch('/api/github/abrain/push', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(ghToken ? { 'x-github-token': ghToken } : {}),
+          },
+          body: JSON.stringify({
+            repo: enriched.githubRepo,
+            branch: enriched.githubBranch || 'main',
+            filePath: enriched.githubFilePath || 'Tobacco-Business/nolan-brain.json',
+            brain: enriched,
+            accountSummary,
+          }),
+        }).catch(() => {});
+      }
+    },
+    [currentUser?.email, factoryList, finishedBatches, rawTobaccos, rollSamples]
+  );
+
+  // Automatic Continuous Learning Helper for Nolan
+  const recordNolanDecisionEpisode = useCallback(
+    async (
+      type: NolanDecisionEpisode['type'],
+      summary: string,
+      eventPayload: Record<string, unknown>
+    ) => {
+      try {
+        const res = await fetch('/api/nolan/learn-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventType: type,
+            eventData: eventPayload,
+            currentMemory: nolanBrain,
+          }),
+        });
+        const data = await res.json();
+        const takeaway =
+          data?.learnedTakeaway || 'Keputusan dicatat ke dalam memori pembelajaran Nolan.';
+        const newEpisode: NolanDecisionEpisode = {
+          id: `ep-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          type,
+          summary,
+          learnedTakeaway: takeaway,
+        };
+        const nextRules =
+          data?.newRule && !nolanBrain.learnedRules.includes(data.newRule)
+            ? [data.newRule, ...nolanBrain.learnedRules]
+            : nolanBrain.learnedRules;
+
+        handleUpdateNolanBrain(
+          {
+            ...nolanBrain,
+            learnedRules: nextRules,
+            decisionEpisodes: [newEpisode, ...nolanBrain.decisionEpisodes].slice(0, 60),
+          },
+          true
+        );
+      } catch {
+        // Fallback local episode recording if offline
+        const fallbackEp: NolanDecisionEpisode = {
+          id: `ep-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          type,
+          summary,
+          learnedTakeaway: summary,
+        };
+        handleUpdateNolanBrain(
+          {
+            ...nolanBrain,
+            decisionEpisodes: [fallbackEp, ...nolanBrain.decisionEpisodes].slice(0, 60),
+          },
+          true
+        );
+      }
+    },
+    [handleUpdateNolanBrain, nolanBrain]
+  );
 
   const applyRemoteWorkspaceData = useCallback(
     (data: Record<string, unknown>, notifyToast?: string) => {
@@ -485,6 +719,20 @@ export default function App() {
     } else {
       setRawTobaccos([tobacco, ...rawTobaccos]);
       showToast(`Tembakau baru "${tobacco.name}" berhasil ditambahkan.`);
+      recordNolanDecisionEpisode(
+        'RAW_PURCHASE',
+        `Stok Mentah Baru: ${tobacco.name} (${tobacco.origin}) [Grade ${tobacco.colorGrade}] • Netto ${tobacco.netWeightKg} kg • HPP Rp ${tobacco.realCostPerNetKg.toLocaleString('id-ID')}/kg`,
+        {
+          name: tobacco.name,
+          origin: tobacco.origin,
+          sellerName: tobacco.sellerName,
+          grade: tobacco.colorGrade,
+          netWeightKg: tobacco.netWeightKg,
+          realCostPerNetKg: tobacco.realCostPerNetKg,
+          weightProfitKg: tobacco.purchaseWeightProfitKg,
+          weightProfitRp: tobacco.purchaseWeightProfitRp,
+        }
+      );
     }
     setEditingTobacco(null);
   };
@@ -492,9 +740,17 @@ export default function App() {
   const handleDeleteRawTobacco = (id: string) => {
     const item = rawTobaccos.find((t) => t.id === id);
     if (!item) return;
-    hasLocalUserMutationRef.current = true;
-    setRawTobaccos(rawTobaccos.filter((t) => t.id !== id));
-    showToast(`Tembakau "${item.name}" telah dihapus.`);
+    setPendingDeletion({
+      title: `Hapus Stok Tembakau "${item.name}"?`,
+      description: `Stok "${item.name}" (${item.origin}, Grade ${item.colorGrade}, Sisa ${item.currentStockNetKg} kg) akan dihapus dari daftar Stok Gudang. Anda masih bisa menekan tombol Urungkan (Undo) setelah dihapus.`,
+      confirmLabel: 'Ya, Hapus Stok',
+      onConfirm: () => {
+        recordUndoSnapshot(`Stok "${item.name}" dihapus`);
+        hasLocalUserMutationRef.current = true;
+        setRawTobaccos((prev) => prev.filter((t) => t.id !== id));
+        showToast(`Tembakau "${item.name}" telah dihapus.`);
+      },
+    });
   };
 
   const handleAddToBlend = (tobacco: RawTobacco) => {
@@ -557,13 +813,43 @@ export default function App() {
 
   // Save Multiple Finished Serials from 1 Mixture
   const handleSaveMultipleFinished = (createdSerials: FinishedTobaccoSerial[]) => {
+    if (createdSerials.length === 0) return;
     hasLocalUserMutationRef.current = true;
-    setFinishedBatches([...createdSerials, ...finishedBatches]);
 
-    // Update Gulungan samples that received these serials
-    setRollSamples((prevRolls) =>
-      prevRolls.map((roll) => {
-        const matchingSerials = createdSerials.filter((s) => s.rollId === roll.id);
+    const existingWarehouseIds = new Set(
+      rollSamples.filter((r) => !r.isSentToFactory).map((r) => r.id)
+    );
+    const needsAutoRoll = createdSerials.some(
+      (s) => !s.rollId || s.rollId === 'NEW_AUTO_ROLL' || !existingWarehouseIds.has(s.rollId)
+    );
+
+    const autoRollId = `gul-auto-${Date.now()}`;
+    const autoRollNumber = `GUL-${new Date().getFullYear()}-${String(
+      rollSamples.length + 1
+    ).padStart(3, '0')}`;
+    const firstSer = createdSerials[0];
+    const cleanRecipeTitle =
+      firstSer.recipeName.replace(/\s*\[Seri\s+[^\]]+\]$/i, '').trim() ||
+      `Setoran ${firstSer.targetFactory}`;
+
+    const normalizedSerials = createdSerials.map((s) => {
+      if (!s.rollId || s.rollId === 'NEW_AUTO_ROLL' || !existingWarehouseIds.has(s.rollId)) {
+        return {
+          ...s,
+          rollId: autoRollId,
+          rollNumber: autoRollNumber,
+          rollRackNumber: 'Lemari Sampel Gudang A',
+        };
+      }
+      return s;
+    });
+
+    setFinishedBatches([...normalizedSerials, ...finishedBatches]);
+
+    // Update Gulungan samples that received these serials (or create a new Gulungan automatically)
+    setRollSamples((prevRolls) => {
+      const updatedExisting = prevRolls.map((roll) => {
+        const matchingSerials = normalizedSerials.filter((s) => s.rollId === roll.id);
         if (matchingSerials.length === 0) return roll;
 
         const existingSerialNums = roll.serialNumbers || [];
@@ -595,8 +881,46 @@ export default function App() {
                   hppPerKg: firstMatch.hppPerNetKg,
                 },
         };
-      })
-    );
+      });
+
+      if (needsAutoRoll) {
+        const autoSerials = normalizedSerials.filter((s) => s.rollId === autoRollId);
+        const autoSerialNums = autoSerials.map((s) => s.serialNumber);
+        const newAutoRoll: TobaccoRollSample = {
+          id: autoRollId,
+          rollNumber: autoRollNumber,
+          serialNumbers: autoSerialNums,
+          serialNumber: autoSerialNums.join(', '),
+          recipeName: cleanRecipeTitle,
+          targetFactory: firstSer.targetFactory,
+          rackLocation: 'Lemari Sampel Gudang A',
+          sampleWeightGrams: 250,
+          sampleCreatedDate: new Date().toISOString().split('T')[0],
+          isSentToFactory: false,
+          ingredientsSnapshot: firstSer.ingredients,
+          ratingsSnapshot: {
+            power: firstSer.weightedPower,
+            impact: firstSer.weightedImpact,
+            bitter: firstSer.weightedBitter,
+            burn: firstSer.weightedBurn,
+            sugar: firstSer.weightedSugar,
+            aroma: firstSer.weightedAroma ?? 4.2,
+            colorGrade: firstSer.compositeColorGrade,
+            hppPerKg: firstSer.hppPerNetKg,
+          },
+          smokingTest: {
+            testerName: 'QC Internal Gudang',
+            testDate: new Date().toISOString().split('T')[0],
+            ashQuality: 'Putih Bersih',
+            tastingNotes: `Sampel Gulungan ${autoRollNumber} (${cleanRecipeTitle})`,
+            factoryVerdict: 'Diterima Penuh',
+          },
+        };
+        return [newAutoRoll, ...updatedExisting];
+      }
+
+      return updatedExisting;
+    });
 
     // Deduct total used net weight from raw tobaccos
     setRawTobaccos((prev) =>
@@ -621,6 +945,26 @@ export default function App() {
 
     setActiveTab('rolls');
     showToast(`${createdSerials.length} Nomor Seri Tembakau Jadi berhasil diterbitkan & masuk ke Gulungan!`);
+
+    if (createdSerials.length > 0) {
+      const sample = createdSerials[0];
+      const ingSummary = (sample.ingredients || [])
+        .map((i) => `${i.tobaccoName} (${i.usedNetKg}kg)`)
+        .join(' + ');
+      recordNolanDecisionEpisode(
+        'BLEND_CREATED',
+        `Racikan "${sample.recipeName}" (${createdSerials.length} Seri) → ${sample.targetFactory} [Grade ${sample.compositeColorGrade}] • HPP Rp ${sample.hppPerNetKg.toLocaleString('id-ID')}/kg`,
+        {
+          recipeName: sample.recipeName,
+          targetFactory: sample.targetFactory,
+          grade: sample.compositeColorGrade,
+          serialCount: createdSerials.length,
+          hppPerNetKg: sample.hppPerNetKg,
+          targetPricePerKg: sample.factoryTargetPricePerKg,
+          ingredients: ingSummary,
+        }
+      );
+    }
   };
 
   // Update Factory Delivery Status for a Seri (Accepted Cair vs Reject -> Stok Tembakau Jadi)
@@ -657,10 +1001,47 @@ export default function App() {
       })
     );
 
+    const targetSer = finishedBatches.find((s) => s.id === serialId);
     if (status === 'ACCEPTED_CAIR') {
       showToast('Status Seri diperbarui: Diterima / Accepted!');
+      if (targetSer) {
+        recordNolanDecisionEpisode(
+          'FACTORY_ACCEPTED',
+          `DITERIMA PABRIK: Seri ${targetSer.serialNumber} (${targetSer.recipeName}) di ${targetSer.targetFactory} [Grade ${targetSer.compositeColorGrade}]`,
+          {
+            serialNumber: targetSer.serialNumber,
+            recipeName: targetSer.recipeName,
+            targetFactory: targetSer.targetFactory,
+            grade: targetSer.compositeColorGrade,
+            hppPerNetKg: targetSer.hppPerNetKg,
+            targetPricePerKg: targetSer.factoryTargetPricePerKg,
+            profitRp: targetSer.projectedProfit,
+            ingredients: (targetSer.ingredients || []).map((i) => ({
+              name: i.tobaccoName,
+              usedNetKg: i.usedNetKg,
+            })),
+          }
+        );
+      }
     } else if (status === 'REJECTED_STOCK') {
       showToast('Seri di-Reject & otomatis masuk ke Panel 2: Stok Tembakau Jadi (Kemasan & Berat Tetap)!');
+      if (targetSer) {
+        recordNolanDecisionEpisode(
+          'FACTORY_REJECTED',
+          `REJECT PABRIK: Seri ${targetSer.serialNumber} (${targetSer.recipeName}) direject oleh ${targetSer.targetFactory} [Grade ${targetSer.compositeColorGrade}]`,
+          {
+            serialNumber: targetSer.serialNumber,
+            recipeName: targetSer.recipeName,
+            targetFactory: targetSer.targetFactory,
+            grade: targetSer.compositeColorGrade,
+            hppPerNetKg: targetSer.hppPerNetKg,
+            ingredients: (targetSer.ingredients || []).map((i) => ({
+              name: i.tobaccoName,
+              usedNetKg: i.usedNetKg,
+            })),
+          }
+        );
+      }
     } else {
       showToast('Status Seri dikembalikan ke Menunggu Pabrik.');
     }
@@ -805,11 +1186,13 @@ export default function App() {
       rollRackNumber: linkedRoll ? linkedRoll.rackLocation : updated.rollRackNumber,
     };
 
-    const nextBatches = finishedBatches.map((s) =>
-      s.id === normalizedSerial.id ? normalizedSerial : s
-    );
-    setFinishedBatches(nextBatches);
-    setRollSamples((prevRolls) => syncRollsWithSerials(prevRolls, nextBatches));
+    setFinishedBatches((prev) => {
+      const nextBatches = prev.map((s) =>
+        s.id === normalizedSerial.id ? normalizedSerial : s
+      );
+      setRollSamples((prevRolls) => syncRollsWithSerials(prevRolls, nextBatches));
+      return nextBatches;
+    });
     showToast(
       `Seri ${normalizedSerial.serialNumber} diperbarui & otomatis tersinkron ke Gulungan ${normalizedSerial.rollNumber || ''}!`
     );
@@ -826,73 +1209,140 @@ export default function App() {
     }
   ) => {
     hasLocalUserMutationRef.current = true;
-    const nextBatches = finishedBatches.map((ser) => {
-      if (ser.id !== serialId) return ser;
-      const nextBruto =
-        updates.brutoKg !== undefined
-          ? updates.brutoKg
-          : ser.packaging.grossWeightPerPackage;
-      const nextTara =
-        updates.taraKg !== undefined ? updates.taraKg : ser.factoryDeductionKg;
-      const nextNetto = Math.max(0, Number((nextBruto - nextTara).toFixed(2)));
-      const nextPrice =
-        updates.factoryTargetPricePerKg !== undefined
-          ? updates.factoryTargetPricePerKg
-          : ser.factoryTargetPricePerKg;
-      const nextGrade =
-        updates.compositeColorGrade !== undefined
-          ? updates.compositeColorGrade
-          : ser.compositeColorGrade;
+    setFinishedBatches((prev) => {
+      const nextBatches = prev.map((ser) => {
+        if (ser.id !== serialId) return ser;
+        const nextBruto =
+          updates.brutoKg !== undefined
+            ? updates.brutoKg
+            : ser.packaging.grossWeightPerPackage;
+        const nextTara =
+          updates.taraKg !== undefined ? updates.taraKg : ser.factoryDeductionKg;
+        const nextNetto = Math.max(0, Number((nextBruto - nextTara).toFixed(2)));
+        const nextPrice =
+          updates.factoryTargetPricePerKg !== undefined
+            ? updates.factoryTargetPricePerKg
+            : ser.factoryTargetPricePerKg;
+        const nextGrade =
+          updates.compositeColorGrade !== undefined
+            ? updates.compositeColorGrade
+            : ser.compositeColorGrade;
 
-      const nextRevenue = Math.round(nextNetto * nextPrice);
-      const nextProfit = nextRevenue - ser.totalProductionCost;
-      const nextMargin =
-        nextRevenue > 0 ? Number(((nextProfit / nextRevenue) * 100).toFixed(2)) : 0;
+        const nextRevenue = Math.round(nextNetto * nextPrice);
+        const nextProfit = nextRevenue - ser.totalProductionCost;
+        const nextMargin =
+          nextRevenue > 0 ? Number(((nextProfit / nextRevenue) * 100).toFixed(2)) : 0;
 
-      const realPkgMassKg =
-        ser.packaging.packagingMassKg ?? ser.factoryDeductionKg;
-      const nextRealTobaccoNetKg = Number(
-        Math.max(0, nextBruto - realPkgMassKg).toFixed(2)
-      );
-      const nextFactoryWeightProfitKg = Number(
-        (nextNetto - nextRealTobaccoNetKg).toFixed(2)
-      );
-      const nextFactoryWeightProfitRp = Math.round(
-        nextFactoryWeightProfitKg * nextPrice
-      );
+        const realPkgMassKg =
+          ser.packaging.packagingMassKg ?? ser.factoryDeductionKg;
+        const nextRealTobaccoNetKg = Number(
+          Math.max(0, nextBruto - realPkgMassKg).toFixed(2)
+        );
+        const nextFactoryWeightProfitKg = Number(
+          (nextNetto - nextRealTobaccoNetKg).toFixed(2)
+        );
+        const nextFactoryWeightProfitRp = Math.round(
+          nextFactoryWeightProfitKg * nextPrice
+        );
 
-      return {
-        ...ser,
-        compositeColorGrade: nextGrade,
-        totalBlendNetKg: nextRealTobaccoNetKg,
-        packaging: {
-          ...ser.packaging,
-          grossWeightPerPackage: nextBruto,
-          netTobaccoWeightKg: nextRealTobaccoNetKg,
-          packagingMassKg: realPkgMassKg,
-        },
-        factoryDeductionKg: nextTara,
-        factoryNetBillableKg: nextNetto,
-        factoryWeightProfitKg: nextFactoryWeightProfitKg,
-        factoryWeightProfitRp: nextFactoryWeightProfitRp,
-        factoryTargetPricePerKg: nextPrice,
-        projectedRevenue: nextRevenue,
-        projectedProfit: nextProfit,
-        profitMarginPercent: nextMargin,
-      };
+        return {
+          ...ser,
+          compositeColorGrade: nextGrade,
+          totalBlendNetKg: nextRealTobaccoNetKg,
+          packaging: {
+            ...ser.packaging,
+            grossWeightPerPackage: nextBruto,
+            netTobaccoWeightKg: nextRealTobaccoNetKg,
+            packagingMassKg: realPkgMassKg,
+          },
+          factoryDeductionKg: nextTara,
+          factoryNetBillableKg: nextNetto,
+          factoryWeightProfitKg: nextFactoryWeightProfitKg,
+          factoryWeightProfitRp: nextFactoryWeightProfitRp,
+          factoryTargetPricePerKg: nextPrice,
+          projectedRevenue: nextRevenue,
+          projectedProfit: nextProfit,
+          profitMarginPercent: nextMargin,
+        };
+      });
+      setRollSamples((prevRolls) => syncRollsWithSerials(prevRolls, nextBatches));
+      return nextBatches;
     });
-    setFinishedBatches(nextBatches);
-    setRollSamples((prevRolls) => syncRollsWithSerials(prevRolls, nextBatches));
   };
 
   const handleDeleteFinished = (id: string) => {
     const item = finishedBatches.find((b) => b.id === id);
     if (!item) return;
-    hasLocalUserMutationRef.current = true;
-    const nextBatches = finishedBatches.filter((b) => b.id !== id);
-    setFinishedBatches(nextBatches);
-    setRollSamples((prevRolls) => syncRollsWithSerials(prevRolls, nextBatches));
-    showToast(`Nomor Seri "${item.serialNumber}" dihapus.`);
+    setPendingDeletion({
+      title: `Hapus Nomor Seri "${item.serialNumber}"?`,
+      description: `Nomor Seri "${item.serialNumber}" (${item.recipeName} • ${item.targetFactory}) akan dihapus dari Seri Jadi, Gulungan, dan Riwayat. Anda tetap dapat menekan tombol Urungkan (Undo) setelah dihapus.`,
+      confirmLabel: 'Ya, Hapus Seri',
+      onConfirm: () => {
+        recordUndoSnapshot(`Nomor Seri "${item.serialNumber}" dihapus`);
+        hasLocalUserMutationRef.current = true;
+        const nextBatches = finishedBatches.filter((b) => b.id !== id);
+        setFinishedBatches(nextBatches);
+        setRollSamples((prevRolls) => syncRollsWithSerials(prevRolls, nextBatches));
+        showToast(`Nomor Seri "${item.serialNumber}" dihapus.`);
+      },
+    });
+  };
+
+  const handleDeleteRoll = (rollId: string) => {
+    const target = rollSamples.find((r) => r.id === rollId);
+    if (!target) return;
+    setPendingDeletion({
+      title: `Hapus Gulungan "${target.rollNumber}"?`,
+      description: `Gulungan "${target.rollNumber}" (${target.recipeName} • ${target.targetFactory}) beserta seri yang terikat di dalamnya akan dihapus. Anda tetap dapat menekan tombol Urungkan (Undo) setelah dihapus.`,
+      confirmLabel: 'Ya, Hapus Gulungan',
+      onConfirm: () => {
+        recordUndoSnapshot(`Gulungan "${target.rollNumber}" dihapus`);
+        hasLocalUserMutationRef.current = true;
+        const nextRolls = rollSamples.filter((r) => r.id !== rollId);
+        const nextBatches = finishedBatches.filter(
+          (b) => b.rollId !== rollId && b.rollNumber !== target.rollNumber
+        );
+        setRollSamples(nextRolls);
+        setFinishedBatches(nextBatches);
+        if (selectedRoll?.id === rollId) {
+          setSelectedRoll(null);
+        }
+        showToast(`Gulungan "${target.rollNumber}" beserta seri di dalamnya telah dihapus.`);
+      },
+    });
+  };
+
+  const handleClearAllSerials = () => {
+    if (finishedBatches.length === 0) return;
+    setPendingDeletion({
+      title: `Hapus Semua Nomor Seri Jadi (${finishedBatches.length} Seri)?`,
+      description: `Seluruh ${finishedBatches.length} Nomor Seri Tembakau Jadi akan dikosongkan. Anda tetap dapat menekan tombol Urungkan (Undo) bila ingin mengembalikannya.`,
+      confirmLabel: 'Ya, Hapus Semua Seri',
+      onConfirm: () => {
+        recordUndoSnapshot(`Semua Nomor Seri (${finishedBatches.length} seri) dihapus`);
+        hasLocalUserMutationRef.current = true;
+        setFinishedBatches([]);
+        setRollSamples((prevRolls) => syncRollsWithSerials(prevRolls, []));
+        showToast('Semua Nomor Seri Tembakau Jadi berhasil dihapus.');
+      },
+    });
+  };
+
+  const handleClearAllDemoData = () => {
+    setPendingDeletion({
+      title: 'Bersihkan Semua Data Demo / Kosongkan Aplikasi?',
+      description: `Seluruh Stok Mentah (${rawTobaccos.length}), Seri Jadi (${finishedBatches.length}), dan Gulungan & Riwayat (${rollSamples.length}) akan dikosongkan agar aplikasi bersih siap diisi data asli. Anda masih bisa menekan tombol Urungkan (Undo) setelah dikosongkan.`,
+      confirmLabel: 'Ya, Bersihkan Semua',
+      onConfirm: () => {
+        recordUndoSnapshot('Seluruh data (Stok, Seri Jadi, Gulungan & Riwayat) dikosongkan');
+        hasLocalUserMutationRef.current = true;
+        setRawTobaccos([]);
+        setFinishedBatches([]);
+        setRollSamples([]);
+        setSelectedRoll(null);
+        showToast('Semua data demo (Stok Mentah, Seri Jadi, Gulungan & Riwayat) telah dikosongkan!');
+      },
+    });
   };
 
   const handleOpenRollFromFinished = (rollId: string) => {
@@ -1038,23 +1488,18 @@ export default function App() {
               pullCloudWorkspace(currentUser, { showSuccessToast: true });
             }
           }}
+          onOpenNolanAgent={() => setIsNolanModalOpen(true)}
         />
 
         <main className="flex-1 max-w-7xl w-full mx-auto py-4 sm:py-5 safe-main-container">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            >
-              {activeTab === 'inventory' && (
+          <div key={activeTab}>
+            {activeTab === 'inventory' && (
                 <RawTobaccoList
                   tobaccos={rawTobaccos}
                   finishedBatches={finishedBatches}
                   rollSamples={rollSamples}
                   factoryList={factoryList}
+                  packagingList={packagingList}
                   initialStockPanel={stockInitialPanel}
                   onAddNew={() => {
                     setEditingTobacco(null);
@@ -1064,7 +1509,10 @@ export default function App() {
                     setEditingTobacco(tobacco);
                     setIsRawModalOpen(true);
                   }}
+                  onQuickUpdate={handleSaveRawTobacco}
                   onDelete={handleDeleteRawTobacco}
+                  onDeleteFinished={handleDeleteFinished}
+                  onClearAllDemoData={handleClearAllDemoData}
                   onAddToBlend={handleAddToBlend}
                   onReassignRejectedToRoll={handleReassignRejectedToRoll}
                   onUnpackRejectedToBlend={handleUnpackRejectedToBlend}
@@ -1073,7 +1521,7 @@ export default function App() {
 
               {activeTab === 'calculator' && (
                 <BlendCalculator
-                  key={blendPrefilledIngredients.map((i) => i.tobaccoId).join('-')}
+                  key={blendPrefilledIngredients.map((i) => `${i.tobaccoId}-${i.usedNetKg}`).join('-')}
                   rawTobaccos={rawTobaccos}
                   packagingList={packagingList}
                   factoryList={factoryList}
@@ -1081,6 +1529,12 @@ export default function App() {
                   existingSerialCount={finishedBatches.length}
                   onSaveMultipleFinished={handleSaveMultipleFinished}
                   initialIngredients={blendPrefilledIngredients}
+                  onAskNolanRecommendation={() => {
+                    setNolanInitialPrompt(
+                      'Nolan, rekomendasikan komposisi racikan terbaik dari sisa stok tembakau mentah saat ini lengkap dengan takaran KG, estimasi HPP/kg, dan target harga pabrik.'
+                    );
+                    setIsNolanModalOpen(true);
+                  }}
                 />
               )}
 
@@ -1093,6 +1547,8 @@ export default function App() {
                   onOpenRoll={handleOpenRollFromFinished}
                   onUpdateSerial={handleUpdateFinishedSerial}
                   onDelete={handleDeleteFinished}
+                  onDeleteRoll={handleDeleteRoll}
+                  onClearAllSerials={handleClearAllSerials}
                   onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
                 />
               )}
@@ -1113,6 +1569,8 @@ export default function App() {
                   onUpdateSerial={handleUpdateFinishedSerial}
                   onUpdateSmokingTest={handleUpdateSmokingTest}
                   onRepriceSerial={handleRepriceSerial}
+                  onDeleteRoll={handleDeleteRoll}
+                  onDeleteSerial={handleDeleteFinished}
                   onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
                   onSendRollToFactory={handleSendRollToFactory}
                   onUpdateSerialStatus={handleUpdateSerialStatus}
@@ -1135,6 +1593,8 @@ export default function App() {
                   onUpdateSerial={handleUpdateFinishedSerial}
                   onUpdateSmokingTest={handleUpdateSmokingTest}
                   onRepriceSerial={handleRepriceSerial}
+                  onDeleteRoll={handleDeleteRoll}
+                  onDeleteSerial={handleDeleteFinished}
                   onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
                   onSendRollToFactory={handleSendRollToFactory}
                   onUpdateSerialStatus={handleUpdateSerialStatus}
@@ -1149,6 +1609,9 @@ export default function App() {
                   packagingList={packagingList}
                   factoryList={factoryList}
                   onUpdateSerial={handleUpdateFinishedSerial}
+                  onDeleteRoll={handleDeleteRoll}
+                  onDeleteSerial={handleDeleteFinished}
+                  onClearAllDemoData={handleClearAllDemoData}
                   onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
                   onGoToRejectedStock={() => {
                     setStockInitialPanel('rejected-finished');
@@ -1165,8 +1628,113 @@ export default function App() {
                   factoryList={factoryList}
                 />
               )}
-            </motion.div>
-          </AnimatePresence>
+
+              {activeTab === 'settings' && (
+                <SettingsView
+                  userEmail={currentUser?.email || null}
+                  cloudSyncStatus={cloudSyncStatus}
+                  onGoogleLogin={() => setOfflineBypass(false)}
+                  onGoogleLogout={async () => {
+                    await signOutFromCloud();
+                    setOfflineBypass(false);
+                    showToast('Berhasil keluar dari akun Google Cloud.');
+                  }}
+                  onForceCloudSync={() => {
+                    if (currentUser) {
+                      pullCloudWorkspace(currentUser, { showSuccessToast: true });
+                    }
+                  }}
+                  rawTobaccos={rawTobaccos}
+                  finishedBatches={finishedBatches}
+                  rollSamples={rollSamples}
+                  packagingList={packagingList}
+                  factoryList={factoryList}
+                  nolanBrain={nolanBrain}
+                  onUpdateNolanBrain={(nextBrain) => handleUpdateNolanBrain(nextBrain, true)}
+                  onAddPackaging={(pkg) => {
+                    hasLocalUserMutationRef.current = true;
+                    setPackagingList([...packagingList, pkg]);
+                    showToast(`Jenis Packaging "${pkg.name}" berhasil didaftarkan!`);
+                  }}
+                  onUpdatePackaging={(updatedPkg) => {
+                    hasLocalUserMutationRef.current = true;
+                    setPackagingList((prev) =>
+                      prev.map((p) => (p.id === updatedPkg.id ? updatedPkg : p))
+                    );
+                    showToast(`Jenis Packaging "${updatedPkg.name}" berhasil diperbarui!`);
+                  }}
+                  onDeletePackaging={(id) => {
+                    hasLocalUserMutationRef.current = true;
+                    setPackagingList(packagingList.filter((p) => p.id !== id));
+                    showToast('Jenis Packaging dihapus.');
+                  }}
+                  onAddFactory={(fac) => {
+                    hasLocalUserMutationRef.current = true;
+                    setFactoryList([...factoryList, fac]);
+                    showToast(`Pabrik "${fac.name}" berhasil didaftarkan!`);
+                  }}
+                  onUpdateFactory={(updatedFac) => {
+                    hasLocalUserMutationRef.current = true;
+                    setFactoryList((prev) =>
+                      prev.map((f) => (f.id === updatedFac.id ? updatedFac : f))
+                    );
+                    showToast(`Data Pabrik "${updatedFac.name}" berhasil diperbarui!`);
+                  }}
+                  onDeleteFactory={(id) => {
+                    hasLocalUserMutationRef.current = true;
+                    setFactoryList(factoryList.filter((f) => f.id !== id));
+                    showToast('Data pabrik dihapus.');
+                  }}
+                  onAddRollSample={(roll) => {
+                    hasLocalUserMutationRef.current = true;
+                    setRollSamples([...rollSamples, roll]);
+                    showToast(`Gulungan Sampel "${roll.rollNumber}" berhasil dibuat!`);
+                  }}
+                  onUpdateRollSample={(updatedRoll) => {
+                    hasLocalUserMutationRef.current = true;
+                    setRollSamples((prev) =>
+                      prev.map((r) => (r.id === updatedRoll.id ? updatedRoll : r))
+                    );
+                    setFinishedBatches((prev) =>
+                      prev.map((ser) =>
+                        ser.rollId === updatedRoll.id
+                          ? {
+                              ...ser,
+                              rollNumber: updatedRoll.rollNumber,
+                              rollRackNumber: updatedRoll.rackLocation,
+                              targetFactory: updatedRoll.targetFactory,
+                            }
+                          : ser
+                      )
+                    );
+                    showToast(`Gulungan "${updatedRoll.rollNumber}" berhasil diperbarui!`);
+                  }}
+                  onDeleteRollSample={(id) => {
+                    hasLocalUserMutationRef.current = true;
+                    setRollSamples((prev) => prev.filter((r) => r.id !== id));
+                    showToast('Gulungan Sampel dihapus.');
+                  }}
+                  onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
+                  onOpenSimulator={() => setIsSimulatorOpen(true)}
+                  onExportData={handleExportData}
+                  onOpenRestoreModal={() => setBackupModalMode('restore')}
+                  onClearAllDemoData={handleClearAllDemoData}
+                  onResetData={handleResetData}
+                  onOpenPatchNotes={() => {
+                    setIsPatchNotesOpen(true);
+                    setHasUnreadPatch(false);
+                    try {
+                      localStorage.setItem(STORAGE_KEYS.SEEN_PATCH, CURRENT_APP_VERSION);
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  onOpenNolanChat={() => setIsNolanModalOpen(true)}
+                  onShowToast={showToast}
+                  currentVersion={CURRENT_APP_VERSION}
+                />
+              )}
+          </div>
         </main>
       </div>
 
@@ -1196,7 +1764,7 @@ export default function App() {
                   </div>
                   <div>
                     <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
-                      Simulator Potongan Tarra & Kalkulasi Coba-Coba
+                      Simulator
                     </h2>
                     <p className="text-[11px] text-zinc-400">
                       Alat bantu hitung cepat tanpa mengubah data stok atau gulungan asli
@@ -1361,6 +1929,285 @@ export default function App() {
         onRestorePayload={applyRestoredPayload}
         onShowToast={showToast}
       />
+
+      <NolanAgentModal
+        isOpen={isNolanModalOpen}
+        onClose={() => setIsNolanModalOpen(false)}
+        onOpen={() => setIsNolanModalOpen(true)}
+        userEmail={currentUser?.email || null}
+        rawTobaccos={rawTobaccos}
+        finishedBatches={finishedBatches}
+        rollSamples={rollSamples}
+        packagingList={packagingList}
+        factoryList={factoryList}
+        nolanBrain={nolanBrain}
+        onUpdateNolanBrain={(nextBrain) => handleUpdateNolanBrain(nextBrain, true)}
+        onApplyRecommendedBlend={(recommendedIngs, recipeLabel) => {
+          setBlendPrefilledIngredients(recommendedIngs);
+          setActiveTab('calculator');
+          showToast(
+            `Rekomendasi Nolan ("${recipeLabel}") diterapkan ke Kalkulator Racikan!`
+          );
+        }}
+        onNavigate={(target: NolanNavTarget) => {
+          switch (target) {
+            case 'inventory':
+              setStockInitialPanel('raw');
+              setActiveTab('inventory');
+              showToast('🧭 Nolan membuka Stok Gudang Mentah.');
+              break;
+            case 'inventory_rejected':
+              setStockInitialPanel('rejected-finished');
+              setActiveTab('inventory');
+              showToast('🧭 Nolan membuka Stok Tembakau Jadi (Eks-Reject).');
+              break;
+            case 'calculator':
+              setActiveTab('calculator');
+              showToast('🧭 Nolan membuka Kalkulator Racikan.');
+              break;
+            case 'rolls':
+              setActiveTab('rolls');
+              showToast('🧭 Nolan membuka menu Gulungan (Gudang).');
+              break;
+            case 'finished':
+              setActiveTab('finished');
+              showToast('🧭 Nolan membuka menu Status Barang (Pabrik).');
+              break;
+            case 'history':
+              setActiveTab('history');
+              showToast('🧭 Nolan membuka menu Riwayat & Laporan.');
+              break;
+            case 'settings':
+              setActiveTab('settings');
+              showToast('🧭 Nolan membuka menu Pengaturan.');
+              break;
+            case 'simulator':
+              setIsSimulatorOpen(true);
+              showToast('🧭 Nolan membuka Simulator.');
+              break;
+            case 'input_raw_modal':
+              setEditingTobacco(null);
+              setIsRawModalOpen(true);
+              showToast('🧭 Nolan membuka Form Input Stok Baru.');
+              break;
+            case 'google_sheets':
+              setIsGoogleSheetsModalOpen(true);
+              showToast('🧭 Nolan membuka Sinkronisasi Google Sheets.');
+              break;
+            case 'backup':
+              setBackupModalMode('backup');
+              showToast('🧭 Nolan membuka menu Backup Data.');
+              break;
+            case 'restore':
+              setBackupModalMode('restore');
+              showToast('🧭 Nolan membuka menu Restore Data.');
+              break;
+            case 'patch_notes':
+              setIsPatchNotesOpen(true);
+              showToast('🧭 Nolan membuka Catatan Pembaruan.');
+              break;
+          }
+        }}
+        onExecutePendingAction={(action: NolanPendingAction) => {
+          const addPayload = action.newTobacco || action.newRawTobacco;
+          const editPayload = action.editTobacco || action.editRawTobacco;
+          const statusPayload = action.statusUpdate || action.updateSerialStatus;
+
+          if (action.type === 'ADD_RAW_TOBACCO' && addPayload) {
+            const d = addPayload;
+            const taraFormula = {
+              type: 'Keranjang' as const,
+              packagingName: d.packagingType || 'Keranjang',
+              packagingMassKg: d.packagingMassKg ?? 3,
+              percent: d.taraPercent ?? 0,
+              flatKg: d.taraFlatKg ?? 3,
+              rawFormula: `${d.taraFlatKg ?? 3} kg`,
+              pricingBasis: 'NET_WEIGHT' as const,
+            };
+            const calc = calculateRawTobaccoCost({
+              grossWeightKg: d.grossWeightKg,
+              pricePerKgPurchase: d.pricePerKgPurchase,
+              taraFormula,
+              additionalCost: 0,
+              realPackagingMassKg: d.packagingMassKg ?? 3,
+              agentFees: [],
+            });
+            const newTobacco: RawTobacco = normalizeRawTobaccoRounding({
+              id: `raw-nolan-${Date.now()}`,
+              lotNumber: `LOT-${new Date().getFullYear()}-${String(rawTobaccos.length + 1).padStart(3, '0')}`,
+              name: d.name,
+              origin: d.origin,
+              sellerName: d.sellerName || 'Petani / Agen Lokal',
+              purchaseDate: new Date().toISOString().split('T')[0],
+              grossWeightKg: d.grossWeightKg,
+              packagingMassKg: d.packagingMassKg ?? 3,
+              taraFormula,
+              deductionKg: calc.deductionKg,
+              netWeightKg: calc.netWeightKg,
+              currentStockNetKg: calc.netWeightKg,
+              pricePerKgPurchase: d.pricePerKgPurchase,
+              additionalPurchaseCost: 0,
+              totalModalAsal: calc.totalModalAsal,
+              realCostPerNetKg: calc.realCostPerNetKg,
+              realNetWeightKg: calc.realNetWeightKg,
+              realStockValueRp: calc.realStockValueRp,
+              purchaseWeightProfitKg: calc.purchaseWeightProfitKg,
+              purchaseWeightProfitRp: calc.purchaseWeightProfitRp,
+              effectiveCostPerRealKg: calc.effectiveCostPerRealKg,
+              powerRating: d.powerRating ?? 3.8,
+              impactRating: d.impactRating ?? 3.8,
+              bitterRating: d.bitterRating ?? 3.5,
+              burnRating: d.burnRating ?? 4.5,
+              sugarRating: d.sugarRating ?? 4.0,
+              aromaRating: d.aromaRating ?? 4.2,
+              colorGrade: d.colorGrade || 'D',
+              characterNotes: d.characterNotes || 'Diinput oleh Nolan AI atas izin pengguna',
+            });
+            handleSaveRawTobacco(newTobacco);
+            setActiveTab('inventory');
+          } else if (action.type === 'EDIT_RAW_TOBACCO' && editPayload) {
+            const { tobaccoId, updates } = editPayload;
+            const existing = rawTobaccos.find((t) => t.id === tobaccoId);
+            if (existing) {
+              const updatedRaw = normalizeRawTobaccoRounding({
+                ...existing,
+                name: updates.name !== undefined ? updates.name : existing.name,
+                pricePerKgPurchase:
+                  updates.pricePerKgPurchase !== undefined
+                    ? updates.pricePerKgPurchase
+                    : existing.pricePerKgPurchase,
+                grossWeightKg:
+                  updates.grossWeightKg !== undefined
+                    ? updates.grossWeightKg
+                    : existing.grossWeightKg,
+                currentStockNetKg:
+                  updates.currentStockNetKg !== undefined
+                    ? updates.currentStockNetKg
+                    : existing.currentStockNetKg,
+                colorGrade:
+                  updates.colorGrade !== undefined
+                    ? updates.colorGrade
+                    : existing.colorGrade,
+                origin: updates.origin !== undefined ? updates.origin : existing.origin,
+                sellerName:
+                  updates.sellerName !== undefined
+                    ? updates.sellerName
+                    : existing.sellerName,
+                characterNotes:
+                  updates.characterNotes !== undefined
+                    ? updates.characterNotes
+                    : existing.characterNotes,
+              });
+              handleSaveRawTobacco(updatedRaw);
+            }
+          } else if (action.type === 'UPDATE_FACTORY_STATUS' && statusPayload) {
+            const serialId = statusPayload.serialId;
+            const nextStat =
+              'newStatus' in statusPayload
+                ? statusPayload.newStatus
+                : statusPayload.factoryStatus;
+            handleUpdateSerialStatus(serialId, nextStat);
+          }
+        }}
+        onShowToast={showToast}
+        initialPrompt={nolanInitialPrompt}
+        onClearInitialPrompt={() => setNolanInitialPrompt(null)}
+        onOpenSettings={() => setActiveTab('settings')}
+      />
+
+      {/* Confirm Deletion Modal */}
+      <AnimatePresence>
+        {pendingDeletion && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setPendingDeletion(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-[#09090c] border-2 border-red-500/80 rounded-2xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/60 flex items-center justify-center text-red-400 shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm sm:text-base font-black text-white">
+                    {pendingDeletion.title}
+                  </h3>
+                  <p className="text-xs text-zinc-300 leading-relaxed">
+                    {pendingDeletion.description}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-zinc-800 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPendingDeletion(null)}
+                  className="h-9 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-extrabold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const action = pendingDeletion.onConfirm;
+                    setPendingDeletion(null);
+                    action();
+                  }}
+                  className="h-9 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white border border-red-400 text-xs font-black inline-flex items-center gap-1.5 cursor-pointer shadow-lg"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{pendingDeletion.confirmLabel || 'Ya, Hapus Sekarang'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Undo Deletion Banner (Bottom Left / Center) */}
+      <AnimatePresence>
+        {undoDeletionSnapshot && (
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.95 }}
+            className="fixed bottom-16 md:bottom-5 left-4 z-[65] bg-[#09090c] border-2 border-amber-500 text-white px-4 py-3 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.9)] flex items-center gap-3 max-w-md"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                Data Dihapus • Bisa Diurungkan
+              </div>
+              <div className="text-xs font-bold text-zinc-200 truncate">
+                {undoDeletionSnapshot.label}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleRestoreUndoSnapshot}
+              className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs inline-flex items-center gap-1.5 cursor-pointer shrink-0 shadow-md"
+            >
+              <Undo2 className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Urungkan (Undo)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setUndoDeletionSnapshot(null)}
+              className="h-8 w-8 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer shrink-0"
+              aria-label="Tutup banner undo"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {toastMessage && (

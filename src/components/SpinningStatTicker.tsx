@@ -282,12 +282,12 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
                 e.stopPropagation();
                 current.onOpenCalc?.();
               }}
-              title="Lihat rincian rumus & asal angka"
-              className="h-6 px-2 rounded-md bg-zinc-950 hover:bg-zinc-900 text-amber-400 border border-amber-500/60 font-serif italic font-black text-xs inline-flex items-center gap-1 cursor-pointer transition-colors"
+              aria-label="Lihat rincian rumus & asal angka"
+              className="group relative h-7 w-7 shrink-0 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-amber-400 border border-amber-500/60 font-serif italic font-black text-xs inline-flex items-center justify-center cursor-pointer transition-colors"
             >
-              <span>fx</span>
-              <span className="font-sans not-italic text-[10px] font-bold text-zinc-200 hidden sm:inline">
-                Rincian
+              <span>ƒx</span>
+              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-amber-500/70 text-white font-sans not-italic text-[10px] font-bold whitespace-nowrap shadow-xl">
+                Rincian Rumus (ƒx)
               </span>
             </button>
           )}
@@ -296,12 +296,15 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
             type="button"
             onClick={handlePrev}
             aria-label="Slide Sebelumnya"
-            className="h-6 w-6 rounded-md bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 flex items-center justify-center cursor-pointer"
+            className="group relative h-7 w-7 shrink-0 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 flex items-center justify-center cursor-pointer"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
+            <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+               Metrik Sebelumnya
+            </span>
           </button>
 
-          <span className="text-[10px] font-mono font-bold text-zinc-400 px-1">
+          <span className="text-[10px] font-mono font-bold text-zinc-400 px-1 shrink-0">
             {safeIndex + 1}/{slides.length}
           </span>
 
@@ -309,9 +312,12 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
             type="button"
             onClick={handleNext}
             aria-label="Slide Berikutnya"
-            className="h-6 w-6 rounded-md bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 flex items-center justify-center cursor-pointer"
+            className="group relative h-7 w-7 shrink-0 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 flex items-center justify-center cursor-pointer"
           >
             <ChevronRight className="w-3.5 h-3.5" />
+            <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+              Metrik Berikutnya
+            </span>
           </button>
         </div>
       </div>
@@ -364,13 +370,16 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
                 setDirection(idx >= safeIndex ? 1 : -1);
                 setIndex(idx);
               }}
-              className={`py-1 px-2 rounded-lg text-[10px] sm:text-[11px] font-black uppercase tracking-tight transition-all cursor-pointer truncate ${
+              className={`group relative py-1 px-2 rounded-lg text-[10px] sm:text-[11px] font-black uppercase tracking-tight transition-colors cursor-pointer truncate ${
                 isActive
                   ? 'bg-black text-amber-400 border border-amber-500/80 shadow-xs'
                   : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
               }`}
             >
-              {s.tabLabel}
+              <span className="truncate block">{s.tabLabel}</span>
+              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden sm:block absolute -top-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                {s.title}
+              </span>
             </button>
           );
         })}

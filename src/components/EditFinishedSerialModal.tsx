@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
@@ -9,6 +9,7 @@ import {
   Sliders,
   Lock,
   Unlock,
+  ArrowRight,
 } from 'lucide-react';
 import {
   FinishedTobaccoSerial,
@@ -35,6 +36,7 @@ interface EditFinishedSerialModalProps {
   rollSamples: TobaccoRollSample[];
   packagingList?: PackagingMaster[];
   factoryList?: FactoryMaster[];
+  initialSection?: 'main' | 'weights' | 'character' | 'all';
   onClose: () => void;
   onSave: (updated: FinishedTobaccoSerial) => void;
 }
@@ -87,10 +89,11 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
   rollSamples,
   packagingList = [],
   factoryList = [],
+  initialSection = 'main',
   onClose,
   onSave,
 }) => {
-  const [activeTab, setActiveTab] = useState<SerialEditTab>('main');
+  const [activeTab, setActiveTab] = useState<SerialEditTab>(initialSection);
   const [serialNumber, setSerialNumber] = useState('');
   const [recipeName, setRecipeName] = useState('');
   const [rollId, setRollId] = useState('');
@@ -116,14 +119,22 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
   const [sugar, setSugar] = useState(4.0);
   const [aroma, setAroma] = useState(4.2);
 
+  // Refs for Enter-to-Advance focus sequencing
+  const factoryPriceInputRef = useRef<HTMLInputElement>(null);
+  const hppInputRef = useRef<HTMLInputElement>(null);
+  const brutoInputRef = useRef<HTMLInputElement>(null);
+  const pkgMassInputRef = useRef<HTMLInputElement>(null);
+  const taraInputRef = useRef<HTMLInputElement>(null);
+
   // All fields EXCEPT Harga Pabrik are locked by default to prevent accidental edits
+  // (Automatically unlock weights or character fields when opened directly to those tabs!)
   const [unlockedFields, setUnlockedFields] = useState<
     Partial<Record<LockableFieldKey, boolean>>
   >({});
 
   useEffect(() => {
     if (!serial) return;
-    setActiveTab('main');
+    setActiveTab(initialSection);
     const gross = roundHalfUpKg(serial.packaging.grossWeightPerPackage || 0);
     const tara = roundHalfUpKg(serial.factoryDeductionKg || 0);
     const realNet = roundHalfUpKg(
@@ -174,8 +185,44 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
     setSugar(clampRating5(serial.weightedSugar ?? 4.0));
     setAroma(clampRating5(serial.weightedAroma ?? 4.2));
 
-    setUnlockedFields({});
-  }, [serial, rollSamples, packagingList]);
+    if (initialSection === 'weights') {
+      setUnlockedFields({
+        packagingType: true,
+        brutoKg: true,
+        packagingMassKg: true,
+        taraKg: true,
+      });
+      window.setTimeout(() => {
+        brutoInputRef.current?.focus();
+        brutoInputRef.current?.select();
+      }, 60);
+    } else if (initialSection === 'character') {
+      setUnlockedFields({
+        grade: true,
+        power: true,
+        impact: true,
+        bitter: true,
+        burn: true,
+        sugar: true,
+        aroma: true,
+      });
+    } else {
+      setUnlockedFields({});
+      window.setTimeout(() => {
+        factoryPriceInputRef.current?.focus();
+        factoryPriceInputRef.current?.select();
+      }, 60);
+    }
+  }, [serial, rollSamples, packagingList, initialSection]);
+
+  useEffect(() => {
+    if (!serial) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [serial, onClose]);
 
   if (!serial) return null;
 
@@ -437,6 +484,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
               <button
                 type="button"
                 onClick={onClose}
+                aria-label="Tutup modal edit seri"
                 className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -524,14 +572,37 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-1">
-                        <label className="text-[10px] font-black text-white uppercase">
-                          Harga Pabrik / KG (Rp)
+                        <label className="text-[10px] font-black text-white uppercase flex items-center gap-1.5">
+                          <span>Harga Pabrik / KG (Rp)</span>
+                          {factoryPricePerKg <= 0 && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/50 text-[9px]">
+                              Belum Diisi
+                            </span>
+                          )}
                         </label>
+                        <span className="text-[9px] text-zinc-400 inline-flex items-center gap-0.5">
+                          <ArrowRight className="w-2.5 h-2.5 text-amber-400" />
+                          Enter = {isUnlocked('hppPerNetKg') ? 'Lanjut' : 'Simpan'}
+                        </span>
                       </div>
                       <NumericInput
+                        ref={factoryPriceInputRef}
+                        emptyWhenZero
                         value={factoryPricePerKg}
                         onChange={setFactoryPricePerKg}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (isUnlocked('hppPerNetKg') && hppInputRef.current) {
+                              hppInputRef.current.focus();
+                              hppInputRef.current.select();
+                            } else {
+                              handleSubmit(e as unknown as React.FormEvent);
+                            }
+                          }
+                        }}
                         autoFocus
+                        placeholder="0"
                         className="w-full h-9 px-3 bg-zinc-950 border border-amber-500/80 focus:border-amber-400 rounded-lg text-white font-mono font-black text-sm focus:outline-hidden"
                       />
                     </div>
@@ -539,9 +610,16 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                     <div>
                       {renderFieldLabel('Modal HPP / KG (Rp)', 'hppPerNetKg')}
                       <NumericInput
+                        ref={hppInputRef}
                         value={hppPerNetKg}
                         onChange={setHppPerNetKg}
                         disabled={!isUnlocked('hppPerNetKg')}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSubmit(e as unknown as React.FormEvent);
+                          }
+                        }}
                         className={`${getLockedInputClass('hppPerNetKg', 'font-mono font-bold')} h-9`}
                       />
                     </div>
@@ -645,33 +723,18 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div>
-                      {renderFieldLabel('Status Pabrik', 'factoryStatus')}
-                      <select
-                        value={factoryStatus}
-                        onChange={(e) => setFactoryStatus(e.target.value as SerialFactoryStatus)}
-                        disabled={!isUnlocked('factoryStatus')}
-                        className={getLockedInputClass('factoryStatus', 'font-bold')}
-                      >
-                        <option value="PENDING">Menunggu Pabrik</option>
-                        <option value="ACCEPTED_CAIR">Diterima / Accepted</option>
-                        <option value="REJECTED_STOCK">Reject (Masuk Stok Jadi)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      {renderFieldLabel('Status Pembayaran', 'paymentStatus')}
-                      <select
-                        value={paymentStatus}
-                        onChange={(e) => setPaymentStatus(e.target.value as SerialPaymentStatus)}
-                        disabled={!isUnlocked('paymentStatus')}
-                        className={getLockedInputClass('paymentStatus', 'font-bold')}
-                      >
-                        <option value="BELUM_CAIR">Belum Cair (Not Paid)</option>
-                        <option value="CAIR">Cair (Paid)</option>
-                      </select>
-                    </div>
+                  <div>
+                    {renderFieldLabel('Status Pabrik', 'factoryStatus')}
+                    <select
+                      value={factoryStatus}
+                      onChange={(e) => setFactoryStatus(e.target.value as SerialFactoryStatus)}
+                      disabled={!isUnlocked('factoryStatus')}
+                      className={getLockedInputClass('factoryStatus', 'font-bold')}
+                    >
+                      <option value="PENDING">Menunggu Pabrik</option>
+                      <option value="ACCEPTED_CAIR">Diterima / Accepted</option>
+                      <option value="REJECTED_STOCK">Reject (Masuk Stok Jadi)</option>
+                    </select>
                   </div>
                 </div>
               </div>
@@ -724,9 +787,24 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                   <div>
                     {renderFieldLabel('Bruto (KG)', 'brutoKg')}
                     <NumericInput
+                      ref={brutoInputRef}
                       value={brutoKg}
                       onChange={handleBrutoChange}
                       disabled={!isUnlocked('brutoKg')}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (isUnlocked('packagingMassKg') && pkgMassInputRef.current) {
+                            pkgMassInputRef.current.focus();
+                            pkgMassInputRef.current.select();
+                          } else if (isUnlocked('taraKg') && taraInputRef.current) {
+                            taraInputRef.current.focus();
+                            taraInputRef.current.select();
+                          } else {
+                            handleSubmit(e as unknown as React.FormEvent);
+                          }
+                        }
+                      }}
                       className={getLockedInputClass('brutoKg', 'font-mono font-bold')}
                     />
                   </div>
@@ -734,9 +812,21 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                   <div>
                     {renderFieldLabel('Wadah (KG)', 'packagingMassKg')}
                     <NumericInput
+                      ref={pkgMassInputRef}
                       value={packagingMassKg}
                       onChange={(v) => setPackagingMassKg(roundHalfUpKg(v))}
                       disabled={!isUnlocked('packagingMassKg')}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (isUnlocked('taraKg') && taraInputRef.current) {
+                            taraInputRef.current.focus();
+                            taraInputRef.current.select();
+                          } else {
+                            handleSubmit(e as unknown as React.FormEvent);
+                          }
+                        }
+                      }}
                       className={getLockedInputClass('packagingMassKg', 'font-mono font-bold')}
                     />
                   </div>
@@ -744,9 +834,16 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                   <div>
                     {renderFieldLabel('Total Tarra (KG)', 'taraKg')}
                     <NumericInput
+                      ref={taraInputRef}
                       value={taraKg}
                       onChange={handleDirectTaraChange}
                       disabled={!isUnlocked('taraKg')}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSubmit(e as unknown as React.FormEvent);
+                        }
+                      }}
                       className={getLockedInputClass('taraKg', 'font-mono font-bold')}
                     />
                   </div>
@@ -754,7 +851,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
 
                 <div className="pt-2 border-t border-zinc-900 grid grid-cols-2 sm:grid-cols-3 gap-2.5 items-end">
                   <div>
-                    {renderFieldLabel('Potongan Flat (KG)', 'taraKg')}
+                    {renderFieldLabel('Flat (KG)', 'taraKg')}
                     <NumericInput
                       value={taraFlatKg}
                       onChange={handleTaraFlatChange}
@@ -763,7 +860,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                     />
                   </div>
                   <div>
-                    {renderFieldLabel('Potongan (%)', 'taraKg')}
+                    {renderFieldLabel('Tarra (%)', 'taraKg')}
                     <NumericInput
                       value={taraPercent}
                       onChange={handleTaraPercentChange}
