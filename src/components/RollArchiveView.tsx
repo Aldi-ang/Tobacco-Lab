@@ -1751,7 +1751,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                                 {
                                   id: 'edit_full',
                                   label: 'Edit Lengkap Seri',
-                                  shortLabel: 'Edit Semua',
+                                  shortLabel: 'Edit',
                                   sublabel: 'Buka semua kolom seri',
                                   detailRows: [
                                     {

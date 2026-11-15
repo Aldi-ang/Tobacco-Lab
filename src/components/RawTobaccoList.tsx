@@ -857,7 +857,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   {
                     id: 'blend',
                     label: 'Masukkan ke Kalkulator Racikan',
-                    shortLabel: 'Ke Racikan',
+                    shortLabel: 'Racikan',
                     sublabel: 'Kirim ke Kalkulator Campuran',
                     detailRows: [
                       {
@@ -881,7 +881,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   {
                     id: 'full_edit',
                     label: 'Edit Lengkap (Semua Kolom)',
-                    shortLabel: 'Edit Semua',
+                    shortLabel: 'Edit',
                     sublabel: 'Buka form lengkap + Lot & Fee',
                     detailRows: [
                       {
