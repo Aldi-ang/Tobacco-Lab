@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   Bot,
   Settings,
+  Camera,
 } from 'lucide-react';
 import { PWAInstallButton, OfflineIndicator } from './PWAInstallButton';
 import { CURRENT_APP_VERSION } from './PatchNotesModal';
@@ -62,6 +63,7 @@ interface NavbarProps {
   onGoogleLogout?: () => void;
   onForceCloudSync?: () => void;
   onOpenNolanAgent?: () => void;
+  onOpenGradeScanner?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -89,6 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onGoogleLogout,
   onForceCloudSync,
   onOpenNolanAgent,
+  onOpenGradeScanner,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -339,6 +342,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </motion.button>
                 )}
 
+                {onOpenGradeScanner && (
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.96 }}
+                    onClick={onOpenGradeScanner}
+                    aria-label="Scan Kartu Grade"
+                    className="group relative inline-flex items-center justify-center h-8 px-2.5 sm:h-9 sm:px-3 gap-1.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-300 border border-amber-500/60 hover:border-amber-400 transition-colors cursor-pointer shrink-0 font-extrabold text-xs"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="hidden sm:inline">Scan Kartu</span>
+                  </motion.button>
+                )}
+
                 <button
                   type="button"
                   onClick={onOpenAddModal}
@@ -346,7 +362,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   className="group relative btn-amber-outline inline-flex items-center justify-center h-8 px-2.5 sm:h-9 sm:px-3 gap-1.5 rounded-lg font-extrabold cursor-pointer shrink-0 text-xs"
                 >
                   <Plus className="w-4 h-4 stroke-[2.5] text-amber-400 shrink-0" />
-                  <span>+ Input Stok</span>
+                  <span>Input Stok</span>
                 </button>
               </div>
             </div>

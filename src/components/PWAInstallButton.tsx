@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Smartphone,
@@ -9,6 +9,7 @@ import {
   Copy,
   Check,
   Globe,
+  RefreshCw,
 } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -20,21 +21,180 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+function getCurrentRunningAssetScript(): string | null {
+  if (typeof document === 'undefined') return null;
+  const scripts = Array.from(document.querySelectorAll('script[src]'));
+  for (const s of scripts) {
+    const src = s.getAttribute('src') || '';
+    if (src.includes('/assets/index-') && src.endsWith('.js')) {
+      return src;
+    }
+  }
+  return null;
+}
+
+export async function forceUpdatePWAApp(onStatus?: (msg: string) => void): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    onStatus?.('Mengecek pembaruan aplikasi...');
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        try {
+          await reg.update();
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map((name) => caches.delete(name)));
+    }
+    onStatus?.('Memuat ulang versi terbaru...');
+    const url = new URL(window.location.href);
+    url.searchParams.set('_updated', String(Date.now()));
+    window.location.replace(url.pathname + url.search + url.hash);
+  } catch {
+    window.location.reload();
+  }
+}
+
 export function OfflineIndicator() {
   const [isOffline, setIsOffline] = useState(
     typeof navigator !== 'undefined' ? !navigator.onLine : false
   );
+  const [autoUpdatingMsg, setAutoUpdatingMsg] = useState<string | null>(null);
+
+  const checkForNewDeployment = useCallback(async () => {
+    if (typeof window === 'undefined' || !navigator.onLine) return;
+
+    // 1. Trigger Service Worker update check
+    if ('serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          await reg.update();
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        }
+      } catch {
+        // ignore SW update check errors in dev
+      }
+    }
+
+    // 2. Compare live index.html production asset hash with currently running bundle
+    // This guarantees Brave Desktop PWAs detect new deployments even if SW precache served stale HTML
+    const currentScript = getCurrentRunningAssetScript();
+    if (!currentScript) return; // Dev mode (/src/main.tsx)
+
+    try {
+      const res = await fetch(`/index.html?_pwa_ver=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+        },
+      });
+      if (!res.ok) return;
+      const html = await res.text();
+      const match = html.match(/src="(\/assets\/index-[^"]+\.js)"/);
+      const latestScript = match?.[1];
+
+      if (latestScript && latestScript !== currentScript) {
+        const lastReloadedFor = sessionStorage.getItem('tl_pwa_reloaded_bundle');
+        if (lastReloadedFor === latestScript) return;
+        sessionStorage.setItem('tl_pwa_reloaded_bundle', latestScript);
+
+        setAutoUpdatingMsg('Versi baru Tobacco Lab ditemukan — memperbarui otomatis...');
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.update().catch(() => {})));
+        }
+        window.setTimeout(() => {
+          window.location.reload();
+        }, 350);
+      }
+    } catch {
+      // ignore network glitches
+    }
+  }, []);
 
   useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
+    const handleOnline = () => {
+      setIsOffline(false);
+      checkForNewDeployment();
+    };
     const handleOffline = () => setIsOffline(true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    // Clean up temporary _updated query param if present
+    if (typeof window !== 'undefined' && window.location.search.includes('_updated=')) {
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('_updated');
+      window.history.replaceState({}, '', cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+    }
+
+    // Listen for Service Worker controllerchange -> automatically reload Desktop/Mobile PWA
+    let refreshing = false;
+    const handleControllerChange = () => {
+      if (refreshing) return;
+      // Avoid reloading in local Vite dev mode
+      if (!getCurrentRunningAssetScript()) return;
+      refreshing = true;
+      setAutoUpdatingMsg('Pembaruan aplikasi siap — memuat ulang otomatis...');
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 250);
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+    }
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        checkForNewDeployment();
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    // Initial check & periodic 60s background check
+    const initialTimer = window.setTimeout(checkForNewDeployment, 1500);
+    const intervalTimer = window.setInterval(checkForNewDeployment, 60 * 1000);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      }
+      window.clearTimeout(initialTimer);
+      window.clearInterval(intervalTimer);
     };
-  }, []);
+  }, [checkForNewDeployment]);
+
+  if (autoUpdatingMsg) {
+    return (
+      <div className="bg-emerald-950 text-emerald-200 border-b border-emerald-500/60 px-4 py-1.5 text-center text-xs font-extrabold flex items-center justify-center gap-2 z-50">
+        <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin shrink-0" />
+        <span>{autoUpdatingMsg}</span>
+      </div>
+    );
+  }
 
   if (!isOffline) return null;
 
@@ -51,10 +211,12 @@ export const PWAInstallButton: React.FC = () => {
   const [isInstalled, setIsInstalled] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [isUpdatingApp, setIsUpdatingApp] = useState(false);
 
   useEffect(() => {
     if (
       window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: window-controls-overlay)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true
     ) {
       setIsInstalled(true);
@@ -89,6 +251,12 @@ export const PWAInstallButton: React.FC = () => {
     } else {
       setShowGuideModal(true);
     }
+  };
+
+  const handleManualUpdateApp = async () => {
+    if (isUpdatingApp) return;
+    setIsUpdatingApp(true);
+    await forceUpdatePWAApp();
   };
 
   const OFFICIAL_VERCEL_URL = 'https://tobaccolab.vercel.app';
@@ -131,7 +299,25 @@ export const PWAInstallButton: React.FC = () => {
     }
   };
 
-  if (isInstalled) return null;
+  if (isInstalled) {
+    return (
+      <button
+        type="button"
+        onClick={handleManualUpdateApp}
+        aria-label="Perbarui Aplikasi ke Versi Terbaru"
+        className="group relative inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-emerald-500/70 transition-colors cursor-pointer shrink-0"
+      >
+        <RefreshCw
+          className={`w-3.5 h-3.5 text-emerald-400 shrink-0 ${
+            isUpdatingApp ? 'animate-spin' : ''
+          }`}
+        />
+        <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+          Cek &amp; Update App Terbaru
+        </span>
+      </button>
+    );
+  }
 
   return (
     <>

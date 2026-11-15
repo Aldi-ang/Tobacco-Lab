@@ -27,6 +27,8 @@ import {
   Scroll,
   Plus,
   Edit3,
+  ShieldCheck,
+  Lock,
 } from 'lucide-react';
 import {
   RawTobacco,
@@ -44,6 +46,7 @@ import {
   calculateTaraDeduction,
   roundHalfUpKg,
 } from '../utils/tobaccoMath';
+import { computeVaultSecurityStats } from '../utils/vaultCryptoEngine';
 
 export type SettingsSegment =
   | 'github'
@@ -1165,6 +1168,90 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </p>
             </button>
           </div>
+
+          {/* LIVE TLAB-V2 BINARY VAULT ENCRYPTION & COMPRESSION INSPECTOR */}
+          {(() => {
+            const vaultStats = computeVaultSecurityStats({
+              rawTobaccos,
+              finishedBatches,
+              rollSamples,
+              packagingList,
+              factoryList,
+              ownerId: userEmail || 'LOCAL_USER',
+            });
+            return (
+              <div className="p-4 rounded-xl bg-black/80 border border-emerald-500/40 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                        <span>Enkripsi & Kompresi Binary Vault (TLAB-V2)</span>
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/50 text-[9px] font-mono text-emerald-300">
+                          AKTIF OTOMATIS
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400">
+                        Data stok, harga petani, modal & racikan dikompresi + dienkripsi ke bahasa mesin sebelum dikirim ke Firestore & memori lokal
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800">
+                    <div className="text-[10px] text-zinc-500 font-bold uppercase">Ukuran JSON Mentah</div>
+                    <div className="text-sm font-black text-zinc-300 font-mono mt-0.5">
+                      {(vaultStats.rawJsonBytes / 1024).toFixed(2)} KB
+                    </div>
+                    <div className="text-[10px] text-zinc-500">{vaultStats.totalItems} item total</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-zinc-950 border border-emerald-500/40">
+                    <div className="text-[10px] text-emerald-400 font-bold uppercase">Ukuran Terkompresi</div>
+                    <div className="text-sm font-black text-emerald-300 font-mono mt-0.5">
+                      {(vaultStats.encryptedVaultBytes / 1024).toFixed(2)} KB
+                    </div>
+                    <div className="text-[10px] text-emerald-400/80">
+                      {vaultStats.shardCount} blok terenkripsi
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-zinc-950 border border-amber-500/40">
+                    <div className="text-[10px] text-amber-400 font-bold uppercase">Ruang Dihemat</div>
+                    <div className="text-sm font-black text-amber-300 font-mono mt-0.5">
+                      {vaultStats.savedPercentage}% Hemat
+                    </div>
+                    <div className="text-[10px] text-zinc-400">
+                      -{(vaultStats.savedBytes / 1024).toFixed(2)} KB di Cloud
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800">
+                    <div className="text-[10px] text-zinc-400 font-bold uppercase flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-emerald-400" />
+                      <span>Status Privasi DB</span>
+                    </div>
+                    <div className="text-xs font-black text-white mt-1">
+                      256-Bit Keystream + LZ77
+                    </div>
+                    <div className="text-[10px] text-emerald-400">
+                      Tidak bisa dibaca telanjang
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+                    <span>Contoh Wujud Data di Dalam Firebase Firestore (Ciphertext):</span>
+                    <span className="font-mono text-emerald-400">__vault: &quot;TLAB_V2_ENC&quot;</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 font-mono text-[10px] text-emerald-300/90 break-all leading-relaxed select-all">
+                    {vaultStats.sampleCipherPreview}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

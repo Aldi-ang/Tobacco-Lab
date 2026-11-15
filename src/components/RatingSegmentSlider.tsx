@@ -1,6 +1,7 @@
 import React, { useId } from 'react';
 import { motion } from 'motion/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatRating5 } from '../utils/tobaccoMath';
 
 interface RatingSegmentSliderProps {
   label: string;
@@ -11,7 +12,7 @@ interface RatingSegmentSliderProps {
   headerExtra?: React.ReactNode;
 }
 
-const QUICK_STEPS = [0, 1, 2, 3, 3.5, 4, 4.5, 5];
+const QUICK_STEPS = [0, 1, 2, 3, 4, 5];
 
 export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
   label,
@@ -25,9 +26,14 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
   const fillPercent = (safeVal / 5) * 100;
   const isEmptyZero = safeVal === 0;
 
-  const handleStep = (delta: number) => {
+  const handleStep = (delta: -1 | 1) => {
     if (disabled) return;
-    const next = Math.max(0, Math.min(5, Number((safeVal + delta).toFixed(1))));
+    const base = Number.isInteger(safeVal)
+      ? safeVal + delta
+      : delta < 0
+      ? Math.floor(safeVal)
+      : Math.ceil(safeVal);
+    const next = Math.max(0, Math.min(5, base));
     onChange(next);
   };
 
@@ -58,7 +64,7 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
           <button
             type="button"
             disabled={disabled}
-            onClick={() => handleStep(-0.5)}
+            onClick={() => handleStep(-1)}
             className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             title={`Kurangi ${label}`}
             aria-label={`Kurangi ${label}`}
@@ -72,12 +78,12 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
                 : 'text-white border-zinc-700'
             }`}
           >
-            {safeVal.toFixed(1)}<span className="text-amber-400">/5</span>
+            {formatRating5(safeVal)}<span className="text-amber-400">/5</span>
           </div>
           <button
             type="button"
             disabled={disabled}
-            onClick={() => handleStep(0.5)}
+            onClick={() => handleStep(1)}
             className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             title={`Tambah ${label}`}
             aria-label={`Tambah ${label}`}
@@ -99,18 +105,18 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
             type="range"
             min="0"
             max="5"
-            step="0.1"
+            step="1"
             disabled={disabled}
             value={safeVal}
             onChange={(e) => {
-              if (!disabled) onChange(parseFloat(e.target.value));
+              if (!disabled) onChange(Math.max(0, Math.min(5, Math.round(parseFloat(e.target.value)))));
             }}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
             aria-label={label}
           />
         </div>
 
-        <div className="pt-2 border-t border-zinc-900 grid grid-cols-8 gap-1">
+        <div className="pt-2 border-t border-zinc-900 grid grid-cols-6 gap-1.5">
           {QUICK_STEPS.map((step) => {
             const isActive = Math.abs(safeVal - step) < 0.05;
             return (

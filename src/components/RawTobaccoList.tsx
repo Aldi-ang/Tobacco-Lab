@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Search,
@@ -17,11 +17,13 @@ import {
   ArrowRightCircle,
   SlidersHorizontal,
   X,
-  Calculator,
+  Weight,
   Clock,
   DollarSign,
   Sparkles,
   Hand,
+  Camera,
+  Printer,
 } from 'lucide-react';
 import {
   RawTobacco,
@@ -38,6 +40,7 @@ import {
   TOBACCO_GRADE_ORDER,
   formatRupiah,
   clampRating5,
+  formatRating5,
   calculateRawTobaccoCost,
   formatSerialLineage,
 } from '../utils/tobaccoMath';
@@ -72,6 +75,7 @@ interface RawTobaccoListProps {
     newTargetFactory?: string
   ) => void;
   onUnpackRejectedToBlend?: (serial: FinishedTobaccoSerial) => void;
+  onOpenGradeScanner?: (tab: 'scan' | 'print') => void;
 }
 
 export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
@@ -90,6 +94,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
   onAddToBlend,
   onReassignRejectedToRoll,
   onUnpackRejectedToBlend,
+  onOpenGradeScanner,
 }) => {
   const [activeStockPanel, setActiveStockPanel] = useState<'raw' | 'rejected-finished'>(
     initialStockPanel
@@ -103,8 +108,15 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
   const [missingFilter, setMissingFilter] = useState<
     'ALL' | 'INCOMPLETE' | 'NEED_WEIGHT' | 'NEED_PRICE' | 'NEED_ATTR'
   >('ALL');
-  const [sortBy, setSortBy] = useState<'name' | 'stock' | 'hpp' | 'power' | 'weightProfit'>('name');
+  const [sortBy, setSortBy] = useState<
+    'name' | 'fifo' | 'stock' | 'hpp' | 'power' | 'weightProfit'
+  >('name');
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
+  const [visibleCardLimit, setVisibleCardLimit] = useState<number>(36);
+
+  useEffect(() => {
+    setVisibleCardLimit(36);
+  }, [searchTerm, selectedOrigin, selectedGrade, missingFilter, sortBy]);
 
   // Active item for "hidden until pressed" detail modal
   const [selectedRawDetail, setSelectedRawDetail] = useState<RawTobacco | null>(null);
@@ -192,6 +204,12 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
       return matchSearch && matchOrigin && matchGrade && matchMissing;
     })
     .sort((a, b) => {
+      if (sortBy === 'fifo') {
+        const da = a.purchaseDate || '9999-12-31';
+        const db = b.purchaseDate || '9999-12-31';
+        if (da !== db) return da.localeCompare(db);
+        return a.name.localeCompare(b.name);
+      }
       if (sortBy === 'stock') return b.currentStockNetKg - a.currentStockNetKg;
       if (sortBy === 'hpp') {
         return getRawWeightMetrics(b).effectivePricePerKgWithFee - getRawWeightMetrics(a).effectivePricePerKgWithFee;
@@ -254,9 +272,12 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
               }
             );
 
+            const sampleForSteps = filteredRaw.slice(0, 40);
+            const extraCount = Math.max(0, filteredRaw.length - sampleForSteps.length);
+
             const openWarehouseCalcModal = (focus: RawTobaccoCalcFocus) => {
               if (focus === 'PAID_VALUE') {
-                const itemSteps = filteredRaw.map((item, idx) => {
+                const itemSteps = sampleForSteps.map((item, idx) => {
                   const m = getRawWeightMetrics(item);
                   return {
                     stepNumber: idx + 3,
@@ -276,16 +297,16 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   badgeText: 'METRIK 1 GUDANG • TOTAL MODAL / NILAI INVENTORI',
                   coreFormula:
                     'Total Modal / Nilai Inventori = Σ [Netto Nota × (Harga Tembakau + Fee/KG)]',
-                  appliedFormula: `Total Modal = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).totalModalAsal)).join(' + ')} = ${formatRupiah(totals.totalModalAsal)}`,
+                  appliedFormula: `Total Modal (${filteredRaw.length} lot) = ${sampleForSteps.map((item) => formatRupiah(getRawWeightMetrics(item).totalModalAsal)).join(' + ')}${extraCount > 0 ? ` + (${extraCount} lot lainnya)` : ''} = ${formatRupiah(totals.totalModalAsal)}`,
                   steps: [
                     {
                       stepNumber: 1,
                       title: 'Total Netto Nota & Sisa Stok Gudang',
                       formula: 'Netto Nota = Σ (Bruto − Potongan Tarra)',
                       substitution:
-                        filteredRaw
+                        sampleForSteps
                           .map((item) => `${getRawWeightMetrics(item).netWeightKg} kg (${item.name})`)
-                          .join(' + ') + ` = ${totals.netWeightKg} kg`,
+                          .join(' + ') + `${extraCount > 0 ? ` + (${extraCount} lot lainnya)` : ''} = ${totals.netWeightKg} kg`,
                       resultLabel: 'Total Netto Nota',
                       resultValue: `${totals.netWeightKg} kg (Sisa: ${totals.currentStockKg} kg)`,
                       explanation: `Total berat bersih yang kita bayar dari ${filteredRaw.length} stok tembakau mentah.`,
@@ -296,9 +317,9 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       title: 'Total Modal / Nilai Inventori (Harga Tembakau + Biaya Fee)',
                       formula: 'Total Modal = Σ [Netto × (Harga Tembakau + Fee/KG)]',
                       substitution:
-                        filteredRaw
+                        sampleForSteps
                           .map((item) => formatRupiah(getRawWeightMetrics(item).totalModalAsal))
-                          .join(' + ') + ` = ${formatRupiah(totals.totalModalAsal)}`,
+                          .join(' + ') + `${extraCount > 0 ? ` + (${extraCount} lot lainnya)` : ''} = ${formatRupiah(totals.totalModalAsal)}`,
                       resultLabel: 'Total Modal / Nilai Inventori',
                       resultValue: formatRupiah(totals.totalModalAsal),
                       explanation: `Seluruh modal pembelian tembakau beserta biaya tambahan fee perantara.`,
@@ -312,7 +333,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
               }
 
               if (focus === 'REAL_VALUE') {
-                const itemSteps = filteredRaw.map((item, idx) => {
+                const itemSteps = sampleForSteps.map((item, idx) => {
                   const m = getRawWeightMetrics(item);
                   return {
                     stepNumber: idx + 3,
@@ -332,7 +353,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   badgeText: 'METRIK 2 GUDANG • WEIGHT PROFIT DALAM RUPIAH',
                   coreFormula:
                     'Total Weight Profit (Rp) = Σ [(Netto Riil − Netto Nota) × Harga Tembakau Dasar/KG]',
-                  appliedFormula: `Total Weight Profit (Rp) = ${filteredRaw.map((item) => formatRupiah(getRawWeightMetrics(item).weightProfitRp)).join(' + ')} = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
+                  appliedFormula: `Total Weight Profit (Rp) = ${sampleForSteps.map((item) => formatRupiah(getRawWeightMetrics(item).weightProfitRp)).join(' + ')}${extraCount > 0 ? ` + (${extraCount} lot lainnya)` : ''} = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
                   steps: [
                     {
                       stepNumber: 1,
@@ -349,9 +370,9 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       title: 'Total Weight Profit dalam Rupiah',
                       formula: 'Total Weight Profit (Rp) = Σ (Weight Profit KG × Harga Tembakau / KG)',
                       substitution:
-                        filteredRaw
+                        sampleForSteps
                           .map((item) => formatRupiah(getRawWeightMetrics(item).weightProfitRp))
-                          .join(' + ') + ` = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
+                          .join(' + ') + `${extraCount > 0 ? ` + (${extraCount} lot lainnya)` : ''} = ${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
                       resultLabel: 'Total Weight Profit (Rp)',
                       resultValue: `${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
                       explanation: `Dihitung menggunakan harga tembakau dasar per kg (Fee perantara adalah biaya tambahan, bukan profit).`,
@@ -365,7 +386,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
               }
 
               // focus === 'WEIGHT_PROFIT' -> Weight Profit dalam KG
-              const itemSteps = filteredRaw.map((item, idx) => {
+              const itemSteps = sampleForSteps.map((item, idx) => {
                 const m = getRawWeightMetrics(item);
                 return {
                   stepNumber: idx + 3,
@@ -392,9 +413,9 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     title: 'Total Netto Nota (Bruto − Potongan Tarra)',
                     formula: 'Total Netto Nota = Σ (Bruto − Tarra Nota)',
                     substitution:
-                      filteredRaw
+                      sampleForSteps
                         .map((item) => `${getRawWeightMetrics(item).netWeightKg} kg (${item.name})`)
-                        .join(' + ') + ` = ${totals.netWeightKg} kg`,
+                        .join(' + ') + `${extraCount > 0 ? ` + (${extraCount} lot lainnya)` : ''} = ${totals.netWeightKg} kg`,
                     resultLabel: 'Total Netto Nota',
                     resultValue: `${totals.netWeightKg} kg`,
                     explanation: `Berat bersih yang kita bayar sesuai potongan tarra nota.`,
@@ -459,8 +480,8 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
 
           {/* Compact Search Bar + Fixed Icon-Only Filter Button (Shows Description Only on Hover) */}
           <div className="requiem-card p-3 rounded-xl border border-zinc-800/90 space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+              <div className="relative flex-1 min-w-[200px]">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
                 <input
                   type="text"
@@ -470,6 +491,28 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   className="w-full h-9 sm:h-10 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700"
                 />
               </div>
+
+              {onOpenGradeScanner && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => onOpenGradeScanner('scan')}
+                    className="h-9 sm:h-10 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/60 text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>Scan Kartu Grade</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenGradeScanner('print')}
+                    aria-label="Cetak Kartu Grade (A4)"
+                    className="h-9 sm:h-10 px-3 rounded-xl bg-black hover:bg-zinc-900 text-zinc-200 border border-zinc-800 hover:border-zinc-600 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
+                    <span className="hidden md:inline">Cetak Kartu</span>
+                  </button>
+                </div>
+              )}
 
               <button
                 type="button"
@@ -533,6 +576,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     aria-label="Urutkan"
                   >
                     <option value="name">Urut: Nama</option>
+                    <option value="fifo">Urut: FIFO (Stok Lama Dulu)</option>
                     <option value="weightProfit">Urut: Weight Profit Tertinggi</option>
                     <option value="stock">Urut: Stok Terbanyak</option>
                     <option value="hpp">Urut: Modal Tertinggi</option>
@@ -648,8 +692,9 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
               <p className="text-white font-bold text-sm">Tidak ada tembakau mentah yang cocok</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-              {filteredRaw.map((tobacco, idx) => {
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                {filteredRaw.slice(0, visibleCardLimit).map((tobacco, idx) => {
                 const gradeInfo = GRADE_LABELS[tobacco.colorGrade] || GRADE_LABELS['D'];
                 const power5 = clampRating5(tobacco.powerRating);
                 const impact5 = clampRating5(tobacco.impactRating);
@@ -698,7 +743,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         tone: 'white' as const,
                       },
                     ],
-                    icon: <Scale className="w-3.5 h-3.5" />,
+                    icon: <Weight className="w-3.5 h-3.5" />,
                     isMissing: missingFlags.missingWeight,
                     missingLabel: 'Belum Diisi',
                   },
@@ -743,9 +788,9 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   },
                   {
                     id: 'grade_attr',
-                    label: 'Grade & 6 Karakter (/5)',
-                    shortLabel: '6 Atribut',
-                    sublabel: `Grade ${tobacco.colorGrade} · Pwr ${power5.toFixed(1)} · Arm ${aroma5.toFixed(1)}`,
+                    label: 'Grade & Atribut (/5)',
+                    shortLabel: 'Atribut',
+                    sublabel: `Grade ${tobacco.colorGrade} · Pwr ${formatRating5(power5)} · Arm ${formatRating5(aroma5)}`,
                     detailRows: [
                       {
                         label: 'Grade Warna',
@@ -754,14 +799,14 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       },
                       {
                         label: 'Power · Impact · Bitter',
-                        value: `${power5.toFixed(1)} · ${impact5.toFixed(1)} · ${bitter5.toFixed(1)} /5`,
+                        value: `${formatRating5(power5)} · ${formatRating5(impact5)} · ${formatRating5(bitter5)} /5`,
                         tone: (missingFlags.missingAttributes ? 'rose' : 'emerald') as
                           | 'emerald'
                           | 'rose',
                       },
                       {
                         label: 'Burn · Sugar · Aroma',
-                        value: `${burn5.toFixed(1)} · ${sugar5.toFixed(1)} · ${aroma5.toFixed(1)} /5`,
+                        value: `${formatRating5(burn5)} · ${formatRating5(sugar5)} · ${formatRating5(aroma5)} /5`,
                         tone: (missingFlags.missingAttributes ? 'rose' : 'emerald') as
                           | 'emerald'
                           | 'rose',
@@ -774,7 +819,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   {
                     id: 'info',
                     label: 'Penjual, Daerah & Kemasan',
-                    shortLabel: 'Info & Kms',
+                    shortLabel: 'Info',
                     sublabel:
                       tobacco.sellerName?.trim()
                         ? `${tobacco.sellerName} · ${pkgName}`
@@ -830,7 +875,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       },
                     ],
                     actionHint: 'Lepas → Racik',
-                    icon: <Calculator className="w-3.5 h-3.5" />,
+                    icon: <Scale className="w-3.5 h-3.5" />,
                     tone: 'emerald' as const,
                   },
                   {
@@ -891,7 +936,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   {
                     id: 'all-6-characters',
                     shortTab: 'Rasa /5',
-                    label: '6 Karakter (/5)',
+                    label: 'Atribut (/5)',
                     value: '',
                     characterParams: [
                       { label: 'Power', shortLabel: 'Pwr', value: power5 },
@@ -1131,6 +1176,34 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   </motion.div>
                 );
               })}
+              </div>
+
+              {filteredRaw.length > visibleCardLimit && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-4 py-3 rounded-2xl bg-black border border-zinc-800">
+                  <span className="text-xs text-zinc-400 font-semibold">
+                    Menampilkan <strong className="text-white">{Math.min(visibleCardLimit, filteredRaw.length)}</strong> dari{' '}
+                    <strong className="text-amber-400">{filteredRaw.length}</strong> stok cocok (mode hemat memori ribuan stok)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCardLimit((prev) => prev + 36)}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition-colors cursor-pointer"
+                    >
+                      + Tampilkan 36 Berikutnya ({filteredRaw.length - visibleCardLimit} sisa)
+                    </button>
+                    {filteredRaw.length - visibleCardLimit <= 200 && (
+                      <button
+                        type="button"
+                        onClick={() => setVisibleCardLimit(filteredRaw.length)}
+                        className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        Buka Semua ({filteredRaw.length})
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>
@@ -1593,7 +1666,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     {/* 6 Sensory Ratings (/5) */}
                     <div className="bg-black p-3.5 rounded-xl border border-zinc-800">
                       <div className="text-[10px] text-zinc-200 uppercase font-extrabold mb-2">
-                        6 Parameter Karakteristik (/5)
+                        Parameter Karakteristik (/5)
                       </div>
                       <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center">
                         {[
@@ -1612,7 +1685,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                               {r.lbl}
                             </div>
                             <div className="font-mono font-black text-amber-400 text-base sm:text-lg mt-0.5">
-                              {r.val.toFixed(1)}
+                              {formatRating5(r.val)}
                             </div>
                           </div>
                         ))}

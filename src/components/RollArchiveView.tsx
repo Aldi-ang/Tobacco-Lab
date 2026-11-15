@@ -22,7 +22,7 @@ import {
   Clock,
   DollarSign,
   Trash2,
-  Scale,
+  Weight,
   Sliders,
   Hand,
 } from 'lucide-react';
@@ -42,6 +42,7 @@ import {
   buildGoogleSheetText,
   formatSerialLineage,
   hasSerialLineage,
+  formatRating5,
 } from '../utils/tobaccoMath';
 import { NumericInput } from './NumericInput';
 import { SegmentedControl } from './RatingSegmentSlider';
@@ -1660,14 +1661,14 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                                 tone: 'amber' as const,
                               },
                             ],
-                            icon: <Scale className="w-3.5 h-3.5" />,
+                            icon: <Weight className="w-3.5 h-3.5" />,
                             isMissing: serialMissing.missingWeight,
                             missingLabel: 'Belum Diisi',
                           },
                           {
                             id: 'edit_character',
-                            label: 'Grade & 6 Atribut (/5)',
-                            shortLabel: '6 Atribut',
+                            label: 'Grade & Atribut (/5)',
+                            shortLabel: 'Atribut',
                             sublabel: `Grade ${ser.compositeColorGrade}`,
                             detailRows: [
                               {
@@ -1677,14 +1678,14 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                               },
                               {
                                 label: 'Power · Impact · Bitter',
-                                value: `${toScale5(ser.weightedPower).toFixed(1)} · ${toScale5(ser.weightedImpact).toFixed(1)} · ${toScale5(ser.weightedBitter).toFixed(1)} /5`,
+                                value: `${formatRating5(toScale5(ser.weightedPower))} · ${formatRating5(toScale5(ser.weightedImpact))} · ${formatRating5(toScale5(ser.weightedBitter))} /5`,
                                 tone: (serialMissing.missingAttributes ? 'rose' : 'emerald') as
                                   | 'emerald'
                                   | 'rose',
                               },
                               {
                                 label: 'Burn · Sugar · Aroma',
-                                value: `${toScale5(ser.weightedBurn ?? 4.5).toFixed(1)} · ${toScale5(ser.weightedSugar ?? 4.0).toFixed(1)} · ${toScale5(ser.weightedAroma ?? 4.2).toFixed(1)} /5`,
+                                value: `${formatRating5(toScale5(ser.weightedBurn ?? 4.5))} · ${formatRating5(toScale5(ser.weightedSugar ?? 4.0))} · ${formatRating5(toScale5(ser.weightedAroma ?? 4.2))} /5`,
                                 tone: (serialMissing.missingAttributes ? 'rose' : 'emerald') as
                                   | 'emerald'
                                   | 'rose',

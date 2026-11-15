@@ -13,6 +13,7 @@ import {
   NolanPendingAction,
 } from '../types/nolan';
 import { formatRupiah, clampRating5 } from './tobaccoMath';
+import { buildNolanStockIndex, queryNolanStockIndex } from './stockScaleEngine';
 
 /**
  * blader/humanizer Post-Processor:
@@ -455,8 +456,21 @@ export function runNolanSmartEngine(params: {
   }
 
   // ============================================================================
-  // 1. O(N) SINGLE-PASS WAREHOUSE AGGREGATION
+  // 1. O(N) SINGLE-PASS WAREHOUSE AGGREGATION & PRE-COMPUTED STOCK INDEX
   // ============================================================================
+  const stockIndex = buildNolanStockIndex(rawTobaccos);
+  const indexedInstantReply = queryNolanStockIndex(stockIndex, rawTobaccos, rawText);
+  if (indexedInstantReply) {
+    return {
+      handledInstantly: true,
+      intent: 'STOCK_QUERY',
+      replyMarkdown: humanizeNolanText(indexedInstantReply),
+      recommendedBlend: null,
+      newLearnedRule: null,
+      executionMs: elapsed(),
+    };
+  }
+
   const activeRaw: RawTobacco[] = [];
   const depletedRaw: RawTobacco[] = [];
   let totalRawNetKg = 0;

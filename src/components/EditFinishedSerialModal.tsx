@@ -4,7 +4,7 @@ import {
   X,
   Save,
   Edit3,
-  Scale,
+  Weight,
   DollarSign,
   Sliders,
   Lock,
@@ -112,12 +112,12 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
   const [hppPerNetKg, setHppPerNetKg] = useState(0);
   const [factoryPricePerKg, setFactoryPricePerKg] = useState(0);
 
-  const [power, setPower] = useState(4.5);
-  const [impact, setImpact] = useState(4.5);
-  const [bitter, setBitter] = useState(4.0);
-  const [burn, setBurn] = useState(4.5);
-  const [sugar, setSugar] = useState(4.0);
-  const [aroma, setAroma] = useState(4.2);
+  const [power, setPower] = useState(4);
+  const [impact, setImpact] = useState(4);
+  const [bitter, setBitter] = useState(4);
+  const [burn, setBurn] = useState(5);
+  const [sugar, setSugar] = useState(4);
+  const [aroma, setAroma] = useState(4);
 
   // Refs for Enter-to-Advance focus sequencing
   const factoryPriceInputRef = useRef<HTMLInputElement>(null);
@@ -745,7 +745,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
               <div className="bg-black p-3 rounded-xl border border-zinc-800 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
-                    <Scale className="w-3.5 h-3.5 text-zinc-400" />
+                    <Weight className="w-3.5 h-3.5 text-zinc-400" />
                     Timbangan &amp; Tarra
                   </span>
                   <span className="font-mono text-[11px] text-zinc-300">
@@ -884,12 +884,12 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
               </div>
             )}
 
-            {/* TAB 3: 6 Karakteristik (/5) */}
+            {/* TAB 3: Karakteristik (/5) */}
             {(activeTab === 'character' || activeTab === 'all') && (
               <div className="bg-black p-3 rounded-xl border border-zinc-800 space-y-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
                   <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                  6 Karakteristik Rasa (/5)
+                  Karakteristik Rasa (/5)
                 </span>
                 <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                   {(
@@ -906,7 +906,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                       {renderFieldLabel(item.lbl, item.key, true)}
                       <NumericInput
                         value={item.val}
-                        onChange={(v) => item.set(clampRating5(v))}
+                        onChange={(v) => item.set(Math.max(0, Math.min(5, Math.round(clampRating5(v)))))}
                         disabled={!isUnlocked(item.key)}
                         className={getLockedInputClass(
                           item.key,

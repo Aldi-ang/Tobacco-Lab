@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatRating5 } from '../utils/tobaccoMath';
 
 export interface CharacterParamBadge {
   label: string;
@@ -147,7 +148,7 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
                       {param.shortLabel}
                     </span>
                     <span className="font-mono font-black text-xs sm:text-sm text-amber-400 leading-tight mt-0.5">
-                      {param.value.toFixed(1)}
+                      {formatRating5(param.value)}
                     </span>
                   </div>
                 ))}

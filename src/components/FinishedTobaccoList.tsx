@@ -31,6 +31,7 @@ import {
   formatRupiah,
   formatSheetRp,
   clampRating5,
+  formatRating5,
   buildFinishedBatchSyncCsv,
   formatSerialLineage,
   hasSerialLineage,
@@ -193,7 +194,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
       {
         id: 'all-6-characters',
         shortTab: 'Rasa /5',
-        label: '6 Karakter (/5)',
+        label: 'Atribut (/5)',
         value: '',
         characterParams: [
           { label: 'Power', shortLabel: 'Pwr', value: power5 },
@@ -942,7 +943,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                 {/* 6 Sensory Ratings (/5) */}
                 <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2">
                   <span className="text-[10px] font-extrabold uppercase text-zinc-200 block">
-                    6 Parameter Karakteristik Rasa (/5)
+                    Parameter Karakteristik Rasa (/5)
                   </span>
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center">
                     {[
@@ -961,7 +962,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                           {r.lbl}
                         </div>
                         <div className="font-mono font-black text-amber-400 text-base sm:text-lg mt-0.5">
-                          {r.val.toFixed(1)}
+                          {formatRating5(r.val)}
                         </div>
                       </div>
                     ))}

@@ -29,6 +29,7 @@ import {
   AutoBlendParameterDiagnostic,
   formatRupiah,
 } from '../utils/tobaccoMath';
+import { CategorizedStockPicker } from './CategorizedStockPicker';
 
 interface AutoRacikModalProps {
   isOpen: boolean;
@@ -84,20 +85,20 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
     getAllowedGradesForTarget('D', { includeTargetFamily: true, includeTopPlus: false })
   );
 
-  // 3. Sensory Character Expectations (0.0 - 5.0 scale, initialized from actual stock pool)
+  // 3. Sensory Character Expectations (0 - 5 whole scale, initialized from actual stock pool)
   const [targetSensory, setTargetSensory] = useState<AutoBlendSensoryTargets>(() => {
     if (availableTobaccos.length === 0) {
       return {
-        power: 4.1,
-        impact: 4.0,
-        bitter: 2.5,
-        burn: 4.5,
-        sugar: 4.0,
-        aroma: 4.2,
+        power: 4,
+        impact: 4,
+        bitter: 3,
+        burn: 5,
+        sugar: 4,
+        aroma: 4,
       };
     }
     const avg = (fn: (t: RawTobacco) => number) =>
-      Number((availableTobaccos.reduce((s, t) => s + fn(t), 0) / availableTobaccos.length).toFixed(1));
+      Math.max(0, Math.min(5, Math.round(availableTobaccos.reduce((s, t) => s + fn(t), 0) / availableTobaccos.length)));
     return {
       power: avg((t) => Number(t.powerRating ?? 0)),
       impact: avg((t) => Number(t.impactRating ?? 0)),
@@ -519,7 +520,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                       <span>Hasil Racikan</span>
                     </span>
                   </div>
-                  <span className="font-mono text-zinc-500 hidden sm:inline">Skala 0.0 – 5.0</span>
+                  <span className="font-mono text-zinc-500 hidden sm:inline">Skala 0 – 5</span>
                 </div>
 
                 {/* Compact 2-Column Grid of 6 Sensory Attributes */}
@@ -574,13 +575,13 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                               type="number"
                               min={0}
                               max={5}
-                              step={0.1}
+                              step={1}
                               value={val}
                               onChange={(e) => {
                                 const parsed = parseFloat(e.target.value);
                                 const num = Number.isNaN(parsed)
                                   ? 0
-                                  : Math.max(0, Math.min(5, parsed));
+                                  : Math.max(0, Math.min(5, Math.round(parsed)));
                                 setTargetSensory((prev) => ({
                                   ...prev,
                                   [field.key]: num,
@@ -598,7 +599,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                               }`}
                               title="Hasil rata-rata racikan"
                             >
-                              → {achieved.toFixed(1)}
+                              → {Number.isInteger(achieved) ? achieved : achieved.toFixed(1)}
                             </span>
                           </div>
                         </div>
@@ -642,18 +643,20 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                             }`}
                           />
 
-                          {/* Native Interactive Range Input Overlaid (0.0 to 5.0) */}
+                          {/* Native Interactive Range Input Overlaid (0 to 5 integer) */}
                           <input
                             type="range"
                             min={0}
                             max={5}
-                            step={0.1}
+                            step={1}
                             value={val}
                             onChange={(e) => {
                               const parsed = parseFloat(e.target.value);
                               setTargetSensory((prev) => ({
                                 ...prev,
-                                [field.key]: Number.isNaN(parsed) ? 0 : parsed,
+                                [field.key]: Number.isNaN(parsed)
+                                  ? 0
+                                  : Math.max(0, Math.min(5, Math.round(parsed))),
                               }));
                             }}
                             aria-label={field.label}

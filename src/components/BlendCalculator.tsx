@@ -50,6 +50,7 @@ import {
   buildSerialFactoryCalcDetail,
 } from './CalculationDetailModal';
 import { AutoRacikModal } from './AutoRacikModal';
+import { CategorizedStockPicker } from './CategorizedStockPicker';
 
 const DRAFT_STORAGE_KEY = 'kretek_master_save_draft_v3';
 
@@ -91,6 +92,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
   });
 
   const [isAutoRacikOpen, setIsAutoRacikOpen] = useState(false);
+  const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
+  const [onlyCompletePicker, setOnlyCompletePicker] = useState(false);
   const [autoRacikBannerMsg, setAutoRacikBannerMsg] = useState<string | null>(null);
   const [confirmRemoveIngIdx, setConfirmRemoveIngIdx] = useState<number | null>(null);
   const [confirmClearAllBlend, setConfirmClearAllBlend] = useState<boolean>(false);
@@ -404,16 +407,17 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
     if (!raw) return;
     if (ingredients.some((item) => item.tobaccoId === tobaccoId)) return;
 
+    const defaultUseKg = Math.min(25, Math.max(1, Number(raw.currentStockNetKg) || 25));
     const newItem: BlendIngredient = {
       tobaccoId: raw.id,
       tobaccoName: raw.name,
       origin: raw.origin,
       sellerName: raw.sellerName,
-      usedNetKg: 25,
+      usedNetKg: defaultUseKg,
       percentageInBlend: 0,
       realCostPerNetKg: raw.realCostPerNetKg,
       effectiveCostPerRealKg: raw.effectiveCostPerRealKg ?? raw.realCostPerNetKg,
-      subtotalCost: 25 * raw.realCostPerNetKg,
+      subtotalCost: defaultUseKg * raw.realCostPerNetKg,
       powerRating: clampRating5(raw.powerRating),
       impactRating: clampRating5(raw.impactRating),
       bitterRating: clampRating5(raw.bitterRating),
@@ -424,7 +428,41 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
       characterNotes: raw.characterNotes,
     };
 
-    setIngredients([...ingredients, newItem]);
+    setIngredients((prev) => [...prev, newItem]);
+  };
+
+  const handleAddMultipleIngredients = (tobaccoIds: string[]) => {
+    const existingSet = new Set(ingredients.map((i) => i.tobaccoId));
+    const added: BlendIngredient[] = [];
+    for (const id of tobaccoIds) {
+      if (existingSet.has(id)) continue;
+      const raw = rawTobaccos.find((t) => t.id === id);
+      if (!raw) continue;
+      existingSet.add(id);
+      const defaultUseKg = Math.min(25, Math.max(1, Number(raw.currentStockNetKg) || 25));
+      added.push({
+        tobaccoId: raw.id,
+        tobaccoName: raw.name,
+        origin: raw.origin,
+        sellerName: raw.sellerName,
+        usedNetKg: defaultUseKg,
+        percentageInBlend: 0,
+        realCostPerNetKg: raw.realCostPerNetKg,
+        effectiveCostPerRealKg: raw.effectiveCostPerRealKg ?? raw.realCostPerNetKg,
+        subtotalCost: defaultUseKg * raw.realCostPerNetKg,
+        powerRating: clampRating5(raw.powerRating),
+        impactRating: clampRating5(raw.impactRating),
+        bitterRating: clampRating5(raw.bitterRating),
+        burnRating: clampRating5(raw.burnRating ?? 4.5),
+        sugarRating: clampRating5(raw.sugarRating ?? 4.0),
+        aromaRating: clampRating5(raw.aromaRating ?? 4.2),
+        colorGrade: raw.colorGrade,
+        characterNotes: raw.characterNotes,
+      });
+    }
+    if (added.length > 0) {
+      setIngredients((prev) => [...prev, ...added]);
+    }
   };
 
   const handleWeightChange = (index: number, weight: number) => {
@@ -787,28 +825,74 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
               </div>
 
               {unusedTobaccos.length > 0 && (
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      handleAddIngredient(e.target.value);
-                      e.target.value = '';
-                    }
-                  }}
-                  defaultValue=""
-                  className="h-9 px-3 bg-black border border-zinc-800 rounded-xl text-xs font-bold text-white focus:outline-hidden focus:border-zinc-700 cursor-pointer max-w-[250px] sm:max-w-xs truncate"
-                  aria-label="Tambah Bahan Tembakau"
-                >
-                  <option value="" disabled>
-                    + Tambah Bahan...
-                  </option>
-                  {unusedTobaccos.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} [{t.colorGrade}] • Stok: {t.currentStockNetKg} kg • {formatRupiah(t.realCostPerNetKg)}/kg
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryPickerOpen((v) => !v)}
+                    className={`h-9 px-3 rounded-xl text-xs font-extrabold border inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
+                      isCategoryPickerOpen
+                        ? 'bg-amber-500 text-black border-amber-400'
+                        : 'bg-zinc-900 hover:bg-zinc-800 text-amber-300 border-amber-500/50'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      {isCategoryPickerOpen
+                        ? 'Tutup Kategori Gudang'
+                        : `Pilih per Kategori (${unusedTobaccos.length})`}
+                    </span>
+                  </button>
+
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleAddIngredient(e.target.value);
+                        e.target.value = '';
+                      }
+                    }}
+                    defaultValue=""
+                    className="h-9 px-3 bg-black border border-zinc-800 rounded-xl text-xs font-bold text-white focus:outline-hidden focus:border-zinc-700 cursor-pointer max-w-[220px] truncate"
+                    aria-label="Tambah Bahan Tembakau"
+                  >
+                    <option value="" disabled>
+                      + Pilih Cepat ({Math.min(100, unusedTobaccos.length)})...
                     </option>
-                  ))}
-                </select>
+                    {unusedTobaccos.slice(0, 100).map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} [{t.colorGrade}] • Stok: {t.currentStockNetKg} kg •{' '}
+                        {formatRupiah(t.realCostPerNetKg)}/kg
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
             </div>
+
+            {isCategoryPickerOpen && (
+              <div className="p-3 rounded-xl bg-zinc-950/95 border border-amber-500/40 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+                    Pilih Bahan Berdasarkan Kategori (Daerah / Grade / Penjual)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryPickerOpen(false)}
+                    className="text-[11px] font-bold text-zinc-400 hover:text-white cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                </div>
+                <CategorizedStockPicker
+                  availableTobaccos={rawTobaccos.filter((t) => (t.currentStockNetKg || 0) > 0)}
+                  mode="ADD_TO_BLEND"
+                  onlyCompleteWithPrice={onlyCompletePicker}
+                  onChangeOnlyCompleteWithPrice={setOnlyCompletePicker}
+                  alreadyInBlendIds={ingredients.map((i) => i.tobaccoId)}
+                  onAddSingleToBlend={handleAddIngredient}
+                  onAddMultipleToBlend={handleAddMultipleIngredients}
+                />
+              </div>
+            )}
 
             {ingredients.length === 0 ? (
               <div className="py-8 px-4 text-center border-2 border-dashed border-zinc-800 rounded-xl bg-black/80 space-y-3">
@@ -818,10 +902,18 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                     Meja Racikan Bersih (Belum Ada Bahan Tembakau)
                   </p>
                   <p className="text-[11px] text-zinc-400 max-w-md mx-auto">
-                    Pilih bahan satu per satu melalui menu <b>+ Tambah Bahan...</b> di kanan atas, atau gunakan mesin <b>Auto-Racik</b> untuk meracik otomatis berdasarkan Grade, 6 Karakter, Daerah Asal & Target HPP.
+                    Klik <b>Pilih per Kategori</b> untuk membuka stok yang sudah dikelompokkan per Daerah, Grade &amp; Penjual, atau gunakan <b>Auto-Racik</b> untuk meracik otomatis dari ribuan stok.
                   </p>
                 </div>
-                <div className="flex items-center justify-center gap-2 pt-1">
+                <div className="flex items-center justify-center gap-2 flex-wrap pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryPickerOpen(true)}
+                    className="h-9 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-amber-500/50 text-amber-300 font-black text-xs inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Buka Folder Kategori Gudang</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setIsAutoRacikOpen(true)}

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   X,
   Check,
-  Scale,
+  Weight,
   DollarSign,
   Sparkles,
   UserCheck,
@@ -38,22 +38,22 @@ const CHARACTER_PRESETS = [
   {
     id: 'ringan',
     label: 'Ringan Halus',
-    values: { power: 2.5, impact: 2.5, bitter: 1.5, burn: 4.5, sugar: 3.5, aroma: 4.0 },
+    values: { power: 2, impact: 2, bitter: 1, burn: 5, sugar: 4, aroma: 4 },
   },
   {
     id: 'sedang',
     label: 'Sedang Seimbang',
-    values: { power: 3.5, impact: 3.5, bitter: 2.5, burn: 4.0, sugar: 3.5, aroma: 4.0 },
+    values: { power: 3, impact: 3, bitter: 2, burn: 4, sugar: 4, aroma: 4 },
   },
   {
     id: 'berat',
     label: 'Berat Mantap',
-    values: { power: 4.5, impact: 4.5, bitter: 3.5, burn: 4.0, sugar: 3.0, aroma: 4.2 },
+    values: { power: 5, impact: 5, bitter: 4, burn: 4, sugar: 3, aroma: 4 },
   },
   {
     id: 'manis',
     label: 'Manis Harum',
-    values: { power: 3.0, impact: 3.0, bitter: 1.5, burn: 4.5, sugar: 4.5, aroma: 4.8 },
+    values: { power: 3, impact: 3, bitter: 1, burn: 5, sugar: 5, aroma: 5 },
   },
 ];
 
@@ -223,7 +223,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
     {
       id: 'timbangan',
       label: 'Timbangan',
-      icon: <Scale className="w-3.5 h-3.5" />,
+      icon: <Weight className="w-3.5 h-3.5" />,
       isMissing: missingFlags.missingWeight,
     },
     {
@@ -240,7 +240,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
     },
     {
       id: 'info',
-      label: 'Info & Kemasan',
+      label: 'Info',
       icon: <UserCheck className="w-3.5 h-3.5" />,
       isMissing:
         missingFlags.missingSeller ||
@@ -534,7 +534,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <span className="text-[11px] font-bold text-zinc-300">
-                    Preset Cepat 6 Atribut:
+                    Preset Cepat Atribut:
                   </span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">

@@ -15,7 +15,7 @@ import {
   TobaccoGrade,
   RawTobacco,
 } from '../types/tobacco';
-import { GRADE_LABELS, TOBACCO_GRADE_ORDER, formatRupiah, clampRating5 } from '../utils/tobaccoMath';
+import { GRADE_LABELS, TOBACCO_GRADE_ORDER, formatRupiah, clampRating5, formatRating5 } from '../utils/tobaccoMath';
 
 export interface GradeCompositionGroup {
   grade: TobaccoGrade;
@@ -436,7 +436,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
                 {item.label}
               </span>
               <span className="font-mono font-black text-amber-400 text-2xl sm:text-3xl mt-1">
-                {item.val.toFixed(1)}
+                {formatRating5(item.val)}
                 <span className="text-xs sm:text-sm text-zinc-400 font-bold">/5</span>
               </span>
               <span className="text-xs text-zinc-400 mt-1 font-medium">{item.desc}</span>

@@ -65,8 +65,8 @@ function getShortRadialLabel(opt: HoldQuickOption): string {
   const lower = opt.label.toLowerCase();
   if (lower.includes('timbangan')) return 'Timbangan';
   if (lower.includes('harga')) return 'Harga / KG';
-  if (lower.includes('atribut') || lower.includes('grade')) return '6 Atribut';
-  if (lower.includes('penjual') || lower.includes('kemasan')) return 'Info & Kms';
+  if (lower.includes('atribut') || lower.includes('grade')) return 'Atribut';
+  if (lower.includes('penjual') || lower.includes('kemasan') || lower.includes('info')) return 'Info';
   if (lower.includes('racikan')) return 'Ke Racikan';
   if (lower.includes('diterima') || lower.includes('accepted')) return 'Diterima';
   if (lower.includes('reject')) return 'Reject';

@@ -50,6 +50,7 @@ function getGeminiClient(apiKeyOverride?: string): GoogleGenAI {
 
 // 24/7 Official Multi-Model Cascade (from @google/genai skill):
 const NOLAN_24X7_MODEL_CASCADE = [
+  'gemini-4-hydrogen',
   'gemini-3.8-flash',
   'gemini-flash-latest',
   'gemini-3.1-flash-lite',
@@ -73,13 +74,15 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
 }
 
 async function generateWith24x7Fallback(params: {
-  contents: string;
+  contents: any;
   config: Record<string, any>;
   maxTotalWaitMs?: number;
+  perModelTimeoutMs?: number;
 }): Promise<{ text: string; modelUsed: string }> {
   const apiKeys = getGeminiApiKeys();
   const keysToTry = apiKeys.length > 0 ? apiKeys : [undefined];
   const maxTotalWaitMs = params.maxTotalWaitMs ?? 12000;
+  const perModelTimeoutMs = params.perModelTimeoutMs ?? 6000;
   const startAll = Date.now();
   let lastError: unknown = null;
 
@@ -90,13 +93,14 @@ async function generateWith24x7Fallback(params: {
         throw lastError || new Error('Exceeded max wait budget, switching to Local Engine.');
       }
       const modelName = NOLAN_24X7_MODEL_CASCADE[i];
-      const modelConfig =
-        modelName === 'gemini-3.8-flash'
-          ? {
-              ...params.config,
-              thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-            }
-          : params.config;
+      const supportsLowThinking =
+        modelName === 'gemini-4-hydrogen' || modelName === 'gemini-3.8-flash';
+      const modelConfig = supportsLowThinking
+        ? {
+            ...params.config,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          }
+        : params.config;
 
       try {
         const response = await withTimeout(
@@ -105,7 +109,7 @@ async function generateWith24x7Fallback(params: {
             contents: params.contents,
             config: modelConfig,
           }),
-          6000,
+          perModelTimeoutMs,
           modelName
         );
         const text = (response.text ?? '').trim();
@@ -458,6 +462,352 @@ function detectPendingActionServer(params: {
 }
 
 // ============================================================================
+// PRE-COMPUTED STOCK INDEX (Self-contained in server.ts for Cloud Run Node v22)
+// ============================================================================
+function getServerMissingFlags(t: any) {
+  const missingSeller = !t?.sellerName || String(t.sellerName).trim().length === 0;
+  const missingWeight = (Number(t?.grossWeightKg) || 0) <= 0;
+  const missingPrice = (Number(t?.pricePerKgPurchase) || 0) <= 0;
+  const missingAttributes = t?.attributesConfirmed === false;
+  const missingLabels: string[] = [];
+  if (missingSeller) missingLabels.push('Penjual');
+  if (missingWeight) missingLabels.push('Timbangan');
+  if (missingPrice) missingLabels.push('Harga');
+  if (missingAttributes) missingLabels.push('6 Karakter');
+  return {
+    isIncomplete: missingLabels.length > 0,
+    missingSeller,
+    missingWeight,
+    missingPrice,
+    missingAttributes,
+    missingLabels,
+  };
+}
+
+function buildNolanStockIndex(rawTobaccos: any[]) {
+  const list = Array.isArray(rawTobaccos) ? rawTobaccos : [];
+  const active = list.filter((t) => (Number(t?.currentStockNetKg) || 0) > 0);
+
+  let totalActiveNetKg = 0;
+  let totalModalRp = 0;
+  let totalWeightProfitKg = 0;
+  let totalWeightProfitRp = 0;
+
+  let missingWeightCount = 0;
+  let missingPriceCount = 0;
+  let missingSellerCount = 0;
+  let missingAttributesCount = 0;
+  const incompleteItems: any[] = [];
+
+  const originMap = new Map<string, any[]>();
+  const gradeMap = new Map<string, any[]>();
+  const sellerMap = new Map<string, any[]>();
+
+  for (const t of list) {
+    totalModalRp += Math.round(Number(t?.totalModalAsal) || 0);
+    totalWeightProfitKg += Number(t?.purchaseWeightProfitKg) || 0;
+    totalWeightProfitRp += Math.round(Number(t?.purchaseWeightProfitRp) || 0);
+
+    const flags = getServerMissingFlags(t);
+    if (flags.isIncomplete) {
+      incompleteItems.push(t);
+      if (flags.missingWeight) missingWeightCount++;
+      if (flags.missingPrice) missingPriceCount++;
+      if (flags.missingSeller) missingSellerCount++;
+      if (flags.missingAttributes) missingAttributesCount++;
+    }
+  }
+
+  for (const t of active) {
+    const kg = Number(t?.currentStockNetKg) || 0;
+    totalActiveNetKg += kg;
+
+    const origKey = String(t?.origin || 'Daerah Belum Diisi').trim() || 'Daerah Belum Diisi';
+    const oList = originMap.get(origKey);
+    if (oList) oList.push(t);
+    else originMap.set(origKey, [t]);
+
+    const grdKey = String(t?.colorGrade || 'D').toUpperCase();
+    const gList = gradeMap.get(grdKey);
+    if (gList) gList.push(t);
+    else gradeMap.set(grdKey, [t]);
+
+    const selKey = String(t?.sellerName || '').trim() || 'Penjual Belum Diisi';
+    const sList = sellerMap.get(selKey);
+    if (sList) sList.push(t);
+    else sellerMap.set(selKey, [t]);
+  }
+
+  const computeBucket = (items: any[]) => {
+    let netKg = 0;
+    let weightedHpp = 0;
+    let pricedKg = 0;
+    let minHpp = Infinity;
+    let maxHpp = 0;
+    for (const item of items) {
+      const k = Number(item?.currentStockNetKg) || 0;
+      netKg += k;
+      const hpp = Number(item?.realCostPerNetKg) || 0;
+      if (hpp > 0) {
+        weightedHpp += k * hpp;
+        pricedKg += k;
+        if (hpp < minHpp) minHpp = hpp;
+        if (hpp > maxHpp) maxHpp = hpp;
+      }
+    }
+    return {
+      totalNetKg: Number(netKg.toFixed(2)),
+      avgHppPerKg: pricedKg > 0 ? Math.round(weightedHpp / pricedKg) : 0,
+      minHppPerKg: minHpp === Infinity ? 0 : Math.round(minHpp),
+      maxHppPerKg: Math.round(maxHpp),
+    };
+  };
+
+  const byOrigin = Array.from(originMap.entries())
+    .map(([origin, items]) => {
+      const st = computeBucket(items);
+      const wpKg = Number(
+        items.reduce((s, i) => s + (Number(i?.purchaseWeightProfitKg) || 0), 0).toFixed(2)
+      );
+      const gradesAvailable = Array.from(
+        new Set(items.map((i) => String(i?.colorGrade || 'D').toUpperCase()))
+      );
+      return {
+        origin,
+        itemCount: items.length,
+        activeNetKg: st.totalNetKg,
+        avgHppPerKg: st.avgHppPerKg,
+        minHppPerKg: st.minHppPerKg,
+        maxHppPerKg: st.maxHppPerKg,
+        weightProfitKg: wpKg,
+        gradesAvailable,
+      };
+    })
+    .sort((a, b) => b.activeNetKg - a.activeNetKg);
+
+  const byGrade = Array.from(gradeMap.entries())
+    .map(([grade, items]) => {
+      const st = computeBucket(items);
+      const originsAvailable = Array.from(
+        new Set(items.map((i) => String(i?.origin || '').trim()).filter(Boolean))
+      );
+      return {
+        grade,
+        itemCount: items.length,
+        activeNetKg: st.totalNetKg,
+        avgHppPerKg: st.avgHppPerKg,
+        originsAvailable,
+      };
+    })
+    .sort(
+      (a, b) => SERVER_ALL_GRADES.indexOf(a.grade) - SERVER_ALL_GRADES.indexOf(b.grade)
+    );
+
+  const bySeller = Array.from(sellerMap.entries())
+    .map(([sellerName, items]) => {
+      const st = computeBucket(items);
+      const totalModal = Math.round(
+        items.reduce((s, i) => s + (Number(i?.totalModalAsal) || 0), 0)
+      );
+      const wpKg = Number(
+        items.reduce((s, i) => s + (Number(i?.purchaseWeightProfitKg) || 0), 0).toFixed(2)
+      );
+      const origins = Array.from(
+        new Set(items.map((i) => String(i?.origin || '').trim()).filter(Boolean))
+      );
+      const grades = Array.from(
+        new Set(items.map((i) => String(i?.colorGrade || 'D').toUpperCase()))
+      );
+      return {
+        sellerName,
+        itemCount: items.length,
+        activeNetKg: st.totalNetKg,
+        totalModalRp: totalModal,
+        weightProfitKg: wpKg,
+        origins,
+        grades,
+      };
+    })
+    .sort((a, b) => b.activeNetKg - a.activeNetKg);
+
+  const fifoOldestActive = [...active]
+    .sort((a, b) =>
+      String(a?.purchaseDate || '9999-12-31').localeCompare(
+        String(b?.purchaseDate || '9999-12-31')
+      )
+    )
+    .slice(0, 15);
+
+  return {
+    totalCatalogCount: list.length,
+    activeItemCount: active.length,
+    totalActiveNetKg: Number(totalActiveNetKg.toFixed(2)),
+    totalModalRp: Math.round(totalModalRp),
+    totalWeightProfitKg: Number(totalWeightProfitKg.toFixed(2)),
+    totalWeightProfitRp: Math.round(totalWeightProfitRp),
+    completeActiveCount:
+      active.length -
+      incompleteItems.filter((t) => (Number(t?.currentStockNetKg) || 0) > 0).length,
+    incompleteSummary: {
+      totalIncomplete: incompleteItems.length,
+      missingWeightCount,
+      missingPriceCount,
+      missingSellerCount,
+      missingAttributesCount,
+      incompleteItems,
+    },
+    byOrigin,
+    byGrade,
+    bySeller,
+    fifoOldestActive,
+  };
+}
+
+function queryNolanStockIndex(
+  index: ReturnType<typeof buildNolanStockIndex>,
+  _rawTobaccos: any[],
+  queryText: string
+): string | null {
+  const q = String(queryText || '').toLowerCase().trim();
+  if (!q) return null;
+
+  if (
+    /\b(belum\s+lengkap|menyusul|belum\s+diisi|belum\s+ada\s+harga|butuh\s+harga|butuh\s+timbangan|harga\s+kosong|timbangan\s+kosong|data\s+kurang)\b/i.test(
+      q
+    )
+  ) {
+    const inc = index.incompleteSummary;
+    if (inc.totalIncomplete === 0) {
+      return `✅ Semua data stok di gudang (${index.totalCatalogCount} lot • ${index.totalActiveNetKg} kg) sudah lengkap 100%! Tidak ada stok yang harga atau timbangannya masih kosong.`;
+    }
+    const sampleLines = inc.incompleteItems
+      .slice(0, 8)
+      .map((t: any, idx: number) => {
+        const flags = getServerMissingFlags(t);
+        return `${idx + 1}. ⏳ ${t.name} (${t.origin} • Grade ${t.colorGrade}) — Kurang: ${flags.missingLabels.join(', ')}`;
+      })
+      .join('\n');
+
+    return [
+      `⏳ Saat ini ada ${inc.totalIncomplete} stok tembakau yang datanya masih menyusul / belum lengkap (dari total ${index.totalCatalogCount} stok):`,
+      ``,
+      `• Belum Ada Timbangan (Bruto 0 kg): ${inc.missingWeightCount} stok`,
+      `• Belum Ada Harga Beli (Rp 0): ${inc.missingPriceCount} stok`,
+      `• Belum Ada Nama Penjual: ${inc.missingSellerCount} stok`,
+      `• Belum Ada 6 Karakter Rasa: ${inc.missingAttributesCount} stok`,
+      ``,
+      `Daftar stok yang perlu dilengkapi:`,
+      sampleLines,
+    ].join('\n');
+  }
+
+  if (
+    /\b(rekap\s+daerah|per\s+daerah|kategori\s+daerah|stok\s+per\s+daerah|kelompok\s+daerah)\b/i.test(
+      q
+    )
+  ) {
+    if (index.byOrigin.length === 0) {
+      return `📦 Belum ada stok aktif di gudang saat ini.`;
+    }
+    const lines = index.byOrigin
+      .slice(0, 12)
+      .map(
+        (o, idx) =>
+          `${idx + 1}. 📍 ${o.origin}: ${o.itemCount} lot (${o.activeNetKg} kg) • Grade [${o.gradesAvailable.join(', ')}] • Rata2 HPP ${
+            o.avgHppPerKg > 0 ? 'Rp ' + o.avgHppPerKg.toLocaleString('id-ID') + '/kg' : 'Menyusul'
+          }`
+      )
+      .join('\n');
+    return [
+      `📊 Rekap Indeks Stok Gudang per Daerah Asal (${index.activeItemCount} lot aktif • ${index.totalActiveNetKg} kg):`,
+      ``,
+      lines,
+    ].join('\n');
+  }
+
+  if (
+    /\b(rekap\s+penjual|per\s+penjual|daftar\s+penjual|daftar\s+petani|siapa\s+saja\s+penjual)\b/i.test(
+      q
+    )
+  ) {
+    if (index.bySeller.length === 0) {
+      return `📦 Belum ada data penjual di stok aktif saat ini.`;
+    }
+    const lines = index.bySeller
+      .slice(0, 12)
+      .map(
+        (s, idx) =>
+          `${idx + 1}. 👤 ${s.sellerName}: ${s.itemCount} lot (${s.activeNetKg} kg) • Daerah ${s.origins.join(', ')} • Grade [${s.grades.join(', ')}] • Weight Profit +${s.weightProfitKg} kg`
+      )
+      .join('\n');
+    return [
+      `👥 Rekap Stok Gudang per Penjual / Petani (${index.bySeller.length} penjual):`,
+      ``,
+      lines,
+    ].join('\n');
+  }
+
+  if (/\b(fifo|paling\s+lama|stok\s+lama|stok\s+tua|mengendap)\b/i.test(q)) {
+    if (index.fifoOldestActive.length === 0) {
+      return `📦 Belum ada stok aktif di gudang.`;
+    }
+    const lines = index.fifoOldestActive
+      .slice(0, 8)
+      .map(
+        (t: any, idx: number) =>
+          `${idx + 1}. 🗓️ [${t.purchaseDate || '-'}] ${t.name} (${t.origin} • Grade ${t.colorGrade}) — Sisa ${t.currentStockNetKg} kg • ${
+            Number(t.realCostPerNetKg) > 0
+              ? 'Rp ' + Math.round(Number(t.realCostPerNetKg)).toLocaleString('id-ID') + '/kg'
+              : 'Harga menyusul'
+          }`
+      )
+      .join('\n');
+    return [
+      `🗓️ Urutan Stok Paling Lama di Gudang (Prioritas FIFO untuk Diracik Duluan):`,
+      ``,
+      lines,
+    ].join('\n');
+  }
+
+  return null;
+}
+
+function formatNolanIndexDigestForPrompt(index: ReturnType<typeof buildNolanStockIndex>): string {
+  const originLines = index.byOrigin
+    .slice(0, 15)
+    .map(
+      (o) =>
+        `  - ${o.origin}: ${o.itemCount} lot, ${o.activeNetKg} kg, Grade [${o.gradesAvailable.join(',')}], Avg HPP Rp ${o.avgHppPerKg.toLocaleString('id-ID')}/kg, WeightProfit +${o.weightProfitKg}kg`
+    )
+    .join('\n');
+
+  const gradeLines = index.byGrade
+    .map(
+      (g) =>
+        `  - Grade ${g.grade}: ${g.itemCount} lot, ${g.activeNetKg} kg, Avg HPP Rp ${g.avgHppPerKg.toLocaleString('id-ID')}/kg, Daerah [${g.originsAvailable.slice(0, 5).join(', ')}]`
+    )
+    .join('\n');
+
+  const sellerLines = index.bySeller
+    .slice(0, 12)
+    .map(
+      (s) =>
+        `  - ${s.sellerName}: ${s.itemCount} lot (${s.activeNetKg} kg), Modal Rp ${s.totalModalRp.toLocaleString('id-ID')}, WeightProfit +${s.weightProfitKg}kg`
+    )
+    .join('\n');
+
+  return [
+    `=== INDEKS GUDANG SKALA BESAR (PRE-COMPUTED CUBE) ===`,
+    `Total Katalog: ${index.totalCatalogCount} lot | Stok Aktif (>0kg): ${index.activeItemCount} lot (${index.totalActiveNetKg} kg)`,
+    `Total Modal Gudang: Rp ${index.totalModalRp.toLocaleString('id-ID')} | Total Weight Profit: +${index.totalWeightProfitKg} kg (+Rp ${index.totalWeightProfitRp.toLocaleString('id-ID')})`,
+    `Stok Lengkap Siap Hitung: ${index.completeActiveCount} lot | Stok Belum Lengkap (Menyusul): ${index.incompleteSummary.totalIncomplete} lot (Butuh Timbangan: ${index.incompleteSummary.missingWeightCount}, Butuh Harga: ${index.incompleteSummary.missingPriceCount}, Butuh Penjual: ${index.incompleteSummary.missingSellerCount})`,
+    `Rekap per Daerah:\n${originLines || '  (Kosong)'}`,
+    `Rekap per Grade:\n${gradeLines || '  (Kosong)'}`,
+    `Rekap per Penjual Teratas:\n${sellerLines || '  (Kosong)'}`,
+  ].join('\n');
+}
+
+// ============================================================================
 // DETERMINISTIC 24/7 SMART ENGINE (Self-contained in server.ts for Cloud Run)
 // ============================================================================
 function buildDeterministicNolanFallback(params: {
@@ -582,6 +932,22 @@ function buildDeterministicNolanFallback(params: {
       hasRecommendation: false,
       recommendedBlend: null,
       navigateTo: navIntent.target,
+      pendingAction: null,
+      learnedRulesCount: (nolanMemory?.learnedRules || []).length,
+    };
+  }
+
+  // 2b. Fast Pre-Computed Stock Index query for 1,000+ stocks (per daerah, per penjual, belum lengkap, FIFO)
+  const serverStockIndex = buildNolanStockIndex(rawTobaccos as any);
+  const indexedReply = queryNolanStockIndex(serverStockIndex, rawTobaccos as any, rawText);
+  if (indexedReply) {
+    return {
+      handledInstantly: true,
+      replyMarkdown: humanizeServerText(indexedReply),
+      newLearnedRule: '',
+      hasRecommendation: false,
+      recommendedBlend: null,
+      navigateTo: null,
       pendingAction: null,
       learnedRulesCount: (nolanMemory?.learnedRules || []).length,
     };
@@ -1558,6 +1924,8 @@ app.use(express.json({ limit: '10mb' }));
 
       const paidSerials = acceptedSerials.filter((b: any) => b.paymentStatus === 'CAIR');
       const unpaidSerials = acceptedSerials.filter((b: any) => b.paymentStatus !== 'CAIR');
+      const nolanStockIndex = buildNolanStockIndex(rawTobaccos);
+      const stockIndexDigest = formatNolanIndexDigestForPrompt(nolanStockIndex);
 
       const systemInstruction = `
 Anda adalah Nolan, partner ahli racikan tembakau dan asisten operasional gudang di aplikasi Tobacco Lab untuk akun ${
@@ -1593,10 +1961,11 @@ KONTROL NAVIGASI OTOMATIS vs IZIN EDIT/TAMBAH DATA:
    - Jika pengguna meminta Anda meracik ("tolong racikkan...", "buatkan racikan..."), set hasRecommendation = true dan isi recommendedBlend. Katakan di replyMarkdown bahwa draf racikan sudah disiapkan di bawah dan menunggu pengguna menekan tombol Izinkan & Terapkan.
    - Jika pengguna meminta menambahkan stok tembakau mentah baru ("tambahkan tembakau...", "input barang baru..."), mengedit data stok mentah yang ada ("ubah harga...", "ganti sisa stok..."), atau mengubah status seri pabrik ("ubah status seri jadi diterima/reject"), isi objek "pendingAction" agar muncul kartu konfirmasi izin di layar pengguna.
 
-RINGKASAN DATA GUDANG SAAT INI:
+RINGKASAN DATA GUDANG & PRE-COMPUTED STOCK INDEX (SKALA RIBUAN STOK):
+${stockIndexDigest}
 - Total Modal Inventori Gudang Mentah: Rp ${totalModalGudangRp.toLocaleString('id-ID')}
 - Weight Profit Pembelian: +${totalWeightProfitKg.toFixed(1)} kg (+Rp ${totalWeightProfitRp.toLocaleString('id-ID')})
-- Status Seri Jadi: Total ${finishedBatches.length} seri (${acceptedSerials.length} Diterima Pabrik, ${rejectedSerials.length} Reject di Stok Jadi, ${waitingSerials.length} Menunggu Pabrik).
+- Status Seri Jadi: Total ${finishedBatches.length} seri (${acceptedSerials.length} Diterima Pabrik [${paidSerials.length} Cair / ${unpaidSerials.length} Belum Cair], ${rejectedSerials.length} Reject di Stok Jadi, ${waitingSerials.length} Menunggu Pabrik).
 
 DATA STOK TEMBAKAU MENTAH TERATAS (${availableRaw.length} aktif dari ${rawTobaccos.length} jenis):
 ${JSON.stringify(
@@ -1923,6 +2292,156 @@ Aturan Saat Ini: ${JSON.stringify(currentMemory?.learnedRules || [])}`,
     }
   });
 
+  // ============================================================================
+  // 5. KARTU GRADE CETAK — GEMINI VISION MULTI-CARD OCR (/api/scan-grade-card)
+  // ============================================================================
+  app.post('/api/scan-grade-card', async (req: Request, res: Response) => {
+    try {
+      const {
+        imageBase64,
+        mimeType = 'image/jpeg',
+        masterContext = {},
+        scanMode = 'NEW_STOCK',
+      } = req.body || {};
+      if (!imageBase64 || typeof imageBase64 !== 'string') {
+        res.status(400).json({ error: 'Foto Kartu Grade tidak ditemukan atau kosong.' });
+        return;
+      }
+
+      const cleanBase64 = imageBase64.includes('base64,')
+        ? imageBase64.split('base64,').pop() || ''
+        : imageBase64.trim();
+
+      if (!cleanBase64 || cleanBase64.length < 100) {
+        res.status(400).json({ error: 'Data gambar tidak valid atau terlalu kecil.' });
+        return;
+      }
+
+      const sellersList = Array.isArray(masterContext.sellers)
+        ? masterContext.sellers.slice(0, 80).join(', ')
+        : '';
+      const originsList = Array.isArray(masterContext.origins)
+        ? masterContext.origins.slice(0, 80).join(', ')
+        : '';
+      const packagingsList = Array.isArray(masterContext.packagings)
+        ? masterContext.packagings.slice(0, 30).join(', ')
+        : '';
+      const tobaccoNamesList = Array.isArray(masterContext.tobaccoNames)
+        ? masterContext.tobaccoNames.slice(0, 80).join(', ')
+        : '';
+      const existingLotsList = Array.isArray(masterContext.existingLotNumbers)
+        ? masterContext.existingLotNumbers.slice(0, 120).join(', ')
+        : '';
+
+      const barcodeModeNote =
+        scanMode === 'BARCODE_UPDATE'
+          ? '\nMODE BARCODE SCANNER AKTIF: Foto ini kemungkinan besar hanya menampilkan Barcode 1D & Prefix di sisi belakang kartu atau label thermal (seperti MTL001, MTL002, TMG-001, LOT-261115-001) TANPA kotak Grade/Karakter di depan. Jika hanya barcode/lot terlihat, WAJIB tetap ekstrak setiap lotNumber yang terbaca, isi colorGrade = "", dan isi rating = 0.'
+          : '';
+
+      const visionPrompt = `Anda adalah sistem pembaca Kartu Grade Tembakau gudang Tobacco Lab yang sangat akurat (mendukung kartu cetak A4 sisi depan & sisi belakang barcode besar, maupun struk Thermal 58mm/80mm).
+Tugas Anda: baca SEMUA Kartu Grade Cetak atau Barcode Lot yang terlihat dalam foto ini (bisa 1 kartu atau beberapa kartu sekaligus yang dijajar bersebelahan).${barcodeModeNote}
+
+ATURAN PEMBACAAN KETAT:
+1. Kode Lot (lotNumber): baca kode lot cetak atau tulis tangan di pojok kartu depan ATAU dari Barcode 1D Besar & teks Kode Prefix di sisi belakang kartu / struk thermal (bisa berformat standar LOT-260327-001 maupun prefix kustom tanpa strip seperti MTL001, MTL002, TMG-005). Jika kode mirip salah satu Lot yang sudah ada di gudang berikut, prioritaskan pencocokan exact: [${existingLotsList || 'belum ada'}].
+2. Grade Warna (colorGrade): lihat kotak/lingkaran yang DISILANG (X), DICORET (/), DICENTANG (✓), atau dilingkari pada pilihan Grade [A+, A, B+, B, C+, C, D+, D, E+, E, F+, F]. Jika foto hanya menampilkan barcode belakang tanpa tabel Grade, isi "".
+3. Kemasan (packagingType): lihat kotak/lingkaran yang DISILANG (X) / dicentang pada pilihan Kemasan. Cocokkan ke daftar Master Kemasan gudang: [${packagingsList || 'KRJ MUNTILAN, BAL, KARUNG, PETI'}].
+4. 6 Atribut Karakter (powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating):
+   - WAJIB BILANGAN BULAT 1, 2, 3, 4, atau 5 SAJA (TANPA DESIMAL!).
+   - Pada kartu, setiap atribut memiliki 5 kotak angka [1] [2] [3] [4] [5]. Baca angka yang DISILANG (tanda X), DICORET GARIS MIRING (/), DICENTANG, atau dilingkari oleh grader!
+   - HATI-HATI: abaikan angka 1-5 yang masih kosong/bersih tanpa coretan/silang; hanya pilih angka yang benar-benar ada tanda silang/coretan/lingkaran pena! Jika seluruh 5 kotak atribut tersebut kosong tanpa coretan sama sekali atau tidak terlihat (foto belakang), isi 0 agar sistem tahu belum diisi.
+5. Kamus Master Penjual & Daerah (Auto-Correction Tulisan Tangan):
+   - Cocokkan tulisan tangan Penjual dengan daftar penjual gudang ini jika mirip ejaannya: [${sellersList || 'bebas'}].
+   - Cocokkan tulisan tangan Daerah Asal dengan daftar daerah ini jika mirip/disingkat (contoh Mtl -> Muntilan, Tmg -> Temanggung, Wds -> Windusari): [${originsList || 'Muntilan, Temanggung, Windusari, Boyolali, Madura, Pamekasan, Bojonegoro, Jember'}].
+   - Referensi nama tembakau yang biasa masuk: [${tobaccoNamesList || 'bebas'}].
+6. Tahap 2 (Timbangan & Harga):
+   - grossWeightKg: angka Bruto (kg). Isi 0 jika masih kosong / belum ditimbang.
+   - pricePerKgPurchase: harga per kg dalam Rupiah penuh. Konversi singkatan gudang seperti "85k", "85rb", "85.000" menjadi 85000. Isi 0 jika masih kosong.
+7. Keraguan (uncertainFields & confidenceScore):
+   - Jika ada kotak/tulisan yang buram, miring, dua angka tercoret ragu, atau kurang jelas, WAJIB masukkan nama field-nya ke array uncertainFields (pilih dari: lotNumber, name, origin, sellerName, colorGrade, packagingType, grossWeightKg, pricePerKgPurchase, powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating) dan turunkan confidenceScore (10-100).
+   - Jika foto terlalu gelap/buram atau bukan foto Kartu Grade maupun Barcode, isi cards = [], detectedCount = 0, dan jelaskan di imageQualityWarning.`;
+
+      const result = await generateWith24x7Fallback({
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType: typeof mimeType === 'string' && mimeType ? mimeType : 'image/jpeg',
+                data: cleanBase64,
+              },
+            },
+            { text: visionPrompt },
+          ],
+        },
+        maxTotalWaitMs: 32000,
+        perModelTimeoutMs: 16000,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              detectedCount: {
+                type: Type.INTEGER,
+                description: 'Jumlah Kartu Grade atau Barcode yang terdeteksi dalam foto.',
+              },
+              imageQualityWarning: {
+                type: Type.STRING,
+                description: 'Peringatan singkat bila foto gelap, buram, atau terpotong. Kosongkan jika jelas.',
+              },
+              cards: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    cardIndex: { type: Type.INTEGER },
+                    lotNumber: { type: Type.STRING },
+                    name: { type: Type.STRING },
+                    origin: { type: Type.STRING },
+                    sellerName: { type: Type.STRING },
+                    colorGrade: { type: Type.STRING },
+                    packagingType: { type: Type.STRING },
+                    grossWeightKg: { type: Type.NUMBER },
+                    pricePerKgPurchase: { type: Type.NUMBER },
+                    powerRating: { type: Type.INTEGER },
+                    impactRating: { type: Type.INTEGER },
+                    bitterRating: { type: Type.INTEGER },
+                    burnRating: { type: Type.INTEGER },
+                    sugarRating: { type: Type.INTEGER },
+                    aromaRating: { type: Type.INTEGER },
+                    characterNotes: { type: Type.STRING },
+                    confidenceScore: { type: Type.INTEGER },
+                    uncertainFields: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING },
+                    },
+                  },
+                  required: ['lotNumber', 'confidenceScore'],
+                },
+              },
+            },
+            required: ['detectedCount', 'cards'],
+          },
+        },
+      });
+
+      const parsed = JSON.parse(result.text || '{}');
+      const cards = Array.isArray(parsed.cards) ? parsed.cards : [];
+      res.json({
+        detectedCount: Number(parsed.detectedCount) || cards.length,
+        imageQualityWarning: String(parsed.imageQualityWarning || '').trim(),
+        cards,
+        modelUsed: result.modelUsed,
+      });
+    } catch (error) {
+      console.error('Grade card scan error:', error);
+      res.status(500).json({
+        error:
+          error instanceof Error
+            ? `Gagal membaca foto Kartu Grade: ${error.message}`
+            : 'Gagal memproses foto Kartu Grade dengan Scanner AI.',
+      });
+    }
+  });
+
 async function startServer() {
   // ============================================================================
   // 5. VITE DEV MIDDLEWARE / PRODUCTION STATIC ASSETS
@@ -1936,8 +2455,26 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(
+      express.static(distPath, {
+        setHeaders: (res, filePath) => {
+          if (
+            filePath.endsWith('index.html') ||
+            filePath.endsWith('sw.js') ||
+            filePath.endsWith('registerSW.js') ||
+            filePath.endsWith('manifest.webmanifest')
+          ) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+          }
+        },
+      })
+    );
     app.get('*', (_req: Request, res: Response) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

@@ -116,22 +116,22 @@ const QUICK_CHARACTER_PRESETS = [
   {
     id: 'ringan',
     label: 'Ringan',
-    values: { power: 2.5, impact: 2.5, bitter: 1.5, burn: 4.5, sugar: 3.5, aroma: 4.0 },
+    values: { power: 2, impact: 2, bitter: 1, burn: 5, sugar: 4, aroma: 4 },
   },
   {
     id: 'sedang',
     label: 'Sedang',
-    values: { power: 3.5, impact: 3.5, bitter: 2.5, burn: 4.0, sugar: 3.5, aroma: 4.0 },
+    values: { power: 3, impact: 3, bitter: 2, burn: 4, sugar: 4, aroma: 4 },
   },
   {
     id: 'mantap',
     label: 'Mantap',
-    values: { power: 4.5, impact: 4.5, bitter: 3.5, burn: 4.0, sugar: 3.0, aroma: 4.2 },
+    values: { power: 5, impact: 5, bitter: 4, burn: 4, sugar: 3, aroma: 4 },
   },
   {
     id: 'manis',
     label: 'Manis Harum',
-    values: { power: 3.0, impact: 3.0, bitter: 1.5, burn: 4.5, sugar: 4.5, aroma: 4.8 },
+    values: { power: 3, impact: 3, bitter: 1, burn: 5, sugar: 5, aroma: 5 },
   },
 ];
 
@@ -994,7 +994,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 <div>
                   <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
                     <span className="text-[11px] font-bold text-zinc-200">
-                      5. Grade &amp; 6 Atribut Grading Lapangan
+                      5. Grade &amp; Atribut Grading Lapangan
                     </span>
                     <div className="flex items-center gap-1 flex-wrap">
                       {QUICK_CHARACTER_PRESETS.map((preset) => (

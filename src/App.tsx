@@ -23,6 +23,11 @@ import { GoogleSheetsExportModal } from './components/GoogleSheetsExportModal';
 import { BackupRestoreModal, TobaccoBackupPayload } from './components/BackupRestoreModal';
 import { NolanAgentModal } from './components/NolanAgentModal';
 import { SettingsView } from './components/SettingsView';
+import { GradeCardScannerModal } from './components/GradeCardScannerModal';
+import {
+  ReviewedScannedGradeCard,
+  materializeRawTobaccoFromReview,
+} from './utils/gradeCardEngine';
 import {
   NolanBrainMemory,
   NolanDecisionEpisode,
@@ -39,9 +44,12 @@ import {
   auth,
   db,
   doc,
+  collection,
   getDoc,
+  getDocs,
   getDocFromServer,
   setDoc,
+  writeBatch,
   onSnapshot,
   serverTimestamp,
   onAuthStateChanged,
@@ -51,6 +59,19 @@ import {
   OperationType,
   User,
 } from './firebase';
+import {
+  FIRESTORE_CHUNK_SIZE,
+  splitArrayIntoFirestoreChunks,
+  reassembleArrayFromFirestoreChunks,
+} from './utils/stockScaleEngine';
+import {
+  EncryptedVaultShard,
+  isEncryptedVaultShard,
+  packArrayIntoEncryptedVaultShards,
+  unpackArrayFromEncryptedVaultShards,
+  packLocalStorageVault,
+  unpackLocalStorageVault,
+} from './utils/vaultCryptoEngine';
 import {
   RawTobacco,
   FinishedTobaccoSerial,
@@ -159,7 +180,7 @@ export default function App() {
   const [rawTobaccos, setRawTobaccos] = useState<RawTobacco[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.RAW);
-      const parsed: RawTobacco[] = saved ? JSON.parse(saved) : INITIAL_RAW_TOBACCO;
+      const parsed = unpackLocalStorageVault<RawTobacco>(saved, INITIAL_RAW_TOBACCO);
       return parsed.map(normalizeRawTobaccoRounding);
     } catch {
       return INITIAL_RAW_TOBACCO.map(normalizeRawTobaccoRounding);
@@ -169,9 +190,10 @@ export default function App() {
   const [finishedBatches, setFinishedBatches] = useState<FinishedTobaccoSerial[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.FINISHED);
-      const parsed: FinishedTobaccoSerial[] = saved
-        ? JSON.parse(saved)
-        : INITIAL_FINISHED_TOBACCO;
+      const parsed = unpackLocalStorageVault<FinishedTobaccoSerial>(
+        saved,
+        INITIAL_FINISHED_TOBACCO
+      );
       return parsed.map(normalizeFinishedSerialRounding);
     } catch {
       return INITIAL_FINISHED_TOBACCO.map(normalizeFinishedSerialRounding);
@@ -181,7 +203,7 @@ export default function App() {
   const [rollSamples, setRollSamples] = useState<TobaccoRollSample[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.ROLLS);
-      return saved ? JSON.parse(saved) : INITIAL_ROLL_SAMPLES;
+      return unpackLocalStorageVault<TobaccoRollSample>(saved, INITIAL_ROLL_SAMPLES);
     } catch {
       return INITIAL_ROLL_SAMPLES;
     }
@@ -190,7 +212,7 @@ export default function App() {
   const [packagingList, setPackagingList] = useState<PackagingMaster[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.PACKAGING);
-      return saved ? JSON.parse(saved) : INITIAL_PACKAGING_MASTERS;
+      return unpackLocalStorageVault<PackagingMaster>(saved, INITIAL_PACKAGING_MASTERS);
     } catch {
       return INITIAL_PACKAGING_MASTERS;
     }
@@ -199,7 +221,7 @@ export default function App() {
   const [factoryList, setFactoryList] = useState<FactoryMaster[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.FACTORIES);
-      return saved ? JSON.parse(saved) : INITIAL_FACTORY_MASTERS;
+      return unpackLocalStorageVault<FactoryMaster>(saved, INITIAL_FACTORY_MASTERS);
     } catch {
       return INITIAL_FACTORY_MASTERS;
     }
@@ -230,6 +252,8 @@ export default function App() {
   const [stockInitialPanel, setStockInitialPanel] = useState<'raw' | 'rejected-finished'>('raw');
   const [isNolanModalOpen, setIsNolanModalOpen] = useState<boolean>(false);
   const [nolanInitialPrompt, setNolanInitialPrompt] = useState<string | null>(null);
+  const [isGradeScannerModalOpen, setIsGradeScannerModalOpen] = useState<boolean>(false);
+  const [gradeScannerInitialTab, setGradeScannerInitialTab] = useState<'scan' | 'print'>('scan');
 
   // Confirm Deletion & Undo Deletion State
   const [pendingDeletion, setPendingDeletion] = useState<{
@@ -476,19 +500,51 @@ export default function App() {
   const applyRemoteWorkspaceData = useCallback(
     (data: Record<string, unknown>, notifyToast?: string) => {
       isApplyingRemoteRef.current = true;
-      if (Array.isArray(data.rawTobaccos))
-        setRawTobaccos((data.rawTobaccos as RawTobacco[]).map(normalizeRawTobaccoRounding));
-      if (Array.isArray(data.finishedBatches))
-        setFinishedBatches(
-          (data.finishedBatches as FinishedTobaccoSerial[]).map(normalizeFinishedSerialRounding)
+      const ownerKey = String(data.ownerId || 'LOCAL_USER');
+
+      // Detect if cloud data is still legacy plain-text so we can auto-upgrade it to encrypted TLAB_V2_ENC vault
+      const isLegacyUnencrypted =
+        (Array.isArray(data.rawTobaccos) &&
+          data.rawTobaccos.length > 0 &&
+          !isEncryptedVaultShard(data.rawTobaccos[0])) ||
+        (Array.isArray(data.finishedBatches) &&
+          data.finishedBatches.length > 0 &&
+          !isEncryptedVaultShard(data.finishedBatches[0]));
+
+      if (Array.isArray(data.rawTobaccos)) {
+        const unpackedRaw = unpackArrayFromEncryptedVaultShards<RawTobacco>(
+          data.rawTobaccos,
+          ownerKey
         );
-      if (Array.isArray(data.rollSamples))
-        setRollSamples(data.rollSamples as TobaccoRollSample[]);
-      if (Array.isArray(data.packagingList))
-        setPackagingList(data.packagingList as PackagingMaster[]);
-      if (Array.isArray(data.factoryList)) setFactoryList(data.factoryList as FactoryMaster[]);
+        setRawTobaccos(unpackedRaw.map(normalizeRawTobaccoRounding));
+      }
+      if (Array.isArray(data.finishedBatches)) {
+        const unpackedFin = unpackArrayFromEncryptedVaultShards<FinishedTobaccoSerial>(
+          data.finishedBatches,
+          ownerKey
+        );
+        setFinishedBatches(unpackedFin.map(normalizeFinishedSerialRounding));
+      }
+      if (Array.isArray(data.rollSamples)) {
+        setRollSamples(
+          unpackArrayFromEncryptedVaultShards<TobaccoRollSample>(data.rollSamples, ownerKey)
+        );
+      }
+      if (Array.isArray(data.packagingList)) {
+        setPackagingList(
+          unpackArrayFromEncryptedVaultShards<PackagingMaster>(data.packagingList, ownerKey)
+        );
+      }
+      if (Array.isArray(data.factoryList)) {
+        setFactoryList(
+          unpackArrayFromEncryptedVaultShards<FactoryMaster>(data.factoryList, ownerKey)
+        );
+      }
 
       initialCloudLoadDoneRef.current = true;
+      if (isLegacyUnencrypted) {
+        hasLocalUserMutationRef.current = true;
+      }
       setCloudSyncStatus('synced');
       if (notifyToast) {
         showToast(notifyToast);
@@ -506,7 +562,6 @@ export default function App() {
    */
   const pullCloudWorkspace = useCallback(
     async (user: User, options?: { showSuccessToast?: boolean }) => {
-      const workspacePath = `workspaces/${user.uid}`;
       const workspaceRef = doc(db, 'workspaces', user.uid);
       setCloudSyncStatus('syncing');
 
@@ -522,22 +577,70 @@ export default function App() {
         });
 
         if (snapshot.exists()) {
+          const baseData = { ...(snapshot.data() as Record<string, unknown>) };
+          // Attempt to load any overflow chunks from workspaces/{uid}/chunks
+          try {
+            const chunksSnap = await getDocs(collection(db, 'workspaces', user.uid, 'chunks'));
+            if (!chunksSnap.empty) {
+              const rawOverflowMap = new Map<number, EncryptedVaultShard[]>();
+              const finOverflowMap = new Map<number, EncryptedVaultShard[]>();
+              let maxRawIdx = 0;
+              let maxFinIdx = 0;
+              chunksSnap.forEach((cDoc) => {
+                const cData = cDoc.data();
+                if (cData && Array.isArray(cData.items) && typeof cData.chunkIndex === 'number') {
+                  if (cData.chunkType === 'raw') {
+                    rawOverflowMap.set(cData.chunkIndex, cData.items as EncryptedVaultShard[]);
+                    if (cData.chunkIndex > maxRawIdx) maxRawIdx = cData.chunkIndex;
+                  } else if (cData.chunkType === 'finished') {
+                    finOverflowMap.set(cData.chunkIndex, cData.items as EncryptedVaultShard[]);
+                    if (cData.chunkIndex > maxFinIdx) maxFinIdx = cData.chunkIndex;
+                  }
+                }
+              });
+              if (rawOverflowMap.size > 0 && Array.isArray(baseData.rawTobaccos)) {
+                baseData.rawTobaccos = reassembleArrayFromFirestoreChunks(
+                  baseData.rawTobaccos as EncryptedVaultShard[],
+                  rawOverflowMap,
+                  maxRawIdx + 1
+                );
+              }
+              if (finOverflowMap.size > 0 && Array.isArray(baseData.finishedBatches)) {
+                baseData.finishedBatches = reassembleArrayFromFirestoreChunks(
+                  baseData.finishedBatches as EncryptedVaultShard[],
+                  finOverflowMap,
+                  maxFinIdx + 1
+                );
+              }
+            }
+          } catch {
+            // Non-blocking if no overflow chunks exist or rules are initializing
+          }
+
           applyRemoteWorkspaceData(
-            snapshot.data() as Record<string, unknown>,
+            baseData,
             options?.showSuccessToast
-              ? 'Data Cloud terbaru berhasil dimuat dari server!'
+              ? 'Data Cloud Terenkripsi (Vault V2) berhasil dimuat & didekripsi!'
               : undefined
           );
           return true;
         } else if (!snapshot.metadata.fromCache) {
-          // Only initialize a brand-new cloud workspace if the live server confirmed no document exists yet
+          // Initialize brand-new cloud workspace with compressed & encrypted binary Vault shards
+          const encryptedRawShards = packArrayIntoEncryptedVaultShards(rawTobaccos, user.uid);
+          const encryptedFinShards = packArrayIntoEncryptedVaultShards(finishedBatches, user.uid);
+          const encryptedRollShards = packArrayIntoEncryptedVaultShards(rollSamples, user.uid);
+          const encryptedPkgShards = packArrayIntoEncryptedVaultShards(packagingList, user.uid);
+          const encryptedFacShards = packArrayIntoEncryptedVaultShards(factoryList, user.uid);
+
+          const rawSplit = splitArrayIntoFirestoreChunks(encryptedRawShards, FIRESTORE_CHUNK_SIZE);
+          const finSplit = splitArrayIntoFirestoreChunks(encryptedFinShards, FIRESTORE_CHUNK_SIZE);
           await setDoc(workspaceRef, {
             ownerId: user.uid,
-            rawTobaccos: sanitizeForFirestore(rawTobaccos.slice(0, 300)),
-            finishedBatches: sanitizeForFirestore(finishedBatches.slice(0, 500)),
-            rollSamples: sanitizeForFirestore(rollSamples.slice(0, 200)),
-            packagingList: sanitizeForFirestore(packagingList.slice(0, 100)),
-            factoryList: sanitizeForFirestore(factoryList.slice(0, 100)),
+            rawTobaccos: sanitizeForFirestore(rawSplit.inlineItems),
+            finishedBatches: sanitizeForFirestore(finSplit.inlineItems),
+            rollSamples: sanitizeForFirestore(encryptedRollShards.slice(0, 200)),
+            packagingList: sanitizeForFirestore(encryptedPkgShards.slice(0, 100)),
+            factoryList: sanitizeForFirestore(encryptedFacShards.slice(0, 100)),
             updatedAt: serverTimestamp(),
           });
           initialCloudLoadDoneRef.current = true;
@@ -642,15 +745,64 @@ export default function App() {
 
     const timer = setTimeout(async () => {
       try {
+        // Compress & encrypt all 5 collections into TLAB_V2_ENC binary shards before saving to Firestore
+        const encryptedRawShards = packArrayIntoEncryptedVaultShards(rawTobaccos, currentUser.uid);
+        const encryptedFinShards = packArrayIntoEncryptedVaultShards(
+          finishedBatches,
+          currentUser.uid
+        );
+        const encryptedRollShards = packArrayIntoEncryptedVaultShards(rollSamples, currentUser.uid);
+        const encryptedPkgShards = packArrayIntoEncryptedVaultShards(
+          packagingList,
+          currentUser.uid
+        );
+        const encryptedFacShards = packArrayIntoEncryptedVaultShards(factoryList, currentUser.uid);
+
+        const rawSplit = splitArrayIntoFirestoreChunks(encryptedRawShards, FIRESTORE_CHUNK_SIZE);
+        const finSplit = splitArrayIntoFirestoreChunks(encryptedFinShards, FIRESTORE_CHUNK_SIZE);
+
         await setDoc(workspaceRef, {
           ownerId: currentUser.uid,
-          rawTobaccos: sanitizeForFirestore(rawTobaccos.slice(0, 300)),
-          finishedBatches: sanitizeForFirestore(finishedBatches.slice(0, 500)),
-          rollSamples: sanitizeForFirestore(rollSamples.slice(0, 200)),
-          packagingList: sanitizeForFirestore(packagingList.slice(0, 100)),
-          factoryList: sanitizeForFirestore(factoryList.slice(0, 100)),
+          rawTobaccos: sanitizeForFirestore(rawSplit.inlineItems),
+          finishedBatches: sanitizeForFirestore(finSplit.inlineItems),
+          rollSamples: sanitizeForFirestore(encryptedRollShards.slice(0, 200)),
+          packagingList: sanitizeForFirestore(encryptedPkgShards.slice(0, 100)),
+          factoryList: sanitizeForFirestore(encryptedFacShards.slice(0, 100)),
           updatedAt: serverTimestamp(),
         });
+
+        // Write overflow encrypted shards to workspaces/{uid}/chunks/{chunkId}
+        if (rawSplit.overflowChunks.length > 0 || finSplit.overflowChunks.length > 0) {
+          try {
+            const batch = writeBatch(db);
+            for (let i = 0; i < rawSplit.overflowChunks.length; i++) {
+              const chunkIdx = i + 1;
+              const chunkRef = doc(db, 'workspaces', currentUser.uid, 'chunks', `raw_${chunkIdx}`);
+              batch.set(chunkRef, {
+                ownerId: currentUser.uid,
+                chunkType: 'raw',
+                chunkIndex: chunkIdx,
+                items: sanitizeForFirestore(rawSplit.overflowChunks[i]),
+                updatedAt: serverTimestamp(),
+              });
+            }
+            for (let i = 0; i < finSplit.overflowChunks.length; i++) {
+              const chunkIdx = i + 1;
+              const chunkRef = doc(db, 'workspaces', currentUser.uid, 'chunks', `fin_${chunkIdx}`);
+              batch.set(chunkRef, {
+                ownerId: currentUser.uid,
+                chunkType: 'finished',
+                chunkIndex: chunkIdx,
+                items: sanitizeForFirestore(finSplit.overflowChunks[i]),
+                updatedAt: serverTimestamp(),
+              });
+            }
+            await batch.commit();
+          } catch (chunkErr) {
+            console.warn('Overflow chunk write notice:', chunkErr);
+          }
+        }
+
         hasLocalUserMutationRef.current = false;
         setCloudSyncStatus('synced');
       } catch (err) {
@@ -672,7 +824,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEYS.RAW, JSON.stringify(rawTobaccos));
+      localStorage.setItem(STORAGE_KEYS.RAW, packLocalStorageVault(rawTobaccos));
     } catch (e) {
       console.error('Error saving raw tobaccos', e);
     }
@@ -680,7 +832,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEYS.FINISHED, JSON.stringify(finishedBatches));
+      localStorage.setItem(STORAGE_KEYS.FINISHED, packLocalStorageVault(finishedBatches));
     } catch (e) {
       console.error('Error saving finished batches', e);
     }
@@ -688,7 +840,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEYS.ROLLS, JSON.stringify(rollSamples));
+      localStorage.setItem(STORAGE_KEYS.ROLLS, packLocalStorageVault(rollSamples));
     } catch (e) {
       console.error('Error saving rolls', e);
     }
@@ -696,7 +848,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEYS.PACKAGING, JSON.stringify(packagingList));
+      localStorage.setItem(STORAGE_KEYS.PACKAGING, packLocalStorageVault(packagingList));
     } catch (e) {
       console.error('Error saving packaging', e);
     }
@@ -704,7 +856,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEYS.FACTORIES, JSON.stringify(factoryList));
+      localStorage.setItem(STORAGE_KEYS.FACTORIES, packLocalStorageVault(factoryList));
     } catch (e) {
       console.error('Error saving factories', e);
     }
@@ -735,6 +887,52 @@ export default function App() {
       );
     }
     setEditingTobacco(null);
+  };
+
+  const handleSaveScannedCardsBatch = (cards: ReviewedScannedGradeCard[]) => {
+    if (!cards.length) return;
+    hasLocalUserMutationRef.current = true;
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    setRawTobaccos((prev) => {
+      const working = [...prev];
+      for (const card of cards) {
+        const existingIndex = card.matchedExistingId
+          ? working.findIndex((t) => t.id === card.matchedExistingId)
+          : working.findIndex(
+              (t) =>
+                t.lotNumber &&
+                card.lotNumber &&
+                t.lotNumber.toUpperCase() === card.lotNumber.toUpperCase()
+            );
+
+        const existingRecord = existingIndex >= 0 ? working[existingIndex] : undefined;
+        const materialized = normalizeRawTobaccoRounding(
+          materializeRawTobaccoFromReview({
+            card,
+            existingRecord,
+            packagingList,
+          })
+        );
+
+        if (existingIndex >= 0) {
+          working[existingIndex] = materialized;
+          updatedCount++;
+        } else {
+          working.unshift(materialized);
+          addedCount++;
+        }
+      }
+      return working;
+    });
+
+    const summaryParts: string[] = [];
+    if (addedCount > 0) summaryParts.push(`${addedCount} stok baru`);
+    if (updatedCount > 0) summaryParts.push(`${updatedCount} update Tahap 2`);
+    showToast(`Scanner Kartu Grade: ${summaryParts.join(' & ')} berhasil masuk gudang!`);
+    setStockInitialPanel('raw');
+    setActiveTab('inventory');
   };
 
   const handleDeleteRawTobacco = (id: string) => {
@@ -1489,6 +1687,10 @@ export default function App() {
             }
           }}
           onOpenNolanAgent={() => setIsNolanModalOpen(true)}
+          onOpenGradeScanner={() => {
+            setGradeScannerInitialTab('scan');
+            setIsGradeScannerModalOpen(true);
+          }}
         />
 
         <main className="flex-1 max-w-7xl w-full mx-auto py-4 sm:py-5 safe-main-container">
@@ -1516,6 +1718,10 @@ export default function App() {
                   onAddToBlend={handleAddToBlend}
                   onReassignRejectedToRoll={handleReassignRejectedToRoll}
                   onUnpackRejectedToBlend={handleUnpackRejectedToBlend}
+                  onOpenGradeScanner={(tab) => {
+                    setGradeScannerInitialTab(tab);
+                    setIsGradeScannerModalOpen(true);
+                  }}
                 />
               )}
 
@@ -1803,6 +2009,16 @@ export default function App() {
         editingTobacco={editingTobacco}
         packagingList={packagingList}
         existingTobaccos={rawTobaccos}
+      />
+
+      <GradeCardScannerModal
+        isOpen={isGradeScannerModalOpen}
+        initialTab={gradeScannerInitialTab}
+        onClose={() => setIsGradeScannerModalOpen(false)}
+        rawTobaccos={rawTobaccos}
+        packagingList={packagingList}
+        onCommitReviewedCards={handleSaveScannedCardsBatch}
+        onShowToast={showToast}
       />
 
       <RollDetailModal

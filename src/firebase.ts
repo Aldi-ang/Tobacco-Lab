@@ -13,9 +13,12 @@ import {
   initializeFirestore,
   getFirestore,
   doc,
+  collection,
   getDoc,
+  getDocs,
   getDocFromServer,
   setDoc,
+  writeBatch,
   onSnapshot,
   serverTimestamp,
   Firestore,
@@ -238,5 +241,16 @@ export function sanitizeForFirestore<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
 
-export { doc, getDoc, getDocFromServer, setDoc, onSnapshot, serverTimestamp, onAuthStateChanged };
+export {
+  doc,
+  collection,
+  getDoc,
+  getDocs,
+  getDocFromServer,
+  setDoc,
+  writeBatch,
+  onSnapshot,
+  serverTimestamp,
+  onAuthStateChanged,
+};
 export type { User };
