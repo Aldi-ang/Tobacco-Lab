@@ -22,8 +22,6 @@ import {
   DollarSign,
   Sparkles,
   Hand,
-  Camera,
-  Printer,
 } from 'lucide-react';
 import {
   RawTobacco,
@@ -75,7 +73,6 @@ interface RawTobaccoListProps {
     newTargetFactory?: string
   ) => void;
   onUnpackRejectedToBlend?: (serial: FinishedTobaccoSerial) => void;
-  onOpenGradeScanner?: (tab: 'scan' | 'print') => void;
 }
 
 export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
@@ -94,7 +91,6 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
   onAddToBlend,
   onReassignRejectedToRoll,
   onUnpackRejectedToBlend,
-  onOpenGradeScanner,
 }) => {
   const [activeStockPanel, setActiveStockPanel] = useState<'raw' | 'rejected-finished'>(
     initialStockPanel
@@ -439,10 +435,13 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
 
             return (
               <AutoSlideValueTicker
+                collapsible={true}
+                defaultExpanded={false}
                 slides={[
                   {
                     id: 'paid-value',
                     tabLabel: '1. Total Modal',
+                    mobileLabel: '1. Modal',
                     title: '1. Total Modal / Nilai Inventori (Netto × Harga + Fee)',
                     mainValue: formatRupiah(totals.totalModalAsal),
                     subLabel: 'Sisa Stok / Netto Nota',
@@ -454,6 +453,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   {
                     id: 'real-value',
                     tabLabel: '2. Weight Profit (Rp)',
+                    mobileLabel: '2. Profit Rp',
                     title: '2. Weight Profit dalam Rupiah (KG Profit × Harga)',
                     mainValue: `${totals.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(totals.weightProfitRp)}`,
                     subLabel: 'Dari Weight Profit (KG)',
@@ -465,6 +465,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   {
                     id: 'weight-profit',
                     tabLabel: '3. Weight Profit (KG)',
+                    mobileLabel: '3. Profit KG',
                     title: '3. Weight Profit dalam KG (Netto Riil − Netto Nota)',
                     mainValue: `${totals.weightProfitKg >= 0 ? '+' : ''}${totals.weightProfitKg} kg`,
                     subLabel: 'Netto Riil vs Netto Nota',
@@ -488,31 +489,31 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Cari tembakau, penjual, daerah asal..."
-                  className="w-full h-9 sm:h-10 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700"
+                  className="w-full h-9 sm:h-10 pl-9 pr-8 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700"
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    aria-label="Bersihkan pencarian"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white inline-flex items-center justify-center cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
-              {onOpenGradeScanner && (
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => onOpenGradeScanner('scan')}
-                    className="h-9 sm:h-10 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/60 text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
-                  >
-                    <Camera className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span>Scan Kartu Grade</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onOpenGradeScanner('print')}
-                    aria-label="Cetak Kartu Grade (A4)"
-                    className="h-9 sm:h-10 px-3 rounded-xl bg-black hover:bg-zinc-900 text-zinc-200 border border-zinc-800 hover:border-zinc-600 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
-                  >
-                    <Printer className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-                    <span className="hidden md:inline">Cetak Kartu</span>
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                <button
+                  type="button"
+                  onClick={onAddNew}
+                  aria-label="Tambah Stok Tembakau Mentah"
+                  className="btn-amber-outline h-9 sm:h-10 px-3 rounded-xl font-extrabold text-xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5] text-amber-400 shrink-0" />
+                  <span>Input Stok</span>
+                </button>
+              </div>
 
               <button
                 type="button"
@@ -601,7 +602,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       onClick={() => setMissingFilter('ALL')}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
                         missingFilter === 'ALL'
-                          ? 'bg-amber-500 text-black border-amber-400 font-black'
+                          ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
                           : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
                       }`}
                     >
@@ -616,7 +617,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         }
                         className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer inline-flex items-center gap-1 ${
                           missingFilter === 'INCOMPLETE'
-                            ? 'bg-amber-500 text-black border-amber-400 font-black'
+                            ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
                             : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/50'
                         }`}
                       >
@@ -635,7 +636,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         }
                         className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
                           missingFilter === 'NEED_WEIGHT'
-                            ? 'bg-amber-500 text-black border-amber-400 font-black'
+                            ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
                             : 'bg-black hover:bg-zinc-900 text-amber-300 border-zinc-800'
                         }`}
                       >
@@ -651,7 +652,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         }
                         className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
                           missingFilter === 'NEED_PRICE'
-                            ? 'bg-amber-500 text-black border-amber-400 font-black'
+                            ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
                             : 'bg-black hover:bg-zinc-900 text-amber-300 border-zinc-800'
                         }`}
                       >
@@ -667,7 +668,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         }
                         className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
                           missingFilter === 'NEED_ATTR'
-                            ? 'bg-amber-500 text-black border-amber-400 font-black'
+                            ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
                             : 'bg-black hover:bg-zinc-900 text-amber-300 border-zinc-800'
                         }`}
                       >
@@ -948,31 +949,15 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     ],
                   },
                   {
-                    id: 'total-modal',
-                    shortTab: 'Modal',
-                    label: 'Total Modal / Nilai Inventori',
-                    value: formatRupiah(m.totalModalAsal),
-                    subValue: `${formatRupiah(m.effectivePricePerKgWithFee)}/kg`,
-                    detailLine: `Netto ${m.netWeightKg} kg • Sisa Stok: ${m.currentStockKg} kg`,
+                    id: 'lot-packaging-grader',
+                    shortTab: 'Lot & Info',
+                    label: 'Lot, Kemasan & Grader',
+                    value: tobacco.lotNumber || 'LOT-MANUAL',
+                    subValue: pkgName,
+                    detailLine: `Bruto ${tobacco.grossWeightKg} kg • ${tobacco.taraFormula.rawFormula}${
+                      tobacco.graderName ? ` • Grd: ${tobacco.graderName}` : ''
+                    }`,
                     accent: 'amber' as const,
-                  },
-                  {
-                    id: 'weight-profit-rp',
-                    shortTab: 'Profit Rp',
-                    label: 'Weight Profit (Rupiah)',
-                    value: `${m.weightProfitRp >= 0 ? '+' : ''}${formatRupiah(m.weightProfitRp)}`,
-                    subValue: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg`,
-                    detailLine: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg × ${formatRupiah(tobacco.pricePerKgPurchase)}/kg`,
-                    accent: (m.weightProfitRp >= 0 ? 'emerald' : 'rose') as 'emerald' | 'rose',
-                  },
-                  {
-                    id: 'weight-profit-kg',
-                    shortTab: 'Profit KG',
-                    label: 'Weight Profit (KG)',
-                    value: `${m.weightProfitKg >= 0 ? '+' : ''}${m.weightProfitKg} kg`,
-                    subValue: `Riil ${m.realNetKg} kg`,
-                    detailLine: `Bruto ${tobacco.grossWeightKg} kg • ${pkgName} (${tobacco.taraFormula.rawFormula})`,
-                    accent: 'white' as const,
                   },
                 ];
 
@@ -1016,9 +1001,23 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         <h3 className="font-extrabold text-white text-xs sm:text-sm line-clamp-2 leading-snug group-hover:text-white transition-colors">
                           {tobacco.name}
                         </h3>
-                        {tobacco.sellerName && (
-                          <div className="text-[10px] text-zinc-400 truncate mt-0.5">
-                            Penjual: <b className="text-zinc-200">{tobacco.sellerName}</b>
+                        {(tobacco.sellerName || tobacco.graderName) && (
+                          <div className="text-[10px] text-zinc-400 flex items-center justify-between gap-1.5 mt-0.5">
+                            {tobacco.sellerName ? (
+                              <span className="truncate">
+                                Penjual: <b className="text-zinc-200">{tobacco.sellerName}</b>
+                              </span>
+                            ) : (
+                              <span />
+                            )}
+                            {tobacco.graderName && (
+                              <span
+                                data-testid="card-grader-badge"
+                                className="px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-[9px] font-bold text-amber-300 shrink-0 truncate max-w-[110px]"
+                              >
+                                Grd: {tobacco.graderName}
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1162,14 +1161,12 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
 
                         <button
                           type="button"
-                          aria-label="Masukkan ke Kalkulator Racikan"
+                          aria-label={`Masukkan ${tobacco.name} ke Kalkulator Racikan`}
                           onClick={() => onAddToBlend(tobacco)}
-                          className="group/btn relative btn-amber-outline h-8 w-8 shrink-0 rounded-lg font-black text-xs flex items-center justify-center cursor-pointer"
+                          className="group/btn relative btn-amber-outline h-8 px-2.5 shrink-0 rounded-lg font-black text-[10px] inline-flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
                         >
                           <Scale className="w-3.5 h-3.5 stroke-[2.2] shrink-0" />
-                          <span className="pointer-events-none opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150 absolute -top-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-amber-500/70 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
-                            Campur ke Racikan
-                          </span>
+                          <span>+ Racik</span>
                         </button>
                       </div>
                     </div>
@@ -1188,7 +1185,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     <button
                       type="button"
                       onClick={() => setVisibleCardLimit((prev) => prev + 36)}
-                      className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition-colors cursor-pointer"
+                      className="px-3.5 py-1.5 rounded-xl bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 text-xs font-black transition-colors cursor-pointer"
                     >
                       + Tampilkan 36 Berikutnya ({filteredRaw.length - visibleCardLimit} sisa)
                     </button>
@@ -1497,7 +1494,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   </div>
 
                   <div className="p-5 overflow-y-auto space-y-4 text-xs">
-                    <div className="flex items-center justify-between text-zinc-300 bg-black p-3 rounded-xl border border-zinc-800">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-zinc-300 bg-black p-3 rounded-xl border border-zinc-800">
                       <span className="flex items-center gap-1.5">
                         <MapPin className="w-3.5 h-3.5 text-zinc-300" />
                         Asal: <b className="text-white">{t.origin}</b>
@@ -1505,9 +1502,20 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       {(t.sellerName || t.taraFormula.sellerName) && (
                         <span className="flex items-center gap-1.5">
                           <UserCheck className="w-3.5 h-3.5 text-zinc-300" />
+                          Penjual:{' '}
                           <b className="text-white">
                             {t.sellerName || t.taraFormula.sellerName}
                           </b>
+                        </span>
+                      )}
+                      {t.graderName && (
+                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-950 border border-amber-500/40 text-amber-300">
+                          Grader: <b className="text-white">{t.graderName}</b>
+                        </span>
+                      )}
+                      {t.lotNumber && (
+                        <span className="font-mono text-[11px] text-zinc-400">
+                          Lot: <b className="text-zinc-200">{t.lotNumber}</b>
                         </span>
                       )}
                     </div>

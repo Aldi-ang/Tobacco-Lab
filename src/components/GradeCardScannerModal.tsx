@@ -17,12 +17,19 @@ import {
   ShieldAlert,
   Layers,
   Image as ImageIcon,
-  Bluetooth,
   ScanBarcode,
   Search,
   Lock,
   Plus,
   BookmarkCheck,
+  Download,
+  RotateCcw,
+  Unlock,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
+  UserCheck,
+  Calendar,
 } from 'lucide-react';
 import { PackagingMaster, RawTobacco, TobaccoGrade } from '../types/tobacco';
 import { TOBACCO_GRADE_ORDER, formatRating5, formatRupiah } from '../utils/tobaccoMath';
@@ -35,18 +42,17 @@ import {
   generateNextLotBatchNumbers,
   normalizeLotNumber,
 } from '../utils/gradeCardEngine';
+import { getRawTobaccoMissingFlags } from '../utils/tobaccoCompleteness';
 import {
+  A4_PRINT_PAGE_METRICS,
   DuplexMode,
   PrintPaperFormat,
-  THERMAL_PROFILES,
   arrangeDuplexBackSlots,
   buildDynamicPrintPageCss,
   computeCode39TotalUnits,
   encodeCode39Modules,
   extractLotPrefixCode,
   isThermalPaperFormat,
-  printCanvasViaWebBluetooth,
-  renderThermalCardToCanvas,
 } from '../utils/thermalPrintEngine';
 import {
   decodeCode39FromCanvas,
@@ -55,6 +61,7 @@ import {
 import {
   PRINT_PREFIX_REGISTRY_STORAGE_KEY,
   PrefixRegistryState,
+  getPrefixStartSequence,
   loadPrefixRegistryState,
   mergeRegistryWithDiscoveredPrefixes,
   normalizePrefixInput,
@@ -63,22 +70,44 @@ import {
   removeRegisteredPrefix,
   savePrefixRegistryState,
   selectActivePrefix,
+  setPrefixStartSequence,
 } from '../utils/prefixRegistryEngine';
-
-const ISSUED_PRINT_LOTS_STORAGE_KEY = 'tobacco_lab_issued_print_lots_v1';
-
-function loadIssuedPrintedLots(): string[] {
-  try {
-    const raw = localStorage.getItem(ISSUED_PRINT_LOTS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.map((v) => String(v || '').trim().toUpperCase()).filter(Boolean)
-      : [];
-  } catch {
-    return [];
-  }
-}
+import {
+  GRADER_REGISTRY_STORAGE_KEY,
+  GraderRegistryState,
+  loadGraderRegistryState,
+  registerGraderName,
+  removeRegisteredGraderName,
+  sanitizePrintYear,
+  saveGraderRegistryState,
+  selectActiveGraderName,
+} from '../utils/graderRegistryEngine';
+import {
+  formatPaperSummaryLabel,
+  loadPrintPreferences,
+  savePrintPreferences,
+} from '../utils/printPreferences';
+import {
+  ISSUED_PRINT_LOTS_STORAGE_KEY,
+  LockedBatchSnapshot,
+  PendingPrintBatch,
+  ReprintMode,
+  buildReprintSlotPlan,
+  confirmPendingBatchLock,
+  createPendingPrintBatch,
+  loadIssuedPrintedLots,
+  loadLastLockedBatch,
+  loadPendingPrintBatch,
+  parseReprintLotCodes,
+  resolveActiveBatchLots,
+  saveIssuedPrintedLots,
+  saveLastLockedBatch,
+  savePendingPrintBatch,
+  snapPrintCountForFormat,
+  unlockLastLockedBatch,
+} from '../utils/printBatchLockEngine';
+import { generateA4GradeCardsPdf } from '../utils/a4PdfExportEngine';
+import { getSmartPriceGuard, getSmartWeightGuard } from '../utils/smartInputGuard';
 
 interface GradeCardScannerModalProps {
   isOpen: boolean;
@@ -111,6 +140,8 @@ const ATTRIBUTE_FIELDS: {
 
 const UNCERTAIN_FIELD_LABELS: Record<string, string> = {
   lotNumber: 'Kode Lot',
+  purchaseDate: 'Tanggal Beli',
+  graderName: 'Nama Grader',
   name: 'Nama Tembakau',
   origin: 'Daerah',
   sellerName: 'Penjual',
@@ -179,18 +210,31 @@ const LotMatrixSvg: React.FC<{ lotCode: string; size?: number }> = ({ lotCode, s
 
 /** Single crisp black-on-white printable Kartu Grade Cetak */
 const PrintableGradeCardPaper: React.FC<{
-  lotNumber: string;
+  lotNumber: string | null;
   packagingChoices: string[];
   compact: boolean;
-}> = ({ lotNumber, packagingChoices, compact }) => {
+  graderName?: string;
+  printYear?: number;
+}> = ({ lotNumber, packagingChoices, compact, graderName = '', printYear }) => {
+  if (!lotNumber) {
+    return (
+      <div
+        className="grade-card-paper-item bg-white border border-transparent select-none"
+        aria-hidden="true"
+      />
+    );
+  }
+
   const pkgs = packagingChoices.slice(0, 6);
   const gradesRow1 = ['A+', 'A', 'B+', 'B', 'C+', 'C'];
   const gradesRow2 = ['D+', 'D', 'E+', 'E', 'F+', 'F'];
+  const resolvedYear = sanitizePrintYear(printYear);
+  const cleanGrader = graderName.trim();
 
   return (
     <div
-      className={`grade-card-paper-item relative bg-white text-black border-2 border-black flex flex-col justify-between select-none ${
-        compact ? 'p-2.5 text-[9.5px]' : 'p-3.5 text-[10.5px]'
+      className={`grade-card-paper-item relative bg-white text-black border-2 border-black flex flex-col justify-between select-none box-border overflow-hidden ${
+        compact ? 'p-1.5 text-[8px] leading-tight' : 'p-2.5 text-[9.5px]'
       }`}
       style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif" }}
     >
@@ -201,95 +245,146 @@ const PrintableGradeCardPaper: React.FC<{
       <span className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 border-b-2 border-r-2 border-black pointer-events-none" />
 
       {/* Header + Lot Code + Matrix */}
-      <div className="flex items-start justify-between gap-2 pb-1.5 border-b-2 border-black">
-        <div>
-          <div className="text-[8px] font-extrabold uppercase tracking-[0.16em] text-zinc-700">
+      <div
+        className={`flex items-center justify-between gap-2 border-b-[1.5px] border-black ${
+          compact ? 'pb-0.5' : 'pb-1'
+        }`}
+      >
+        <div className="min-w-0">
+          <div className="text-[6.5px] font-extrabold uppercase tracking-[0.14em] text-zinc-700 truncate">
             TOBACCO LAB • KARTU GRADE
           </div>
-          <div className="font-mono font-black tracking-tight text-sm leading-tight mt-0.5">
+          <div
+            className={`font-mono font-black tracking-tight leading-none ${
+              compact ? 'text-[11px]' : 'text-sm'
+            }`}
+          >
             {lotNumber}
-          </div>
-          <div className="text-[8px] text-zinc-600 mt-0.5">
-            Tgl: ____/____/20____ • Grader: ____________
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <LotMatrixSvg lotCode={lotNumber} size={compact ? 30 : 36} />
+          <LotMatrixSvg lotCode={lotNumber} size={compact ? 20 : 30} />
         </div>
       </div>
 
-      {/* Boxed Handwritten Identity Fields */}
-      <div className={`grid grid-cols-2 gap-1.5 ${compact ? 'my-1.5' : 'my-2'}`}>
-        <div className="border border-black px-1.5 py-1">
-          <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-700">
+      {/* Boxed Handwritten Identity Fields (with editable year & optional preprinted Grader name) */}
+      <div className={`grid grid-cols-2 ${compact ? 'gap-[3px] my-[2px]' : 'gap-1 my-1'}`}>
+        <div className="border border-black px-1.5 py-[2px] flex flex-col justify-between">
+          <div className="text-[6px] font-black uppercase tracking-wider text-zinc-800">
+            TANGGAL (TGL / BLN / THN)
+          </div>
+          <div
+            className={`${
+              compact ? 'h-3.5' : 'h-5'
+            } flex items-end font-mono text-[8px] font-bold leading-none text-zinc-600`}
+          >
+            ____ / ____ / <span className="text-black font-black ml-0.5">{resolvedYear}</span>
+          </div>
+        </div>
+        <div className="border border-black px-1.5 py-[2px] flex flex-col justify-between">
+          <div className="text-[6px] font-black uppercase tracking-wider text-zinc-800">
+            NAMA GRADER
+          </div>
+          <div
+            className={`${compact ? 'h-3.5' : 'h-5'} flex items-end leading-none overflow-hidden`}
+          >
+            {cleanGrader ? (
+              <span className={`font-extrabold text-black truncate ${compact ? 'text-[8.5px]' : 'text-[10px]'}`}>
+                {cleanGrader}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <div className="border border-black px-1.5 py-[2px]">
+          <div className="text-[6px] font-black uppercase tracking-wider text-zinc-700">
             PENJUAL / PETANI
           </div>
-          <div className={compact ? 'h-4' : 'h-5'} />
+          <div className={compact ? 'h-2' : 'h-3.5'} />
         </div>
-        <div className="border border-black px-1.5 py-1">
-          <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-700">
+        <div className="border border-black px-1.5 py-[2px]">
+          <div className="text-[6px] font-black uppercase tracking-wider text-zinc-700">
             DAERAH ASAL (MTL/TMG/WDS)
           </div>
-          <div className={compact ? 'h-4' : 'h-5'} />
+          <div className={compact ? 'h-2' : 'h-3.5'} />
         </div>
-        <div className="col-span-2 border border-black px-1.5 py-1">
-          <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-700">
+        <div className="col-span-2 border border-black px-1.5 py-[2px]">
+          <div className="text-[6px] font-black uppercase tracking-wider text-zinc-700">
             NAMA / JENIS TEMBAKAU
           </div>
-          <div className={compact ? 'h-4' : 'h-5'} />
+          <div className={compact ? 'h-2' : 'h-3.5'} />
         </div>
       </div>
 
       {/* Grade Checkboxes (SILANG X) */}
-      <div className="border border-black px-1.5 py-1 mb-1.5">
-        <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-800 mb-1">
+      <div className={`border border-black px-1.5 ${compact ? 'py-0.5 mb-[2px]' : 'py-1 mb-1'}`}>
+        <div className="text-[6px] font-black uppercase tracking-wider text-zinc-800 mb-[2px]">
           GRADE WARNA (SILANG X / CENTANG 1)
         </div>
-        <div className="grid grid-cols-6 gap-1">
+        <div className="grid grid-cols-6 gap-[2px]">
           {[...gradesRow1, ...gradesRow2].map((gr) => (
-            <div key={gr} className="flex items-center gap-1">
-              <span className="inline-block w-3.5 h-3.5 rounded-[2px] border-[1.5px] border-black shrink-0" />
-              <span className="font-mono font-black text-[9.5px]">{gr}</span>
+            <div key={gr} className="flex items-center gap-1 min-w-0">
+              <span
+                className={`inline-block rounded-[2px] border-[1.25px] border-black shrink-0 ${
+                  compact ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'
+                }`}
+              />
+              <span className={`font-mono font-black ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
+                {gr}
+              </span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Packaging Checkboxes (SILANG X) */}
-      <div className="border border-black px-1.5 py-1 mb-1.5">
-        <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-800 mb-1">
+      <div className={`border border-black px-1.5 ${compact ? 'py-0.5 mb-[2px]' : 'py-1 mb-1'}`}>
+        <div className="text-[6px] font-black uppercase tracking-wider text-zinc-800 mb-[2px]">
           KEMASAN (SILANG X / CENTANG 1)
         </div>
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-[2px]">
           {pkgs.map((pkgName) => (
             <div key={pkgName} className="flex items-center gap-1">
-              <span className="inline-block w-3 h-3 rounded-[2px] border-[1.5px] border-black shrink-0" />
-              <span className="font-bold text-[8.5px] uppercase">{pkgName}</span>
+              <span
+                className={`inline-block rounded-[2px] border-[1.25px] border-black shrink-0 ${
+                  compact ? 'w-2.5 h-2.5' : 'w-3 h-3'
+                }`}
+              />
+              <span className={`font-bold uppercase ${compact ? 'text-[7px]' : 'text-[8px]'}`}>
+                {pkgName}
+              </span>
             </div>
           ))}
           <div className="flex items-center gap-1">
-            <span className="inline-block w-3 h-3 rounded-[2px] border-[1.5px] border-black shrink-0" />
-            <span className="font-bold text-[8.5px]">Lain: ______</span>
+            <span
+              className={`inline-block rounded-[2px] border-[1.25px] border-black shrink-0 ${
+                compact ? 'w-2.5 h-2.5' : 'w-3 h-3'
+              }`}
+            />
+            <span className={`font-bold ${compact ? 'text-[7px]' : 'text-[8px]'}`}>
+              Lain: ______
+            </span>
           </div>
         </div>
       </div>
 
-      {/* 6 Attributes Whole-Number 1-5 Square Checkboxes (SILANG X, NO DECIMAL) */}
-      <div className="border border-black px-1.5 py-1 mb-1.5">
-        <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-800 mb-1">
+      {/* 6 Attributes Whole-Number 1-5 Square Checkboxes (Compact aligned label column, zero empty middle gap) */}
+      <div className={`border border-black px-1.5 ${compact ? 'py-0.5 mb-[2px]' : 'py-1 mb-1'}`}>
+        <div className="text-[6px] font-black uppercase tracking-wider text-zinc-800 mb-[2px]">
           KARAKTER RASA &amp; BAKAR (SILANG X ANGKA 1–5 • BULAT)
         </div>
-        <div className="grid grid-cols-2 gap-x-2.5 gap-y-1">
+        <div className={`grid grid-cols-2 gap-x-2 ${compact ? 'gap-y-[2px]' : 'gap-y-1'}`}>
           {ATTRIBUTE_FIELDS.map((attr) => (
-            <div key={attr.key} className="flex items-center justify-between gap-1">
-              <span className="font-extrabold text-[8.5px] uppercase">{attr.label}</span>
-              <div className="flex items-center gap-1">
+            <div key={attr.key} className="flex items-center justify-start gap-1.5 min-w-0 overflow-hidden">
+              <span className={`font-extrabold uppercase tracking-tight shrink-0 w-9 ${compact ? 'text-[7px]' : 'text-[7.5px]'}`}>
+                {attr.label}
+              </span>
+              <div className="flex items-center gap-[2px] shrink-0">
                 {[1, 2, 3, 4, 5].map((num) => (
                   <span
                     key={num}
                     className={`${
-                      compact ? 'w-3.5 h-3.5 text-[8px]' : 'w-4 h-4 text-[9px]'
-                    } rounded-[2px] border-[1.5px] border-black inline-flex items-center justify-center font-mono font-bold`}
+                      compact ? 'w-[11px] h-[11px] text-[6.5px]' : 'w-[14px] h-[14px] text-[7.5px]'
+                    } rounded-[2px] border-[1.2px] border-black inline-flex items-center justify-center font-mono font-bold leading-none`}
                   >
                     {num}
                   </span>
@@ -301,22 +396,22 @@ const PrintableGradeCardPaper: React.FC<{
       </div>
 
       {/* Stage 2: Timbangan & Harga (Menyusul - Rescan same card) */}
-      <div className="border-t-2 border-dashed border-black pt-1.5">
-        <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-700 mb-1">
+      <div className={`border-t-[1.5px] border-dashed border-black ${compact ? 'pt-0.5' : 'pt-1'}`}>
+        <div className="text-[6px] font-black uppercase tracking-wider text-zinc-700 mb-[2px]">
           TAHAP 2 (MENYUSUL — ISI &amp; SCAN ULANG KARTU INI)
         </div>
-        <div className="grid grid-cols-12 gap-1.5">
-          <div className="col-span-4 border border-black px-1.5 py-1">
-            <div className="text-[7px] font-black uppercase">BRUTO (KG)</div>
-            <div className={compact ? 'h-4' : 'h-4.5'} />
+        <div className="grid grid-cols-12 gap-1">
+          <div className="col-span-4 border border-black px-1.5 py-[2px]">
+            <div className="text-[6px] font-black uppercase">BRUTO (KG)</div>
+            <div className={compact ? 'h-2.5' : 'h-4'} />
           </div>
-          <div className="col-span-4 border border-black px-1.5 py-1">
-            <div className="text-[7px] font-black uppercase">HARGA / KG (RP)</div>
-            <div className={compact ? 'h-4' : 'h-4.5'} />
+          <div className="col-span-4 border border-black px-1.5 py-[2px]">
+            <div className="text-[6px] font-black uppercase">HARGA / KG (RP)</div>
+            <div className={compact ? 'h-2.5' : 'h-4'} />
           </div>
-          <div className="col-span-4 border border-black px-1.5 py-1">
-            <div className="text-[7px] font-black uppercase">CATATAN</div>
-            <div className={compact ? 'h-4' : 'h-4.5'} />
+          <div className="col-span-4 border border-black px-1.5 py-[2px]">
+            <div className="text-[6px] font-black uppercase">CATATAN</div>
+            <div className={compact ? 'h-2.5' : 'h-4'} />
           </div>
         </div>
       </div>
@@ -368,8 +463,17 @@ const PrintableGradeCardBackPaper: React.FC<{
   customPrefix?: string;
   compact: boolean;
   rotate180?: boolean;
-}> = ({ lotNumber, customPrefix, compact, rotate180 = false }) => {
+  blankUnusedSlots?: boolean;
+}> = ({ lotNumber, customPrefix, compact, rotate180 = false, blankUnusedSlots = false }) => {
   if (!lotNumber) {
+    if (blankUnusedSlots) {
+      return (
+        <div
+          className="grade-card-paper-item bg-white border border-transparent select-none"
+          aria-hidden="true"
+        />
+      );
+    }
     return (
       <div
         className={`grade-card-paper-item bg-white text-zinc-400 border border-dashed border-zinc-300 flex items-center justify-center select-none ${
@@ -387,8 +491,8 @@ const PrintableGradeCardBackPaper: React.FC<{
 
   return (
     <div
-      className={`grade-card-paper-item relative bg-white text-black border-2 border-black flex flex-col justify-between select-none ${
-        compact ? 'p-3 text-[10px]' : 'p-4 text-[11px]'
+      className={`grade-card-paper-item relative bg-white text-black border-2 border-black flex flex-col justify-between select-none box-border overflow-hidden ${
+        compact ? 'p-2.5 text-[9px]' : 'p-3 text-[10px]'
       } ${rotate180 ? 'rotate-180' : ''}`}
       style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif" }}
     >
@@ -399,43 +503,43 @@ const PrintableGradeCardBackPaper: React.FC<{
       <span className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 border-b-2 border-r-2 border-black pointer-events-none" />
 
       {/* Top Banner: Header + Bold Prefix Code */}
-      <div className="flex items-center justify-between gap-2 pb-2 border-b-2 border-black">
-        <div>
-          <div className="text-[8px] font-extrabold uppercase tracking-[0.18em] text-zinc-700">
+      <div className="flex items-center justify-between gap-2 pb-1.5 border-b-2 border-black">
+        <div className="min-w-0">
+          <div className="text-[7.5px] font-extrabold uppercase tracking-[0.16em] text-zinc-700 truncate">
             TOBACCO LAB • SISI BELAKANG
           </div>
-          <div className="text-[9px] font-black uppercase tracking-wider mt-0.5">
+          <div className="text-[8.5px] font-black uppercase tracking-wider mt-0.5 truncate">
             BARCODE SCANNER LOT GUDANG
           </div>
         </div>
-        <div className="bg-black text-white px-2.5 py-1 rounded-[3px] text-right shrink-0">
-          <div className="text-[7px] font-bold uppercase tracking-[0.15em] opacity-80">
+        <div className="bg-black text-white px-2 py-0.5 rounded-[3px] text-right shrink-0">
+          <div className="text-[6.5px] font-bold uppercase tracking-[0.14em] opacity-80">
             PREFIX CODE
           </div>
-          <div className={`font-mono font-black tracking-wider ${compact ? 'text-xs' : 'text-sm'}`}>
+          <div className={`font-mono font-black tracking-wider ${compact ? 'text-[11px]' : 'text-xs'}`}>
             {prefixCode}
           </div>
         </div>
       </div>
 
       {/* Center Hero: Giant 1D Code 39 Barcode + Large 2D Lot Matrix + Jumbo Text */}
-      <div className={`flex-1 flex flex-col justify-center ${compact ? 'my-2 gap-1.5' : 'my-3 gap-2.5'}`}>
-        <div className="border-2 border-black p-2 bg-white">
-          <div className="flex items-center gap-2.5">
+      <div className={`flex-1 flex flex-col justify-center ${compact ? 'my-1 gap-1' : 'my-1.5 gap-1.5'}`}>
+        <div className={`border-2 border-black bg-white ${compact ? 'p-1.5' : 'p-2'}`}>
+          <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0">
-              <Code39BarcodeSvg code={lotNumber} height={compact ? 58 : 78} />
+              <Code39BarcodeSvg code={lotNumber} height={compact ? 42 : 62} />
             </div>
             <div className="shrink-0 flex flex-col items-center">
-              <LotMatrixSvg lotCode={lotNumber} size={compact ? 54 : 68} />
-              <span className="text-[6.5px] font-mono font-extrabold uppercase mt-0.5">
+              <LotMatrixSvg lotCode={lotNumber} size={compact ? 40 : 56} />
+              <span className="text-[6px] font-mono font-extrabold uppercase mt-0.5">
                 2D ANCHOR
               </span>
             </div>
           </div>
 
           <div
-            className={`text-center font-mono font-black tracking-[0.14em] leading-none mt-2 pt-1.5 border-t border-zinc-300 ${
-              compact ? 'text-lg' : 'text-2xl'
+            className={`text-center font-mono font-black tracking-[0.14em] leading-none border-t border-zinc-300 ${
+              compact ? 'text-sm mt-1 pt-1' : 'text-xl mt-1.5 pt-1.5'
             }`}
           >
             {lotNumber}
@@ -444,9 +548,9 @@ const PrintableGradeCardBackPaper: React.FC<{
       </div>
 
       {/* Bottom Quick Reference + Duplex Alignment Footer */}
-      <div className="border-t-2 border-dashed border-black pt-1.5 flex items-center justify-between gap-2 text-[8px] font-mono font-bold text-zinc-700">
-        <span>PREFIX: {prefixCode}</span>
-        <span>SCAN BARCODE UNTUK TAHAP 2 / CARI LOT</span>
+      <div className="border-t-2 border-dashed border-black pt-1 flex items-center justify-between gap-2 text-[7.5px] font-mono font-bold text-zinc-700">
+        <span className="shrink-0">PREFIX: {prefixCode}</span>
+        <span className="truncate">SCAN BARCODE UNTUK TAHAP 2 / CARI LOT</span>
       </div>
     </div>
   );
@@ -459,11 +563,23 @@ const ThermalGradeCardPaper: React.FC<{
   profile: 'THERMAL_58' | 'THERMAL_80';
   includeBackBarcode?: boolean;
   customPrefix?: string;
-}> = ({ lotNumber, packagingChoices, profile, includeBackBarcode = false, customPrefix }) => {
+  graderName?: string;
+  printYear?: number;
+}> = ({
+  lotNumber,
+  packagingChoices,
+  profile,
+  includeBackBarcode = false,
+  customPrefix,
+  graderName = '',
+  printYear,
+}) => {
   const is58 = profile === 'THERMAL_58';
   const pkgs = packagingChoices.slice(0, 4);
   const grades = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'E+', 'E', 'F+', 'F'];
   const prefixCode = extractLotPrefixCode(lotNumber, customPrefix);
+  const resolvedYear = sanitizePrintYear(printYear);
+  const cleanGrader = graderName.trim();
 
   return (
     <div
@@ -482,7 +598,8 @@ const ThermalGradeCardPaper: React.FC<{
             {lotNumber}
           </div>
           <div className={`${is58 ? 'text-[7px]' : 'text-[8px]'} text-zinc-700 mt-0.5`}>
-            Tgl: ___/___/20__ • Grd: _______
+            Tgl: ___/___/<b className="text-black">{resolvedYear}</b> • Grd:{' '}
+            <b className="text-black">{cleanGrader || '_______'}</b>
           </div>
         </div>
         <LotMatrixSvg lotCode={lotNumber} size={is58 ? 28 : 34} />
@@ -534,15 +651,15 @@ const ThermalGradeCardPaper: React.FC<{
         </div>
       </div>
 
-      {/* Karakter Rasa Square X-Checkboxes 1-5 */}
+      {/* Karakter Rasa Square X-Checkboxes 1-5 (Tight label alignment) */}
       <div className="border border-black px-1.5 py-1 mb-1.5">
         <div className={`${is58 ? 'text-[6.5px]' : 'text-[7.5px]'} font-black uppercase mb-1`}>
           KARAKTER RASA (SILANG X ANGKA 1–5)
         </div>
         <div className="space-y-1">
           {ATTRIBUTE_FIELDS.map((attr) => (
-            <div key={attr.key} className="flex items-center justify-between gap-1">
-              <span className={`font-extrabold uppercase ${is58 ? 'text-[8px]' : 'text-[9px]'}`}>
+            <div key={attr.key} className="flex items-center justify-start gap-2">
+              <span className={`font-extrabold uppercase shrink-0 ${is58 ? 'w-11 text-[8px]' : 'w-12 text-[9px]'}`}>
                 {attr.label}
               </span>
               <div className="flex items-center gap-1">
@@ -684,25 +801,72 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
   const [capturedPreviewUrl, setCapturedPreviewUrl] = useState<string | null>(null);
   const [isScanningAI, setIsScanningAI] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [unregisteredBarcodeLot, setUnregisteredBarcodeLot] = useState<string | null>(null);
   const [scanQualityWarning, setScanQualityWarning] = useState<string>('');
   const [scanModelUsed, setScanModelUsed] = useState<string>('');
   const [reviewedCards, setReviewedCards] = useState<ReviewedScannedGradeCard[]>([]);
 
-  // Printable Card Builder State (Strict Single-Print Anti-Double + Registered Prefix Memory)
-  const [printCount, setPrintCount] = useState<number>(8);
-  const [paperFormat, setPaperFormat] = useState<PrintPaperFormat>('A4_4');
-  const [duplexMode, setDuplexMode] = useState<DuplexMode>('LONG_EDGE');
-  const [includeThermalBarcode, setIncludeThermalBarcode] = useState<boolean>(true);
+  // Printable Card Builder State (Fixed 6/A4 + Kelipatan 6 + Non-Locking Retryable PDF/Print Flow)
+  const initialPrintPrefs = useMemo(() => loadPrintPreferences(), []);
+  const [paperFormat, setPaperFormat] = useState<PrintPaperFormat>(initialPrintPrefs.paperFormat);
+  const [printCount, setPrintCount] = useState<number>(() =>
+    snapPrintCountForFormat(initialPrintPrefs.printCount, initialPrintPrefs.paperFormat)
+  );
+  const [duplexMode, setDuplexMode] = useState<DuplexMode>(initialPrintPrefs.duplexMode);
+  const [includeThermalBarcode, setIncludeThermalBarcode] = useState<boolean>(
+    initialPrintPrefs.includeThermalBarcode
+  );
+  const [showPaperSetup, setShowPaperSetup] = useState<boolean>(
+    !initialPrintPrefs.hasCustomizedBefore
+  );
+  const [printYear, setPrintYear] = useState<number>(initialPrintPrefs.printYear);
+  const [printYearDraft, setPrintYearDraft] = useState<string>(String(initialPrintPrefs.printYear));
   const [issuedPrintedLots, setIssuedPrintedLots] = useState<string[]>(() =>
     loadIssuedPrintedLots()
   );
   const [prefixRegistryRaw, setPrefixRegistryRaw] = useState<PrefixRegistryState>(() =>
     loadPrefixRegistryState()
   );
+  const [graderRegistryRaw, setGraderRegistryRaw] = useState<GraderRegistryState>(() =>
+    loadGraderRegistryState()
+  );
+  const [isAddingGrader, setIsAddingGrader] = useState(false);
+  const [newGraderDraft, setNewGraderDraft] = useState('');
+  const [pendingDeleteGrader, setPendingDeleteGrader] = useState<string | null>(null);
+
+  const [isReprintMode, setIsReprintMode] = useState(false);
+  const [reprintModeType, setReprintModeType] = useState<ReprintMode>('GABUNG_BARU');
+  const [reprintLotsInput, setReprintLotsInput] = useState('');
+  const [selectedSlotIndexes, setSelectedSlotIndexes] = useState<number[]>([0]);
+
   const [isAddingPrefix, setIsAddingPrefix] = useState(false);
   const [newPrefixDraft, setNewPrefixDraft] = useState('');
-  const [isPrintLocked, setIsPrintLocked] = useState(false);
-  const [isBluetoothPrinting, setIsBluetoothPrinting] = useState(false);
+  const [newPrefixStartSeqDraft, setNewPrefixStartSeqDraft] = useState('');
+  const [pendingDeletePrefix, setPendingDeletePrefix] = useState<string | null>(null);
+  const [skipStartSeqDraft, setSkipStartSeqDraft] = useState('');
+  const [pendingPrintBatch, setPendingPrintBatch] = useState<PendingPrintBatch | null>(() =>
+    loadPendingPrintBatch()
+  );
+  const [lastLockedBatch, setLastLockedBatch] = useState<LockedBatchSnapshot | null>(() =>
+    loadLastLockedBatch()
+  );
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [printPdfError, setPrintPdfError] = useState<string | null>(null);
+
+  const effectivePrintCount = snapPrintCountForFormat(printCount, paperFormat);
+  const activeGraderName = graderRegistryRaw.lastSelectedGrader;
+
+  // Auto-save printer/paper setup + editable printYear so daily printing stays 1-tap
+  useEffect(() => {
+    savePrintPreferences({
+      paperFormat,
+      duplexMode,
+      printCount: effectivePrintCount,
+      includeThermalBarcode,
+      hasCustomizedBefore: true,
+      printYear,
+    });
+  }, [paperFormat, duplexMode, effectivePrintCount, includeThermalBarcode, printYear]);
 
   const prefixRegistry = useMemo(
     () =>
@@ -716,8 +880,17 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
 
   // Auto-select the last printed/registered prefix automatically
   const customLotPrefix = prefixRegistry.lastSelectedPrefix;
+  const activeMinStartSeq = useMemo(
+    () => getPrefixStartSequence(prefixRegistry, customLotPrefix) ?? 1,
+    [prefixRegistry, customLotPrefix]
+  );
 
-  const cardsPerA4Page: 4 | 6 = paperFormat === 'A4_6' ? 6 : 4;
+  useEffect(() => {
+    const saved = getPrefixStartSequence(prefixRegistry, customLotPrefix);
+    setSkipStartSeqDraft(saved ? String(saved) : '');
+  }, [prefixRegistry, customLotPrefix]);
+
+  const cardsPerA4Page = 6 as const;
   const isThermalMode = isThermalPaperFormat(paperFormat);
 
   const persistPrefixRegistry = (next: PrefixRegistryState) => {
@@ -725,13 +898,20 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
     setPrefixRegistryRaw(next);
   };
 
-  // Keep issued print & prefix registries synchronized across browser tabs / windows
+  const persistGraderRegistry = (next: GraderRegistryState) => {
+    saveGraderRegistryState(next);
+    setGraderRegistryRaw(next);
+  };
+
+  // Keep issued print, prefix & grader registries synchronized across browser tabs / windows
   useEffect(() => {
     const onStorage = (ev: StorageEvent) => {
       if (ev.key === ISSUED_PRINT_LOTS_STORAGE_KEY) {
         setIssuedPrintedLots(loadIssuedPrintedLots());
       } else if (ev.key === PRINT_PREFIX_REGISTRY_STORAGE_KEY) {
         setPrefixRegistryRaw(loadPrefixRegistryState());
+      } else if (ev.key === GRADER_REGISTRY_STORAGE_KEY) {
+        setGraderRegistryRaw(loadGraderRegistryState());
       }
     };
     window.addEventListener('storage', onStorage);
@@ -739,33 +919,183 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
   }, []);
 
   const masterDict = useMemo(
-    () => buildWarehouseMasterDictionary(rawTobaccos, packagingList),
-    [rawTobaccos, packagingList]
+    () =>
+      buildWarehouseMasterDictionary(
+        rawTobaccos,
+        packagingList,
+        graderRegistryRaw.registeredGraders
+      ),
+    [rawTobaccos, packagingList, graderRegistryRaw.registeredGraders]
   );
 
-  const lotBatchNumbers = useMemo(
+  const parsedReprintLots = useMemo(
+    () => (isReprintMode ? parseReprintLotCodes(reprintLotsInput) : []),
+    [isReprintMode, reprintLotsInput]
+  );
+
+  const reprintFreshNeededCount = useMemo(() => {
+    if (parsedReprintLots.length === 0) return effectivePrintCount;
+    if (reprintModeType === 'SLOT_TERPILIH') return 0;
+    const minPages = isThermalMode ? parsedReprintLots.length : Math.ceil(parsedReprintLots.length / 6);
+    const totalSlots = isThermalMode
+      ? Math.max(parsedReprintLots.length, effectivePrintCount)
+      : Math.max(effectivePrintCount, minPages * 6);
+    return Math.max(0, totalSlots - parsedReprintLots.length);
+  }, [parsedReprintLots, reprintModeType, isThermalMode, effectivePrintCount]);
+
+  const generatedBatchNumbers = useMemo(
     () =>
       generateNextLotBatchNumbers(
         rawTobaccos,
-        Math.max(1, Math.min(60, printCount)),
+        Math.max(effectivePrintCount, reprintFreshNeededCount),
         customLotPrefix,
-        issuedPrintedLots
+        issuedPrintedLots,
+        activeMinStartSeq
       ),
-    [rawTobaccos, printCount, customLotPrefix, issuedPrintedLots]
+    [
+      rawTobaccos,
+      effectivePrintCount,
+      reprintFreshNeededCount,
+      customLotPrefix,
+      issuedPrintedLots,
+      activeMinStartSeq,
+    ]
   );
 
+  const { lots: freshLotsForBatch, isRetryingPending } = useMemo(
+    () =>
+      resolveActiveBatchLots({
+        pendingBatch: pendingPrintBatch,
+        generatedBatchLots: generatedBatchNumbers,
+        activePrefix: customLotPrefix,
+        requestedCount: reprintFreshNeededCount,
+      }),
+    [pendingPrintBatch, generatedBatchNumbers, customLotPrefix, reprintFreshNeededCount]
+  );
+
+  const effectiveSelectedSlotIndexes = useMemo(() => {
+    const cap = Math.max(1, parsedReprintLots.length);
+    return selectedSlotIndexes.slice(-cap);
+  }, [selectedSlotIndexes, parsedReprintLots.length]);
+
+  const activeReprintPlan = useMemo(
+    () =>
+      buildReprintSlotPlan({
+        mode: reprintModeType,
+        reprintLots: parsedReprintLots,
+        selectedSlotIndexes: effectiveSelectedSlotIndexes,
+        generatedFreshLots: freshLotsForBatch,
+        requestedCount: effectivePrintCount,
+        paperFormat,
+      }),
+    [
+      reprintModeType,
+      parsedReprintLots,
+      effectiveSelectedSlotIndexes,
+      freshLotsForBatch,
+      effectivePrintCount,
+      paperFormat,
+    ]
+  );
+
+  const activePrintSlots = activeReprintPlan.slots;
+  const lotBatchNumbers = useMemo(
+    () => activePrintSlots.filter((l): l is string => Boolean(l)),
+    [activePrintSlots]
+  );
+  const freshLotsToLock = activeReprintPlan.freshLotsToLock;
+  const blankUnusedSlots = activeReprintPlan.blankUnusedSlots;
+
+  const recentPrintableLotsForChips = useMemo(() => {
+    const combined = [
+      ...issuedPrintedLots.slice().reverse(),
+      ...rawTobaccos.map((t) => normalizeLotNumber(t.lotNumber)).filter(Boolean),
+    ];
+    return Array.from(new Set(combined)).slice(0, 12);
+  }, [issuedPrintedLots, rawTobaccos]);
+
   const a4Pages = useMemo(() => {
-    const pages: string[][] = [];
-    for (let i = 0; i < lotBatchNumbers.length; i += cardsPerA4Page) {
-      pages.push(lotBatchNumbers.slice(i, i + cardsPerA4Page));
+    const pages: (string | null)[][] = [];
+    for (let i = 0; i < activePrintSlots.length; i += cardsPerA4Page) {
+      pages.push(activePrintSlots.slice(i, i + cardsPerA4Page));
     }
     return pages;
-  }, [lotBatchNumbers, cardsPerA4Page]);
+  }, [activePrintSlots]);
 
   const totalA4SheetPages =
     duplexMode === 'OFF' ? a4Pages.length : a4Pages.length * 2;
 
+  const handleChangePaperFormat = (nextFormat: PrintPaperFormat) => {
+    setPaperFormat(nextFormat);
+    setPrintCount((prev) => snapPrintCountForFormat(prev, nextFormat));
+  };
+
+  const handleSelectSavedGrader = (grader: string) => {
+    setPendingDeleteGrader(null);
+    persistGraderRegistry(selectActiveGraderName(graderRegistryRaw, grader));
+  };
+
+  const handleRegisterNewGraderSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const { nextState, normalizedName } = registerGraderName(
+      graderRegistryRaw,
+      newGraderDraft
+    );
+    if (!normalizedName) {
+      onShowToast?.('Masukkan nama grader terlebih dahulu.');
+      return;
+    }
+    persistGraderRegistry(nextState);
+    setNewGraderDraft('');
+    setIsAddingGrader(false);
+    setPendingDeleteGrader(null);
+    onShowToast?.(`Grader "${normalizedName}" terdaftar & dipilih untuk cetak kartu!`);
+  };
+
+  const handleConfirmRemoveSavedGrader = () => {
+    if (!pendingDeleteGrader) return;
+    const target = pendingDeleteGrader;
+    persistGraderRegistry(removeRegisteredGraderName(graderRegistryRaw, target));
+    setPendingDeleteGrader(null);
+    onShowToast?.(`Grader "${target}" dihapus dari daftar.`);
+  };
+
+  const handleCommitPrintYear = (rawVal: string) => {
+    const clean = sanitizePrintYear(rawVal, printYear);
+    setPrintYear(clean);
+    setPrintYearDraft(String(clean));
+  };
+
+  const handleToggleSlotIndex = (slotIdx: number) => {
+    const neededCount = Math.max(1, parsedReprintLots.length);
+    if (neededCount <= 1) {
+      setSelectedSlotIndexes([slotIdx]);
+      return;
+    }
+    setSelectedSlotIndexes((prev) => {
+      const normalized = prev.slice(-neededCount);
+      if (normalized.includes(slotIdx)) {
+        return normalized.length > 1 ? normalized.filter((s) => s !== slotIdx) : normalized;
+      }
+      if (normalized.length >= neededCount) {
+        return [...normalized.slice(normalized.length - neededCount + 1), slotIdx].sort(
+          (a, b) => a - b
+        );
+      }
+      return [...normalized, slotIdx].sort((a, b) => a - b);
+    });
+  };
+
+  const handleToggleReprintChip = (lotCode: string) => {
+    const curr = parseReprintLotCodes(reprintLotsInput);
+    const next = curr.includes(lotCode)
+      ? curr.filter((x) => x !== lotCode)
+      : [...curr, lotCode];
+    setReprintLotsInput(next.join(', '));
+  };
+
   const handleSelectSavedPrefix = (prefix: string) => {
+    setPendingDeletePrefix(null);
     const next = selectActivePrefix(prefixRegistry, prefix);
     persistPrefixRegistry(next);
   };
@@ -777,105 +1107,241 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
       onShowToast?.('Masukkan kode prefix huruf/angka (contoh: MTL atau TMG-).');
       return;
     }
-    const { nextState, normalizedPrefix } = registerNewPrefix(prefixRegistry, cleaned);
+    const rawSeq = parseInt(newPrefixStartSeqDraft.trim(), 10);
+    const startSeq =
+      Number.isFinite(rawSeq) && rawSeq >= 2 ? rawSeq : undefined;
+    const { nextState, normalizedPrefix } = registerNewPrefix(
+      prefixRegistry,
+      cleaned,
+      startSeq
+    );
     persistPrefixRegistry(nextState);
+    if (startSeq !== undefined) {
+      setPendingPrintBatch(null);
+      savePendingPrintBatch(null);
+    }
+    setPendingDeletePrefix(null);
     setNewPrefixDraft('');
+    setNewPrefixStartSeqDraft('');
     setIsAddingPrefix(false);
     if (normalizedPrefix) {
       onShowToast?.(
-        `Prefix "${normalizedPrefix}" terdaftar & otomatis dipilih untuk cetak berikutnya!`
+        startSeq
+          ? `Prefix "${normalizedPrefix}" terdaftar & langsung lanjut dari nomor #${String(startSeq).padStart(3, '0')}!`
+          : `Prefix "${normalizedPrefix}" terdaftar & otomatis dipilih untuk cetak berikutnya!`
       );
     }
   };
 
-  const handleRemoveSavedPrefix = (prefix: string) => {
-    const next = removeRegisteredPrefix(prefixRegistry, prefix);
-    persistPrefixRegistry(next);
-    onShowToast?.(`Prefix "${prefix}" dihapus dari daftar tersimpan.`);
+  const handleRequestRemoveSavedPrefix = (prefix: string) => {
+    setPendingDeletePrefix((curr) => (curr === prefix ? null : prefix));
   };
 
-  const markBatchAsPrintedOnce = (printedLots: string[]) => {
-    if (!printedLots.length) return;
-    setIssuedPrintedLots((prev) => {
-      const merged = Array.from(
-        new Set([...prev, ...printedLots.map((l) => l.trim().toUpperCase())])
-      );
-      try {
-        localStorage.setItem(ISSUED_PRINT_LOTS_STORAGE_KEY, JSON.stringify(merged));
-      } catch {
-        // Ignore quota edge case
-      }
-      return merged;
+  const handleConfirmRemoveSavedPrefix = () => {
+    if (!pendingDeletePrefix) return;
+    const target = pendingDeletePrefix;
+    const next = removeRegisteredPrefix(prefixRegistry, target);
+    persistPrefixRegistry(next);
+    if (pendingPrintBatch && normalizePrefixInput(pendingPrintBatch.prefix) === target) {
+      setPendingPrintBatch(null);
+      savePendingPrintBatch(null);
+    }
+    setPendingDeletePrefix(null);
+    onShowToast?.(`Prefix "${target}" dihapus dari daftar cepat.`);
+  };
+
+  const handleApplySkipStartSequence = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const parsed = parseInt(skipStartSeqDraft.trim(), 10);
+    if (!Number.isFinite(parsed) || parsed < 2) {
+      onShowToast?.('Masukkan angka mulai minimal 2 (contoh: 19 untuk mulai dari #019).');
+      return;
+    }
+    const next = setPrefixStartSequence(prefixRegistry, customLotPrefix, parsed);
+    persistPrefixRegistry(next);
+    setPendingPrintBatch(null);
+    savePendingPrintBatch(null);
+    onShowToast?.(
+      `Urutan "${customLotPrefix || 'Otomatis Harian'}" diatur mulai dari #${String(parsed).padStart(3, '0')}.`
+    );
+  };
+
+  const handleResetSkipStartSequence = () => {
+    const next = setPrefixStartSequence(prefixRegistry, customLotPrefix, null);
+    persistPrefixRegistry(next);
+    setPendingPrintBatch(null);
+    savePendingPrintBatch(null);
+    setSkipStartSeqDraft('');
+    onShowToast?.('Nomor mulai dikembalikan ke hitungan otomatis.');
+  };
+
+  const stagePendingBatch = (lotsToLock: string[], mode: 'PDF' | 'SYSTEM_PRINT' | 'THERMAL') => {
+    if (lotsToLock.length === 0) return;
+    const draft = createPendingPrintBatch({
+      lots: lotsToLock,
+      prefix: customLotPrefix,
+      paperFormat,
+      mode,
     });
+    setPendingPrintBatch(draft);
+    savePendingPrintBatch(draft);
+  };
+
+  const handleDownloadA4Pdf = () => {
+    if (isGeneratingPdf || lotBatchNumbers.length === 0) return;
+    const slotSnapshot = [...activePrintSlots];
+    const freshSnapshot = [...freshLotsToLock];
+    setPrintPdfError(null);
+    setIsGeneratingPdf(true);
+
+    try {
+      const { blob, filename, physicalPageCount } = generateA4GradeCardsPdf({
+        lotBatchNumbers: slotSnapshot,
+        packagingChoices: masterDict.packagings,
+        duplexMode,
+        customPrefix: customLotPrefix,
+        graderName: activeGraderName,
+        printYear,
+        blankUnusedSlots,
+      });
+
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = blobUrl;
+      anchor.download = filename;
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+
+      if (freshSnapshot.length > 0) {
+        // Keep fresh numbers unlocked until user confirms PDF succeeded
+        stagePendingBatch(freshSnapshot, 'PDF');
+        onShowToast?.(
+          `PDF "${filename}" (${physicalPageCount} hal A4) dibuat. Klik "Berhasil Cetak — Kunci Nomor" jika sudah aman.`
+        );
+      } else {
+        onShowToast?.(
+          `PDF Cetak Ulang "${filename}" (${physicalPageCount} hal A4) siap — nomor seri baru tetap tidak bergeser!`
+        );
+      }
+    } catch (err) {
+      const msg =
+        err instanceof Error && err.message
+          ? err.message
+          : 'Gagal membuat file PDF A4.';
+      setPrintPdfError(
+        freshSnapshot.length > 0
+          ? `${msg} Nomor seri ${freshSnapshot[0]} s/d ${freshSnapshot[freshSnapshot.length - 1]} TIDAK dikunci agar Anda dapat mencoba ulang nomor yang sama.`
+          : msg
+      );
+      if (freshSnapshot.length > 0) {
+        stagePendingBatch(freshSnapshot, 'PDF');
+      }
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleSystemPrintAttempt = () => {
+    if (lotBatchNumbers.length === 0) return;
+    const freshSnapshot = [...freshLotsToLock];
+    setPrintPdfError(null);
+
+    if (freshSnapshot.length > 0) {
+      stagePendingBatch(freshSnapshot, isThermalMode ? 'THERMAL' : 'SYSTEM_PRINT');
+    }
+
+    try {
+      window.print();
+      if (freshSnapshot.length > 0) {
+        onShowToast?.(
+          `Dialog print dibuka untuk ${freshSnapshot[0]} s/d ${freshSnapshot[freshSnapshot.length - 1]}. Nomor belum dikunci — konfirmasi jika sudah tercetak.`
+        );
+      } else {
+        onShowToast?.(
+          `Dialog cetak ulang dibuka (${lotBatchNumbers.join(', ')}). Nomor seri baru tidak berubah!`
+        );
+      }
+    } catch {
+      setPrintPdfError(
+        freshSnapshot.length > 0
+          ? `Print sistem gagal dibuka. Nomor ${freshSnapshot[0]} s/d ${freshSnapshot[freshSnapshot.length - 1]} TIDAK dikunci — coba "Download PDF A4" atau klik Coba Lagi.`
+          : 'Print sistem gagal dibuka — silakan coba Download PDF A4.'
+      );
+    }
+  };
+
+  const handleConfirmPendingBatch = () => {
+    const activePending =
+      pendingPrintBatch ||
+      createPendingPrintBatch({
+        lots: freshLotsToLock,
+        prefix: customLotPrefix,
+        paperFormat,
+        mode: isThermalMode ? 'THERMAL' : 'PDF',
+      });
+    if (!activePending || activePending.lots.length === 0) return;
+
+    const { nextIssuedLots, lastLockedBatch: nextLockedSnapshot } = confirmPendingBatchLock({
+      issuedLots: issuedPrintedLots,
+      pendingBatch: activePending,
+    });
+
+    setIssuedPrintedLots(nextIssuedLots);
+    saveIssuedPrintedLots(nextIssuedLots);
+    setLastLockedBatch(nextLockedSnapshot);
+    saveLastLockedBatch(nextLockedSnapshot);
+    setPendingPrintBatch(null);
+    savePendingPrintBatch(null);
+    setPrintPdfError(null);
+
     const nextPrefixReg = recordPrintedBatchToPrefixRegistry(
       prefixRegistry,
-      printedLots,
+      activePending.lots,
       customLotPrefix
     );
     persistPrefixRegistry(nextPrefixReg);
+
+    onShowToast?.(
+      `Seri ${activePending.lots[0]} s/d ${
+        activePending.lots[activePending.lots.length - 1]
+      } terkunci (1× cetak). Nomor berikutnya siap!`
+    );
   };
 
-  const handleSystemPrintOnce = () => {
-    if (isPrintLocked || isBluetoothPrinting || lotBatchNumbers.length === 0) return;
-    const batchSnapshot = [...lotBatchNumbers];
-    setIsPrintLocked(true);
-
-    let settled = false;
-    const finalizeLock = () => {
-      if (settled) return;
-      settled = true;
-      window.removeEventListener('afterprint', finalizeLock);
-      markBatchAsPrintedOnce(batchSnapshot);
-      setIsPrintLocked(false);
-      onShowToast?.(
-        `Seri ${batchSnapshot[0]} s/d ${batchSnapshot[batchSnapshot.length - 1]} terkunci (1× cetak). Nomor berikutnya siap!`
-      );
-    };
-
-    window.addEventListener('afterprint', finalizeLock, { once: true });
-    try {
-      window.print();
-    } finally {
-      // Fallback in browsers where window.print() does not block or fire afterprint
-      window.setTimeout(finalizeLock, 650);
-    }
+  const handleCancelPendingBatch = () => {
+    setPendingPrintBatch(null);
+    savePendingPrintBatch(null);
+    setPrintPdfError(null);
+    onShowToast?.('Draft dibatalkan. Nomor seri tetap aman & tidak dikunci.');
   };
 
-  const handlePrintBluetoothThermal = async () => {
-    if (isPrintLocked || isBluetoothPrinting || lotBatchNumbers.length === 0) return;
-    const profileKey: 'THERMAL_58' | 'THERMAL_80' =
-      paperFormat === 'THERMAL_58' ? 'THERMAL_58' : 'THERMAL_80';
-    const profile = THERMAL_PROFILES[profileKey];
-    const batchSnapshot = [...lotBatchNumbers];
-    setIsBluetoothPrinting(true);
-    setIsPrintLocked(true);
-    let printedOk = 0;
-    try {
-      for (const lotNumber of batchSnapshot) {
-        const canvas = renderThermalCardToCanvas({
-          lotNumber,
-          packagingChoices: masterDict.packagings,
-          widthDots: profile.widthDots,
-          includeBackBarcode: includeThermalBarcode,
-          customPrefix: customLotPrefix,
-        });
-        await printCanvasViaWebBluetooth(canvas);
-        markBatchAsPrintedOnce([lotNumber]);
-        printedOk++;
-      }
-      onShowToast?.(
-        `Berhasil mencetak & mengunci ${printedOk} seri ke printer Bluetooth ${profile.rollWidthMm}mm.`
-      );
-    } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : 'Gagal mencetak via Bluetooth. Gunakan Cetak Thermal (Driver / PDF).';
-      onShowToast?.(msg);
-    } finally {
-      setIsBluetoothPrinting(false);
-      setIsPrintLocked(false);
+  const handleUnlockLastBatch = () => {
+    if (!lastLockedBatch || lastLockedBatch.lots.length === 0) return;
+    const { nextIssuedLots, restoredPendingBatch } = unlockLastLockedBatch({
+      issuedLots: issuedPrintedLots,
+      lastLockedBatch,
+      paperFormat,
+    });
+    setIssuedPrintedLots(nextIssuedLots);
+    saveIssuedPrintedLots(nextIssuedLots);
+    setLastLockedBatch(null);
+    saveLastLockedBatch(null);
+    setPendingPrintBatch(restoredPendingBatch);
+    savePendingPrintBatch(restoredPendingBatch);
+    setPrintPdfError(null);
+    if (lastLockedBatch.prefix) {
+      const nextReg = selectActivePrefix(prefixRegistry, lastLockedBatch.prefix);
+      persistPrefixRegistry(nextReg);
     }
+    setPrintCount(snapPrintCountForFormat(lastLockedBatch.lots.length, paperFormat));
+    onShowToast?.(
+      `Kunci dibuka untuk ${lastLockedBatch.lots[0]} s/d ${
+        lastLockedBatch.lots[lastLockedBatch.lots.length - 1]
+      } — siap dicetak ulang!`
+    );
   };
 
   useEffect(() => {
@@ -923,26 +1389,71 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
     const cleanCode = normalizeLotNumber(rawCode);
     if (!cleanCode) {
       setScanError('Masukkan atau arahkan barcode Kode Lot terlebih dahulu.');
+      setUnregisteredBarcodeLot(null);
       return false;
     }
 
     const found = findExistingStockByCode(cleanCode);
     if (!found) {
       stopCamera();
+      setUnregisteredBarcodeLot(cleanCode);
       setScanError(
-        `Barcode "${cleanCode}" terbaca oleh kamera, tetapi belum terdaftar di gudang. Scan kartu depan lewat "1. Kamera Stok Baru" untuk mendaftarkannya pertama kali.`
+        `Barcode "${cleanCode}" terbaca oleh kamera, tetapi belum ada di stok gudang.`
       );
       return false;
     }
 
     stopCamera();
     setScanError(null);
+    setUnregisteredBarcodeLot(null);
     setCameraError(null);
     setScanQualityWarning('');
     setScanModelUsed('Barcode Scanner');
     setReviewedCards([buildEditableReviewCardFromExistingStock(found)]);
-    onShowToast?.(`Barcode ${found.lotNumber || cleanCode} terbaca! Siap update & edit info.`);
+    const missingFlags = getRawTobaccoMissingFlags(found);
+    if (!missingFlags.isIncomplete) {
+      onShowToast?.(
+        `Duplikat Terdeteksi: Lot ${found.lotNumber || cleanCode} ("${found.name}") sudah lengkap di gudang — dibuka di Mode Edit Cepat.`
+      );
+    } else {
+      onShowToast?.(
+        `Lot ${found.lotNumber || cleanCode} ("${found.name}") sudah ada (belum lengkap) — siap update & edit info!`
+      );
+    }
     return true;
+  };
+
+  const handleRegisterUnregisteredBarcodeAsNew = (lotCode: string) => {
+    const cleanLot = normalizeLotNumber(lotCode);
+    const classified = classifyScannedCardsForReview({
+      scannedCards: [
+        {
+          lotNumber: cleanLot,
+          name: '',
+          origin: '',
+          sellerName: '',
+          colorGrade: 'D',
+          packagingType: packagingList[0]?.name || '',
+          grossWeightKg: 0,
+          pricePerKgPurchase: 0,
+          powerRating: 0,
+          impactRating: 0,
+          bitterRating: 0,
+          burnRating: 0,
+          sugarRating: 0,
+          aromaRating: 0,
+          uncertainFields: ['name', 'origin', 'grossWeightKg', 'pricePerKgPurchase'],
+        },
+      ],
+      rawTobaccos,
+      packagingList,
+      defaultPrintYear: printYear,
+      registeredGraders: graderRegistryRaw.registeredGraders,
+    });
+    setScanError(null);
+    setUnregisteredBarcodeLot(null);
+    setScanModelUsed('Barcode Register Baru');
+    setReviewedCards(classified);
   };
 
   // Native BarcodeDetector + Universal Pure-TS Code 39 Pixel Decoder loop (works on Chrome, Android, iOS Safari, Firefox)
@@ -1079,6 +1590,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
   ) => {
     setCapturedPreviewUrl(imageData.dataUrl);
     setScanError(null);
+    setUnregisteredBarcodeLot(null);
     setScanQualityWarning('');
     stopCamera();
 
@@ -1098,7 +1610,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
         setScanModelUsed('Code 39 Barcode Decoder');
         setReviewedCards(matchedLocal);
         onShowToast?.(
-          `Barcode ${matchedLocal.map((m) => m.lotNumber).join(', ')} terbaca instan! Siap update & edit info.`
+          `Stok Sudah Ada (Barcode): ${matchedLocal.map((m) => m.lotNumber).join(', ')} ditemukan di gudang — siap update & edit info.`
         );
         return;
       }
@@ -1116,6 +1628,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
           scanMode: purpose,
           masterContext: {
             sellers: masterDict.sellers,
+            graders: masterDict.graders,
             origins: masterDict.origins,
             packagings: masterDict.packagings,
             tobaccoNames: masterDict.tobaccoNames,
@@ -1136,10 +1649,16 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
       setScanModelUsed(String(payload.modelUsed || ''));
 
       if (rawCards.length === 0) {
-        if (purpose === 'BARCODE_UPDATE' && localHits.length > 0) {
+        if (localHits.length > 0) {
+          const firstMatched = localHits.find((code) => Boolean(findExistingStockByCode(code)));
+          if (firstMatched) {
+            handleBarcodeLotResolved(firstMatched);
+            return;
+          }
           setReviewedCards([]);
+          setUnregisteredBarcodeLot(normalizeLotNumber(localHits[0]));
           setScanError(
-            `Barcode "${localHits.join(', ')}" terbaca oleh kamera, tetapi belum ada di stok gudang. Scan kartu depan lewat "1. Kamera Stok Baru" untuk mendaftarkannya pertama kali.`
+            `Barcode "${localHits.join(', ')}" terbaca oleh kamera, tetapi belum ada di stok gudang.`
           );
           return;
         }
@@ -1177,15 +1696,20 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
         }
         if (matchedLots.length > 0) {
           setReviewedCards(matchedLots);
+          onShowToast?.(
+            `Duplikat / Stok Ditemukan via Barcode (${matchedLots.map((m) => m.lotNumber).join(', ')}) — dibuka di mode Edit Cepat.`
+          );
           return;
         }
         const detectedSummary = Array.from(
           new Set([...localHits, ...unmatchedDetectedLots])
         ).join(', ');
+        const firstUnregistered = localHits[0] || unmatchedDetectedLots[0] || null;
+        setUnregisteredBarcodeLot(firstUnregistered ? normalizeLotNumber(firstUnregistered) : null);
         setReviewedCards([]);
         setScanError(
           detectedSummary
-            ? `Barcode "${detectedSummary}" terbaca jelas oleh kamera, tetapi belum ada di stok gudang. Gunakan "1. Kamera Stok Baru" jika ingin mendaftarkannya pertama kali.`
+            ? `Barcode "${detectedSummary}" terbaca jelas oleh kamera, tetapi belum terdaftar di stok gudang.`
             : 'Barcode tidak terbaca jelas pada foto ini. Dekatkan kamera ke area garis barcode.'
         );
         return;
@@ -1195,8 +1719,36 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
         scannedCards: rawCards,
         rawTobaccos,
         packagingList,
+        defaultPrintYear: printYear,
+        registeredGraders: graderRegistryRaw.registeredGraders,
       });
       setReviewedCards(classified);
+
+      const dupCards = classified.filter(
+        (c) => c.matchStatus === 'DUPLICATE_COMPLETE' || c.matchStatus === 'BATCH_DUPLICATE'
+      ).length;
+      const updateCards = classified.filter((c) => c.matchStatus === 'UPDATE_MENYUSUL').length;
+      const newCards = classified.filter((c) => c.matchStatus === 'NEW_STOCK').length;
+
+      if (dupCards > 0 && updateCards > 0) {
+        onShowToast?.(
+          `Duplikat terdeteksi (${dupCards} kartu sama persis dilewati), & ${updateCards} kartu lama punya tulisan baru siap diperbarui!`
+        );
+      } else if (dupCards > 0 && newCards === 0 && updateCards === 0) {
+        onShowToast?.(
+          `Peringatan Duplikat! ${dupCards} kartu terdeteksi ganda (data sama persis sudah ada di gudang).`
+        );
+      } else if (dupCards > 0) {
+        onShowToast?.(
+          `${newCards} stok baru siap simpan • ${dupCards} kartu duplikat otomatis dilewati.`
+        );
+      } else if (updateCards > 0) {
+        onShowToast?.(
+          `Lot sudah terdaftar — ditemukan tulisan/info baru di kertas untuk ${updateCards} kartu (siap update stok lama)!`
+        );
+      } else if (newCards > 0) {
+        onShowToast?.(`${newCards} kartu stok baru terbaca & siap dicek sebelum disimpan.`);
+      }
     } catch (err) {
       setScanError(
         err instanceof Error
@@ -1279,6 +1831,21 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
       onShowToast?.('Centang minimal 1 kartu untuk disimpan ke gudang.');
       return;
     }
+    // Auto-remember any new Grader name entered/scanned during review
+    let nextGraderReg = graderRegistryRaw;
+    let changedGrader = false;
+    for (const c of chosen) {
+      const cleanG = (c.graderName || '').trim();
+      if (cleanG) {
+        const res = registerGraderName(nextGraderReg, cleanG);
+        nextGraderReg = res.nextState;
+        changedGrader = true;
+      }
+    }
+    if (changedGrader) {
+      persistGraderRegistry(nextGraderReg);
+    }
+
     onCommitReviewedCards(chosen);
     resetForNextPhoto();
     onClose();
@@ -1321,10 +1888,10 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveTab('scan')}
-                    className={`h-8 px-3 rounded-lg text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
+                    className={`h-8 px-3 rounded-lg text-xs font-extrabold border inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
                       activeTab === 'scan'
-                        ? 'bg-amber-500 text-black'
-                        : 'text-zinc-400 hover:text-white'
+                        ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                        : 'text-zinc-400 border-transparent hover:text-white'
                     }`}
                   >
                     <Camera className="w-3.5 h-3.5" />
@@ -1333,10 +1900,10 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveTab('print')}
-                    className={`h-8 px-3 rounded-lg text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
+                    className={`h-8 px-3 rounded-lg text-xs font-extrabold border inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
                       activeTab === 'print'
-                        ? 'bg-amber-500 text-black'
-                        : 'text-zinc-400 hover:text-white'
+                        ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                        : 'text-zinc-400 border-transparent hover:text-white'
                     }`}
                   >
                     <Printer className="w-3.5 h-3.5" />
@@ -1356,7 +1923,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+            <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable] p-4 sm:p-5 space-y-4">
               {/* TAB 1: SCAN & REVIEW CEPAT */}
               {activeTab === 'scan' && (
                 <>
@@ -1396,13 +1963,15 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                               : 'border-amber-500/70'
                           }`}
                         >
-                          <video
-                            ref={videoRef}
-                            playsInline
-                            muted
-                            autoPlay
-                            className="w-full max-h-[54vh] object-cover bg-black"
-                          />
+                          <div className="relative w-full aspect-[4/3] sm:aspect-[16/10] max-h-[50vh] bg-black overflow-hidden">
+                            <video
+                              ref={videoRef}
+                              playsInline
+                              muted
+                              autoPlay
+                              className="w-full h-full object-cover bg-black"
+                            />
+                          </div>
 
                           {/* Purpose-Specific Warehouse Framing Overlay */}
                           {cameraPurpose === 'BARCODE_UPDATE' ? (
@@ -1432,7 +2001,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                                 onClick={toggleTorch}
                                 className={`h-10 px-3 rounded-xl border text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer ${
                                   torchOn
-                                    ? 'bg-amber-500 text-black border-amber-400'
+                                    ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
                                     : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border-zinc-700'
                                 }`}
                                 title={
@@ -1470,10 +2039,10 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                             <button
                               type="button"
                               onClick={handleCaptureFromLiveVideo}
-                              className={`h-11 px-5 rounded-xl font-black text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer shadow-lg ${
+                              className={`h-11 px-5 rounded-xl font-black text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer border shadow-lg transition-colors ${
                                 cameraPurpose === 'BARCODE_UPDATE'
-                                  ? 'bg-emerald-500 hover:bg-emerald-400 text-black'
-                                  : 'bg-amber-500 hover:bg-amber-400 text-black'
+                                  ? 'bg-[#0c1411] hover:bg-emerald-950/50 text-emerald-300 border-emerald-500/80'
+                                  : 'bg-[#0d0f14] hover:bg-amber-500/10 text-amber-300 border-amber-500/80'
                               }`}
                             >
                               {cameraPurpose === 'BARCODE_UPDATE' ? (
@@ -1497,16 +2066,16 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                               type="button"
                               onClick={() => startCamera('NEW_STOCK')}
                               disabled={isScanningAI}
-                              className="p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-amber-500/60 hover:border-amber-400 text-left space-y-2 transition-all cursor-pointer group"
+                              className="p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-amber-500/60 hover:border-amber-400 text-left space-y-2 transition-colors duration-150 cursor-pointer"
                             >
-                              <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/50 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
+                              <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/50 flex items-center justify-center text-amber-400">
                                 <Camera className="w-5 h-5" />
                               </div>
                               <div className="text-sm font-black text-white">
                                 1. Kamera Stok Baru (Kartu Grade)
                               </div>
                               <p className="text-xs text-zinc-400 leading-relaxed">
-                                Foto kartu depan (Silang X &amp; tulis tangan) + Senter gudang untuk upload stok baru.
+                                Foto kartu depan (Silang X &amp; tulis tangan) untuk upload stok baru atau update tulisan kertas baru.
                               </p>
                             </button>
 
@@ -1515,9 +2084,9 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                               type="button"
                               onClick={() => startCamera('BARCODE_UPDATE')}
                               disabled={isScanningAI}
-                              className="p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-emerald-500/55 hover:border-emerald-400 text-left space-y-2 transition-all cursor-pointer group"
+                              className="p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-emerald-500/55 hover:border-emerald-400 text-left space-y-2 transition-colors duration-150 cursor-pointer"
                             >
-                              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/50 flex items-center justify-center text-emerald-400 group-hover:scale-105 transition-transform">
+                              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/50 flex items-center justify-center text-emerald-400">
                                 <ScanBarcode className="w-5 h-5" />
                               </div>
                               <div className="text-sm font-black text-white">
@@ -1533,9 +2102,9 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                               type="button"
                               onClick={() => galleryInputRef.current?.click()}
                               disabled={isScanningAI}
-                              className="p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-left space-y-2 transition-all cursor-pointer group"
+                              className="p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-left space-y-2 transition-colors duration-150 cursor-pointer"
                             >
-                              <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center text-zinc-200 group-hover:scale-105 transition-transform">
+                              <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center text-zinc-200">
                                 <Upload className="w-5 h-5" />
                               </div>
                               <div className="text-sm font-black text-white">
@@ -1625,13 +2194,29 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                             <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                             <span>{scanError}</span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={resetForNextPhoto}
-                            className="h-8 px-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs cursor-pointer"
-                          >
-                            Coba Foto Ulang
-                          </button>
+                          <div className="flex items-center gap-2 flex-wrap ml-auto">
+                            {unregisteredBarcodeLot && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleRegisterUnregisteredBarcodeAsNew(unregisteredBarcodeLot)
+                                }
+                                className="h-8 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 font-black text-xs cursor-pointer transition-colors"
+                              >
+                                Daftarkan &ldquo;{unregisteredBarcodeLot}&rdquo; Sebagai Stok Baru
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUnregisteredBarcodeLot(null);
+                                resetForNextPhoto();
+                              }}
+                              className="h-8 px-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs cursor-pointer"
+                            >
+                              Coba Foto Ulang
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1644,6 +2229,11 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                       <datalist id="scanner-master-sellers">
                         {masterDict.sellers.map((s) => (
                           <option key={s} value={s} />
+                        ))}
+                      </datalist>
+                      <datalist id="scanner-master-graders">
+                        {masterDict.graders.map((g) => (
+                          <option key={g} value={g} />
                         ))}
                       </datalist>
                       <datalist id="scanner-master-origins">
@@ -1675,8 +2265,8 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                               </span>
                             </div>
                             <p className="text-[11px] text-zinc-400 mt-0.5">
-                              {selectedToSaveCount} dipilih untuk masuk gudang
-                              {stage2Count > 0 ? ` (${stage2Count} Update Tahap 2 Menyusul)` : ''}
+                              {selectedToSaveCount} dipilih untuk masuk / update gudang
+                              {stage2Count > 0 ? ` (${stage2Count} Update Data Lama)` : ''}
                               {duplicateBlockedCount > 0
                                 ? ` • ${duplicateBlockedCount} ditandai Dobel (otomatis dilewati)`
                                 : ''}
@@ -1749,13 +2339,13 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                                   )}
                                   {isStage2 && (
                                     <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400 text-amber-300 text-[10px] font-black uppercase">
-                                      Tahap 2: Update Menyusul ({card.matchedExistingLot || card.lotNumber})
+                                      Update Info Kertas ({card.matchedExistingLot || card.lotNumber})
                                     </span>
                                   )}
                                   {card.matchStatus === 'DUPLICATE_COMPLETE' && (
                                     <span className="px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500 text-red-300 text-[10px] font-black uppercase inline-flex items-center gap-1">
                                       <ShieldAlert className="w-3 h-3" />
-                                      Anti-Dobel: Lot Sudah Lengkap
+                                      Anti-Dobel: Lot Sudah Ada
                                     </span>
                                   )}
                                   {card.matchStatus === 'BATCH_DUPLICATE' && (
@@ -1787,10 +2377,10 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                                 </button>
                               </div>
 
-                              {/* Duplicate Alert OR Stage 2 Diff Info */}
+                              {/* Duplicate Alert OR Stage 2 / Paper-First Update Diff Info */}
                               {isDuplicate && (
                                 <div className="p-2.5 rounded-xl bg-red-950/50 border border-red-500/50 text-[11px] text-red-200">
-                                  Lot <strong>{card.lotNumber}</strong> sudah tercatat lengkap di gudang
+                                  Lot <strong>{card.lotNumber}</strong> sudah tercatat sama persis di gudang
                                   {card.matchedExistingName ? ` ("${card.matchedExistingName}")` : ''}.
                                   Otomatis tidak dicentang agar tidak terjadi double input.
                                 </div>
@@ -1799,7 +2389,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                               {isStage2 && card.updateDiffSummary.length > 0 && (
                                 <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/40 text-[11px] text-amber-200 flex flex-wrap items-center gap-2">
                                   <span className="font-black text-amber-300">
-                                    Akan digabung ke &ldquo;{card.matchedExistingName}&rdquo;:
+                                    Catatan kertas berubah — update &ldquo;{card.matchedExistingName}&rdquo;:
                                   </span>
                                   {card.updateDiffSummary.map((d, i) => (
                                     <span
@@ -1934,6 +2524,62 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
 
                                 <div>
                                   <label className="block text-[10px] font-extrabold uppercase text-zinc-400 mb-1">
+                                    Nama Grader{' '}
+                                    {isUncertain('graderName') && (
+                                      <span className="text-amber-400">• Cek!</span>
+                                    )}
+                                  </label>
+                                  <input
+                                    type="text"
+                                    list="scanner-master-graders"
+                                    value={card.graderName}
+                                    placeholder="Opsional"
+                                    onChange={(e) =>
+                                      updateReviewedCard(card.reviewId, {
+                                        graderName: e.target.value,
+                                      })
+                                    }
+                                    className={`w-full h-9 px-2.5 rounded-xl text-xs font-bold text-amber-200 border focus:outline-hidden ${
+                                      isUncertain('graderName')
+                                        ? 'bg-amber-500/10 border-amber-400'
+                                        : 'bg-black border-zinc-800 focus:border-amber-500'
+                                    }`}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-[10px] font-extrabold uppercase text-zinc-400 mb-1 flex items-center justify-between gap-1">
+                                    <span>
+                                      Tgl Beli{' '}
+                                      {isUncertain('purchaseDate') && (
+                                        <span className="text-amber-400">• Cek!</span>
+                                      )}
+                                    </span>
+                                    {card.dateWasAutoDefaulted && (
+                                      <span className="text-[9px] text-emerald-400 font-bold normal-case">
+                                        Otomatis Hari Ini
+                                      </span>
+                                    )}
+                                  </label>
+                                  <input
+                                    type="date"
+                                    value={card.purchaseDate}
+                                    onChange={(e) =>
+                                      updateReviewedCard(card.reviewId, {
+                                        purchaseDate: e.target.value,
+                                        dateWasAutoDefaulted: false,
+                                      })
+                                    }
+                                    className={`w-full h-9 px-2.5 rounded-xl text-xs font-mono font-bold text-white border focus:outline-hidden ${
+                                      isUncertain('purchaseDate')
+                                        ? 'bg-amber-500/10 border-amber-400'
+                                        : 'bg-black border-zinc-800 focus:border-amber-500'
+                                    }`}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-[10px] font-extrabold uppercase text-zinc-400 mb-1">
                                     Grade{' '}
                                     {isUncertain('colorGrade') && (
                                       <span className="text-amber-400">• Cek!</span>
@@ -2018,6 +2664,28 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                                         : 'bg-black border-zinc-800 focus:border-amber-500'
                                     }`}
                                   />
+                                  {(() => {
+                                    const wg = getSmartWeightGuard(card.grossWeightKg);
+                                    if (!wg) return null;
+                                    return (
+                                      <div className="mt-1 p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/50 text-[10px] text-amber-200 space-y-1">
+                                        <div className="font-semibold leading-snug">{wg.title}</div>
+                                        {wg.actionLabel && wg.suggestedValue !== undefined && (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              updateReviewedCard(card.reviewId, {
+                                                grossWeightKg: wg.suggestedValue!,
+                                              })
+                                            }
+                                            className="px-2 py-0.5 rounded bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 font-black text-[10px] cursor-pointer transition-colors"
+                                          >
+                                            {wg.actionLabel}
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
 
                                 <div>
@@ -2053,6 +2721,28 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                                       {formatRupiah(card.pricePerKgPurchase)}
                                     </div>
                                   )}
+                                  {(() => {
+                                    const pg = getSmartPriceGuard(card.pricePerKgPurchase);
+                                    if (!pg) return null;
+                                    return (
+                                      <div className="mt-1 p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/60 text-[10px] text-amber-200 space-y-1">
+                                        <div className="font-semibold leading-snug">{pg.title}</div>
+                                        {pg.actionLabel && pg.suggestedValue !== undefined && (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              updateReviewedCard(card.reviewId, {
+                                                pricePerKgPurchase: pg.suggestedValue!,
+                                              })
+                                            }
+                                            className="px-2 py-0.5 rounded bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 font-black text-[10px] cursor-pointer transition-colors"
+                                          >
+                                            {pg.actionLabel}
+                                          </button>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               </div>
 
@@ -2091,10 +2781,10 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                                                   attributesConfirmed: true,
                                                 } as Partial<ReviewedScannedGradeCard>)
                                               }
-                                              className={`h-6 rounded-md font-mono text-[11px] font-black cursor-pointer transition-colors ${
+                                              className={`h-6 rounded-md font-mono text-[11px] font-black border cursor-pointer transition-colors ${
                                                 currentVal === digit
-                                                  ? 'bg-amber-500 text-black'
-                                                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800'
+                                                  ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                                                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border-zinc-800'
                                               }`}
                                             >
                                               {digit}
@@ -2121,63 +2811,99 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                   {/* Configuration Controls */}
                   <div className="p-3.5 sm:p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-3">
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
-                      <div className="lg:col-span-3">
-                        <label className="block text-[10px] font-extrabold uppercase text-zinc-400 mb-1">
-                          Jumlah Kartu Dicetak
-                        </label>
-                        <div className="flex items-center gap-1.5">
-                          {[4, 8, 12, 24].map((preset) => (
-                            <button
-                              key={preset}
-                              type="button"
-                              onClick={() => setPrintCount(preset)}
-                              className={`h-9 flex-1 rounded-xl font-mono text-xs font-black border cursor-pointer ${
-                                printCount === preset
-                                  ? 'bg-amber-500 text-black border-amber-400'
-                                  : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
-                              }`}
-                            >
-                              {preset}
-                            </button>
-                          ))}
+                      <div className="lg:col-span-5">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <label className="text-[10px] font-extrabold uppercase text-zinc-400">
+                            {isThermalMode
+                              ? 'Jumlah Kartu Dicetak'
+                              : 'Jumlah Kartu (Kelipatan 6 • 1 A4 = 6 Kartu)'}
+                          </label>
+                          {!isThermalMode && (
+                            <span className="text-[10px] font-mono font-bold text-amber-300">
+                              {effectivePrintCount} Kartu ({a4Pages.length} Hal A4)
+                            </span>
+                          )}
                         </div>
+                        {isThermalMode ? (
+                          <div className="flex items-center gap-1.5">
+                            {[4, 6, 12, 24].map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setPrintCount(preset)}
+                                className={`h-9 flex-1 rounded-xl font-mono text-xs font-black border cursor-pointer transition-colors ${
+                                  effectivePrintCount === preset
+                                    ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                                    : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {[6, 12, 18, 24, 30, 36].map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setPrintCount(preset)}
+                                className={`h-9 min-w-[40px] flex-1 rounded-xl font-mono text-xs font-black border cursor-pointer transition-colors ${
+                                  effectivePrintCount === preset
+                                    ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                                    : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                            <div className="inline-flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setPrintCount((c) => Math.max(6, snapPrintCountForFormat(c - 6, 'A4_6')))}
+                                disabled={effectivePrintCount <= 6}
+                                aria-label="Kurangi 6 kartu"
+                                className="h-9 px-2.5 rounded-xl font-mono text-xs font-black bg-black hover:bg-zinc-900 disabled:opacity-40 text-zinc-200 border border-zinc-800 cursor-pointer"
+                              >
+                                −6
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPrintCount((c) => Math.min(60, snapPrintCountForFormat(c + 6, 'A4_6')))}
+                                disabled={effectivePrintCount >= 60}
+                                aria-label="Tambah 6 kartu"
+                                className="h-9 px-2.5 rounded-xl font-mono text-xs font-black bg-black hover:bg-zinc-900 disabled:opacity-40 text-zinc-200 border border-zinc-800 cursor-pointer"
+                              >
+                                +6
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="lg:col-span-5">
+                      <div className="lg:col-span-4">
                         <label className="block text-[10px] font-extrabold uppercase text-zinc-400 mb-1">
-                          Format Kertas &amp; Printer (Silang X Ready)
+                          Format Kertas &amp; Printer
                         </label>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        <div className="grid grid-cols-3 gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setPaperFormat('A4_4')}
-                            className={`h-9 px-2 rounded-xl text-xs font-extrabold border cursor-pointer inline-flex items-center justify-center gap-1 ${
-                              paperFormat === 'A4_4'
-                                ? 'bg-amber-500 text-black border-amber-400'
-                                : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
-                            }`}
-                          >
-                            <Layers className="w-3.5 h-3.5 shrink-0" />
-                            <span>4 / A4</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setPaperFormat('A4_6')}
-                            className={`h-9 px-2 rounded-xl text-xs font-extrabold border cursor-pointer inline-flex items-center justify-center gap-1 ${
+                            onClick={() => handleChangePaperFormat('A4_6')}
+                            className={`h-9 px-2 rounded-xl text-xs font-extrabold border cursor-pointer inline-flex items-center justify-center gap-1 whitespace-nowrap transition-colors ${
                               paperFormat === 'A4_6'
-                                ? 'bg-amber-500 text-black border-amber-400'
+                                ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
                                 : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
                             }`}
                           >
                             <Layers className="w-3.5 h-3.5 shrink-0" />
-                            <span>6 / A4</span>
+                            <span>A4 6/Hal</span>
                           </button>
                           <button
                             type="button"
-                            onClick={() => setPaperFormat('THERMAL_58')}
-                            className={`h-9 px-2 rounded-xl text-xs font-extrabold border cursor-pointer inline-flex items-center justify-center gap-1 ${
+                            onClick={() => handleChangePaperFormat('THERMAL_58')}
+                            className={`h-9 px-2 rounded-xl text-xs font-extrabold border cursor-pointer inline-flex items-center justify-center gap-1 whitespace-nowrap transition-colors ${
                               paperFormat === 'THERMAL_58'
-                                ? 'bg-amber-500 text-black border-amber-400'
+                                ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
                                 : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
                             }`}
                           >
@@ -2186,10 +2912,10 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                           </button>
                           <button
                             type="button"
-                            onClick={() => setPaperFormat('THERMAL_80')}
-                            className={`h-9 px-2 rounded-xl text-xs font-extrabold border cursor-pointer inline-flex items-center justify-center gap-1 ${
+                            onClick={() => handleChangePaperFormat('THERMAL_80')}
+                            className={`h-9 px-2 rounded-xl text-xs font-extrabold border cursor-pointer inline-flex items-center justify-center gap-1 whitespace-nowrap transition-colors ${
                               paperFormat === 'THERMAL_80'
-                                ? 'bg-amber-500 text-black border-amber-400'
+                                ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
                                 : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
                             }`}
                           >
@@ -2199,19 +2925,19 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                         </div>
                       </div>
 
-                      <div className="lg:col-span-4">
+                      <div className="lg:col-span-3">
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <label
                             htmlFor="print-prefix-select"
-                            className="text-[10px] font-extrabold uppercase text-zinc-400 inline-flex items-center gap-1"
+                            className="text-[10px] font-extrabold uppercase text-zinc-400 inline-flex items-center gap-1 whitespace-nowrap"
                           >
-                            <BookmarkCheck className="w-3 h-3 text-amber-400" />
-                            <span>Prefix Terdaftar (Auto-Pilih Terakhir)</span>
+                            <BookmarkCheck className="w-3 h-3 text-amber-400 shrink-0" />
+                            <span>Prefix Terdaftar</span>
                           </label>
                           <button
                             type="button"
                             onClick={() => setIsAddingPrefix((v) => !v)}
-                            className="text-[10px] font-black text-amber-400 hover:text-amber-300 inline-flex items-center gap-0.5 cursor-pointer"
+                            className="text-[10px] font-black text-amber-400 hover:text-amber-300 inline-flex items-center gap-0.5 cursor-pointer whitespace-nowrap"
                           >
                             <Plus className="w-3 h-3" />
                             <span>{isAddingPrefix ? 'Batal' : 'Daftar Prefix Baru'}</span>
@@ -2224,7 +2950,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                           className="w-full h-9 px-3 rounded-xl bg-black border border-zinc-800 text-xs font-mono font-bold text-amber-300 focus:outline-hidden focus:border-amber-500 cursor-pointer"
                         >
                           <option value="">
-                            Otomatis Harian ({generateNextLotBatchNumbers(rawTobaccos, 1, '', issuedPrintedLots)[0]?.replace(/\d+$/, '') || 'LOT-...'})
+                            Otomatis Harian ({generateNextLotBatchNumbers(rawTobaccos, 1, '', issuedPrintedLots, getPrefixStartSequence(prefixRegistry, '') ?? 1)[0]?.replace(/\d+$/, '') || 'LOT-...'})
                           </option>
                           {prefixRegistry.registeredPrefixes.map((pref) => (
                             <option key={pref} value={pref}>
@@ -2235,194 +2961,752 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Registered Prefix Chips + Inline New Prefix Registration */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-800/70">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10px] font-extrabold uppercase text-zinc-500 mr-1">
-                          Prefix Tersimpan:
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleSelectSavedPrefix('')}
-                          className={`h-7 px-2.5 rounded-lg font-mono text-[11px] font-extrabold border cursor-pointer transition-colors ${
-                            customLotPrefix === ''
-                              ? 'bg-amber-500 text-black border-amber-400'
-                              : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
-                          }`}
-                        >
-                          Otomatis Harian
-                        </button>
-                        {prefixRegistry.registeredPrefixes.map((pref) => {
-                          const active = customLotPrefix === pref;
-                          return (
-                            <div
-                              key={pref}
-                              className={`inline-flex items-center rounded-lg border overflow-hidden ${
-                                active
-                                  ? 'bg-amber-500 text-black border-amber-400'
-                                  : 'bg-black text-zinc-200 border-zinc-800'
-                              }`}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => handleSelectSavedPrefix(pref)}
-                                className="h-7 px-2.5 font-mono text-[11px] font-black cursor-pointer"
-                              >
-                                {pref}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveSavedPrefix(pref)}
-                                aria-label={`Hapus prefix ${pref}`}
-                                title={`Hapus prefix ${pref}`}
-                                className={`h-7 px-1.5 flex items-center justify-center cursor-pointer transition-colors ${
-                                  active
-                                    ? 'hover:bg-black/15 text-black/80'
-                                    : 'hover:bg-red-950/60 text-zinc-500 hover:text-red-300 border-l border-zinc-800'
-                                }`}
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                        {!isAddingPrefix && (
+                    {/* Registered Prefix Chips + Inline New Prefix Registration + Confirmation + Skip Number */}
+                    <div className="space-y-2.5 pt-2 border-t border-zinc-800/70">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] font-extrabold uppercase text-zinc-500 mr-1">
+                            Prefix Tersimpan:
+                          </span>
                           <button
                             type="button"
-                            onClick={() => setIsAddingPrefix(true)}
-                            className="h-7 px-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-dashed border-amber-500/60 text-amber-300 text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer"
+                            onClick={() => handleSelectSavedPrefix('')}
+                            className={`h-7 px-2.5 rounded-lg font-mono text-[11px] font-extrabold border cursor-pointer transition-colors ${
+                              customLotPrefix === ''
+                                ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                                : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                            }`}
                           >
-                            <Plus className="w-3 h-3" />
-                            <span>Prefix Baru</span>
+                            Otomatis Harian
                           </button>
+                          {prefixRegistry.registeredPrefixes.map((pref) => {
+                            const active = customLotPrefix === pref;
+                            const confirmingThis = pendingDeletePrefix === pref;
+                            return (
+                              <div
+                                key={pref}
+                                className={`inline-flex items-center rounded-lg border overflow-hidden transition-colors ${
+                                  confirmingThis
+                                    ? 'bg-red-950/50 text-red-200 border-red-500/80'
+                                    : active
+                                    ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                                    : 'bg-black text-zinc-200 border-zinc-800'
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectSavedPrefix(pref)}
+                                  className="h-7 px-2.5 font-mono text-[11px] font-black cursor-pointer"
+                                >
+                                  {pref}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleRequestRemoveSavedPrefix(pref);
+                                  }}
+                                  aria-label={`Hapus prefix ${pref}`}
+                                  title={`Hapus prefix ${pref}`}
+                                  className={`h-7 w-7 flex items-center justify-center cursor-pointer transition-colors shrink-0 ${
+                                    confirmingThis
+                                      ? 'bg-red-900/60 text-red-200 border-l border-red-500/60'
+                                      : active
+                                      ? 'hover:bg-red-950/60 text-amber-300/75 hover:text-red-300 border-l border-amber-500/40'
+                                      : 'hover:bg-red-950/60 text-zinc-500 hover:text-red-300 border-l border-zinc-800'
+                                  }`}
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                          {!isAddingPrefix && (
+                            <button
+                              type="button"
+                              onClick={() => setIsAddingPrefix(true)}
+                              className="h-7 px-2.5 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 border border-dashed border-amber-500/70 text-amber-300 text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Prefix Baru</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {isAddingPrefix && (
+                          <form
+                            onSubmit={handleRegisterNewPrefixSubmit}
+                            className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto"
+                          >
+                            <input
+                              type="text"
+                              value={newPrefixDraft}
+                              onChange={(e) => setNewPrefixDraft(e.target.value.toUpperCase())}
+                              placeholder="Prefix (mis. MTL)"
+                              autoFocus
+                              className="h-8 w-32 px-2.5 rounded-lg bg-black border border-amber-500/70 text-xs font-mono font-bold text-white focus:outline-hidden focus:border-amber-400"
+                            />
+                            <input
+                              type="number"
+                              min={1}
+                              max={99999}
+                              value={newPrefixStartSeqDraft}
+                              onChange={(e) => setNewPrefixStartSeqDraft(e.target.value)}
+                              placeholder="Mulai # (mis. 19)"
+                              title="Opsional: jika sudah cetak kertas sampai #18, isi 19 untuk lanjut dari #019"
+                              className="h-8 w-32 px-2.5 rounded-lg bg-black border border-zinc-700 focus:border-amber-400 text-xs font-mono font-bold text-amber-300 focus:outline-hidden"
+                            />
+                            <button
+                              type="submit"
+                              className="h-8 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 font-black text-[11px] cursor-pointer transition-colors"
+                            >
+                              Simpan Prefix
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsAddingPrefix(false);
+                                setNewPrefixDraft('');
+                                setNewPrefixStartSeqDraft('');
+                              }}
+                              className="h-8 px-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 font-bold text-[11px] cursor-pointer"
+                            >
+                              Batal
+                            </button>
+                          </form>
                         )}
                       </div>
 
-                      {isAddingPrefix && (
-                        <form
-                          onSubmit={handleRegisterNewPrefixSubmit}
-                          className="flex items-center gap-1.5 w-full sm:w-auto"
+                      {/* Confirmation banner before deleting a prefix */}
+                      {pendingDeletePrefix && (
+                        <div
+                          data-testid="confirm-delete-prefix-banner"
+                          className="p-2.5 rounded-xl bg-red-950/40 border border-red-500/70 flex flex-wrap items-center justify-between gap-2"
                         >
-                          <input
-                            type="text"
-                            value={newPrefixDraft}
-                            onChange={(e) => setNewPrefixDraft(e.target.value.toUpperCase())}
-                            placeholder="Mis. MTL atau TMG-"
-                            autoFocus
-                            className="h-8 w-40 px-2.5 rounded-lg bg-black border border-amber-500/70 text-xs font-mono font-bold text-white focus:outline-hidden focus:border-amber-400"
-                          />
-                          <button
-                            type="submit"
-                            className="h-8 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-black text-[11px] cursor-pointer"
-                          >
-                            Simpan Prefix
-                          </button>
-                        </form>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-800/80">
-                      {/* Duplex (2-Sided Back Barcode) OR Thermal Companion Barcode Control */}
-                      {isThermalMode ? (
-                        <label className="inline-flex items-center gap-2 text-xs font-bold text-zinc-200 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={includeThermalBarcode}
-                            onChange={(e) => setIncludeThermalBarcode(e.target.checked)}
-                            className="w-4 h-4 rounded accent-amber-500 cursor-pointer"
-                          />
-                          <span>
-                            Sertakan Barcode Besar &amp; Prefix (Lipat / Tempel Belakang)
-                          </span>
-                        </label>
-                      ) : (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[10px] font-extrabold uppercase text-zinc-400">
-                            Cetak 2 Sisi (Belakang = Barcode Besar + Prefix):
-                          </span>
-                          <div className="inline-flex p-0.5 rounded-xl bg-black border border-zinc-800">
+                          <div className="text-xs text-red-100 flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                            <span>
+                              Yakin ingin menghapus prefix{' '}
+                              <strong className="font-mono text-amber-300">
+                                {pendingDeletePrefix}
+                              </strong>{' '}
+                              dari daftar cepat? (Stok gudang tetap aman &amp; nanti jika ditambah
+                              lagi bisa langsung lompat ke nomor terakhir).
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 ml-auto">
                             <button
                               type="button"
-                              onClick={() => setDuplexMode('OFF')}
-                              className={`h-7 px-2.5 rounded-lg text-[11px] font-bold cursor-pointer ${
-                                duplexMode === 'OFF'
-                                  ? 'bg-zinc-700 text-white'
-                                  : 'text-zinc-400 hover:text-white'
-                              }`}
+                              onClick={() => setPendingDeletePrefix(null)}
+                              className="h-8 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-bold cursor-pointer"
                             >
-                              1 Sisi
+                              Batal
                             </button>
                             <button
                               type="button"
-                              onClick={() => setDuplexMode('LONG_EDGE')}
-                              className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold cursor-pointer ${
-                                duplexMode === 'LONG_EDGE'
-                                  ? 'bg-amber-500 text-black'
-                                  : 'text-zinc-400 hover:text-white'
-                              }`}
+                              onClick={handleConfirmRemoveSavedPrefix}
+                              className="h-8 px-3 rounded-lg bg-red-950 hover:bg-red-900 border border-red-500/80 text-red-200 text-xs font-black inline-flex items-center gap-1 cursor-pointer"
                             >
-                              2 Sisi • Long Edge
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDuplexMode('SHORT_EDGE')}
-                              className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold cursor-pointer ${
-                                duplexMode === 'SHORT_EDGE'
-                                  ? 'bg-amber-500 text-black'
-                                  : 'text-zinc-400 hover:text-white'
-                              }`}
-                            >
-                              2 Sisi • Short Edge
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Ya, Hapus {pendingDeletePrefix}</span>
                             </button>
                           </div>
                         </div>
                       )}
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        {isThermalMode && (
+                      {/* Grader Terdaftar & Tahun Cetak Editable Bar */}
+                      <div
+                        data-testid="grader-and-year-bar"
+                        className="p-2.5 rounded-xl bg-black/70 border border-zinc-800/90 space-y-2"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-extrabold uppercase text-zinc-400 inline-flex items-center gap-1 mr-1">
+                              <UserCheck className="w-3 h-3 text-amber-400" />
+                              <span>Nama Grader:</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectSavedGrader('')}
+                              className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold border cursor-pointer transition-colors ${
+                                activeGraderName === ''
+                                  ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                                  : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                              }`}
+                            >
+                              Tulis Manual (Kosong)
+                            </button>
+                            {graderRegistryRaw.registeredGraders.map((grader) => {
+                              const active =
+                                activeGraderName.toLowerCase() === grader.toLowerCase();
+                              const confirming = pendingDeleteGrader === grader;
+                              return (
+                                <div
+                                  key={grader}
+                                  className={`inline-flex items-center rounded-lg border overflow-hidden transition-colors ${
+                                    confirming
+                                      ? 'bg-red-950/50 text-red-200 border-red-500/80'
+                                      : active
+                                        ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                                        : 'bg-black text-zinc-200 border-zinc-800'
+                                  }`}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSelectSavedGrader(grader)}
+                                    className="h-7 px-2.5 text-[11px] font-black cursor-pointer"
+                                  >
+                                    {grader}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setPendingDeleteGrader((curr) =>
+                                        curr === grader ? null : grader
+                                      )
+                                    }
+                                    aria-label={`Hapus grader ${grader}`}
+                                    className="h-7 w-6 flex items-center justify-center border-l border-zinc-800 hover:bg-red-950/60 text-zinc-500 hover:text-red-300 cursor-pointer"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                            {!isAddingGrader && (
+                              <button
+                                type="button"
+                                onClick={() => setIsAddingGrader(true)}
+                                className="h-7 px-2.5 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 border border-dashed border-amber-500/70 text-amber-300 text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                              >
+                                <Plus className="w-3 h-3" />
+                                <span>Grader Baru</span>
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <label
+                              htmlFor="print-year-input"
+                              className="text-[10px] font-extrabold uppercase text-zinc-400 inline-flex items-center gap-1"
+                            >
+                              <Calendar className="w-3 h-3 text-amber-400" />
+                              <span>Tahun Cetak:</span>
+                            </label>
+                            <input
+                              id="print-year-input"
+                              type="number"
+                              min={2020}
+                              max={2099}
+                              value={printYearDraft}
+                              onChange={(e) => {
+                                setPrintYearDraft(e.target.value);
+                                const parsed = Number(e.target.value);
+                                if (Number.isFinite(parsed) && parsed >= 2020 && parsed <= 2099) {
+                                  setPrintYear(Math.round(parsed));
+                                }
+                              }}
+                              onBlur={(e) => handleCommitPrintYear(e.target.value)}
+                              className="h-7 w-20 px-2 rounded-lg bg-[#0d0f14] border border-amber-500/60 font-mono text-xs font-black text-amber-300 text-center focus:outline-hidden focus:border-amber-400"
+                            />
+                          </div>
+                        </div>
+
+                        {isAddingGrader && (
+                          <form
+                            onSubmit={handleRegisterNewGraderSubmit}
+                            className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-zinc-800/70"
+                          >
+                            <input
+                              type="text"
+                              value={newGraderDraft}
+                              onChange={(e) => setNewGraderDraft(e.target.value)}
+                              placeholder="Nama grader (mis. Pak Slamet)"
+                              autoFocus
+                              className="h-8 w-52 px-2.5 rounded-lg bg-black border border-amber-500/70 text-xs font-bold text-white focus:outline-hidden focus:border-amber-400"
+                            />
+                            <button
+                              type="submit"
+                              className="h-8 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 font-black text-[11px] cursor-pointer"
+                            >
+                              Simpan Grader
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsAddingGrader(false);
+                                setNewGraderDraft('');
+                              }}
+                              className="h-8 px-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-[11px] font-bold cursor-pointer"
+                            >
+                              Batal
+                            </button>
+                          </form>
+                        )}
+
+                        {pendingDeleteGrader && (
+                          <div className="p-2 rounded-lg bg-red-950/40 border border-red-500/60 flex flex-wrap items-center justify-between gap-2 text-xs text-red-100">
+                            <span>
+                              Hapus grader <strong>{pendingDeleteGrader}</strong> dari daftar?
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setPendingDeleteGrader(null)}
+                                className="h-7 px-2.5 rounded bg-zinc-900 border border-zinc-700 text-[11px] font-bold cursor-pointer"
+                              >
+                                Batal
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleConfirmRemoveSavedGrader}
+                                className="h-7 px-2.5 rounded bg-red-900 border border-red-500 text-[11px] font-black cursor-pointer"
+                              >
+                                Ya, Hapus
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Zero-Waste Reprint Panel for Older / Printer Ink-Defect Numbers */}
+                      <div
+                        data-testid="zero-waste-reprint-panel"
+                        className={`p-2.5 rounded-xl border transition-colors ${
+                          isReprintMode
+                            ? 'bg-[#0d0f14] border-amber-500/80 space-y-2.5'
+                            : 'bg-black/60 border-zinc-800/90'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIsReprintMode((v) => !v)}
+                              className={`h-7 px-2.5 rounded-lg border text-[11px] font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
+                                isReprintMode
+                                  ? 'bg-amber-500/15 text-amber-300 border-amber-500'
+                                  : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-700 hover:border-amber-500/60'
+                              }`}
+                            >
+                              <RotateCcw className="w-3 h-3 text-amber-400" />
+                              <span>
+                                {isReprintMode
+                                  ? 'Tutup Mode Cetak Ulang'
+                                  : 'Cetak Ulang Nomor Lama / Rusak'}
+                              </span>
+                            </button>
+                            <span className="text-[10px] text-zinc-400">
+                              Solusi hemat kertas bila ada 1–2 kartu cacat tinta / printer macet.
+                            </span>
+                          </div>
+
+                          {isReprintMode && !isThermalMode && (
+                            <button
+                              type="button"
+                              onClick={() => handleChangePaperFormat('THERMAL_80')}
+                              className="h-7 px-2.5 rounded-lg bg-zinc-950 hover:bg-zinc-900 border border-zinc-700 hover:border-amber-500/60 text-[10px] font-bold text-amber-300 inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <Printer className="w-3 h-3" />
+                              <span>Beralih Thermal (Cetak 1 Slip)</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {isReprintMode && (
+                          <div className="space-y-2.5 pt-2 border-t border-zinc-800/80">
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                              <div className="sm:col-span-5">
+                                <label
+                                  htmlFor="reprint-lots-input"
+                                  className="block text-[10px] font-extrabold uppercase text-zinc-400 mb-1"
+                                >
+                                  Nomor Seri Lama / Cacat (Pisah Koma)
+                                </label>
+                                <input
+                                  id="reprint-lots-input"
+                                  type="text"
+                                  value={reprintLotsInput}
+                                  onChange={(e) => setReprintLotsInput(e.target.value.toUpperCase())}
+                                  placeholder="Mis. MTL005 atau MTL005, MTL006"
+                                  className="w-full h-8 px-2.5 rounded-lg bg-black border border-amber-500/60 font-mono text-xs font-bold text-amber-300 focus:outline-hidden focus:border-amber-400"
+                                />
+                              </div>
+
+                              <div className="sm:col-span-7">
+                                <div className="text-[10px] font-extrabold uppercase text-zinc-400 mb-1">
+                                  Metode Hemat Kertas:
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setReprintModeType('GABUNG_BARU')}
+                                    className={`h-8 px-2.5 rounded-lg border text-[11px] font-extrabold text-left cursor-pointer transition-colors ${
+                                      reprintModeType === 'GABUNG_BARU'
+                                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/80'
+                                        : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                                    }`}
+                                  >
+                                    Gabung ke Cetakan Baru (Nol Sisa)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setReprintModeType('SLOT_TERPILIH')}
+                                    className={`h-8 px-2.5 rounded-lg border text-[11px] font-extrabold text-left cursor-pointer transition-colors ${
+                                      reprintModeType === 'SLOT_TERPILIH'
+                                        ? 'bg-amber-500/15 text-amber-300 border-amber-500/80'
+                                        : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                                    }`}
+                                  >
+                                    Slot Terpilih 1–6 (Sisa Putih Bersih)
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {recentPrintableLotsForChips.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1">
+                                <span className="text-[10px] font-bold text-zinc-500 mr-1">
+                                  Pilih Cepat Seri Terakhir:
+                                </span>
+                                {recentPrintableLotsForChips.map((lotCode) => {
+                                  const selected = parsedReprintLots.includes(lotCode);
+                                  return (
+                                    <button
+                                      key={lotCode}
+                                      type="button"
+                                      onClick={() => handleToggleReprintChip(lotCode)}
+                                      className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold border cursor-pointer transition-colors ${
+                                        selected
+                                          ? 'bg-amber-500/20 text-amber-300 border-amber-500'
+                                          : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                                      }`}
+                                    >
+                                      {lotCode}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {!isThermalMode && reprintModeType === 'SLOT_TERPILIH' && (
+                              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-zinc-800/70">
+                                <span className="text-[10px] font-bold text-zinc-300">
+                                  Pilih Posisi Slot di A4 (Sisa kertas tetap putih bersih agar bisa dipakai lagi):
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  {[0, 1, 2, 3, 4, 5].map((slotIdx) => {
+                                    const active = effectiveSelectedSlotIndexes.includes(slotIdx);
+                                    return (
+                                      <button
+                                        key={slotIdx}
+                                        type="button"
+                                        onClick={() => handleToggleSlotIndex(slotIdx)}
+                                        className={`h-7 px-2.5 rounded font-mono text-[11px] font-black border cursor-pointer ${
+                                          active
+                                            ? 'bg-amber-500/20 text-amber-300 border-amber-500'
+                                            : 'bg-black text-zinc-400 border-zinc-800 hover:text-white'
+                                        }`}
+                                      >
+                                        Slot {slotIdx + 1}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {parsedReprintLots.length > 0 && (
+                              <p className="text-[10px] text-amber-200/90 font-medium">
+                                {reprintModeType === 'GABUNG_BARU'
+                                  ? `Slot depan diisi cetak ulang (${parsedReprintLots.join(', ')}), sisanya otomatis lanjut nomor baru (${freshLotsToLock[0] || '-'} s/d ${freshLotsToLock[freshLotsToLock.length - 1] || '-'}) agar 1 lembar A4 terpakai penuh.`
+                                  : `Hanya mencetak ${parsedReprintLots.join(', ')} pada posisi terpilih — slot lain 100% putih tanpa tinta dan urutan nomor baru tidak berubah.`}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Skip Number / Custom Start Sequence Bar */}
+                      <form
+                        data-testid="skip-number-bar"
+                        onSubmit={handleApplySkipStartSequence}
+                        className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-black/70 border border-zinc-800/90"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-extrabold uppercase text-zinc-400">
+                            Lompat Nomor ({customLotPrefix || 'Harian'}):
+                          </span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={99999}
+                            value={skipStartSeqDraft}
+                            onChange={(e) => setSkipStartSeqDraft(e.target.value)}
+                            placeholder="Otomatis (mis. 19)"
+                            aria-label="Mulai dari nomor urut"
+                            className="h-8 w-44 px-2.5 rounded-lg bg-[#0d0f14] border border-amber-500/60 text-xs font-mono font-bold text-amber-300 focus:outline-hidden focus:border-amber-400"
+                          />
+                          <button
+                            type="submit"
+                            className="h-8 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 text-[11px] font-black cursor-pointer transition-colors"
+                          >
+                            Mulai dari Nomor Ini
+                          </button>
+                          {activeMinStartSeq > 1 && (
+                            <button
+                              type="button"
+                              onClick={handleResetSkipStartSequence}
+                              className="h-8 px-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-[11px] font-bold cursor-pointer"
+                            >
+                              Reset Auto
+                            </button>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-zinc-400">
+                          Jika kertas fisik terakhir sampai #18, isi <strong className="text-amber-300 font-mono">19</strong> agar langsung lanjut #019.
+                        </span>
+                      </form>
+                    </div>
+
+                    {/* Saved Printer Quick Bar (1-Tap Print Mode) */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-800/80">
+                      <div className="flex items-center justify-between gap-2 flex-wrap w-full">
+                        <span className="text-[11px] font-bold text-zinc-300">
+                          Printer Tersimpan:{' '}
+                          <b className="text-amber-300">
+                            {formatPaperSummaryLabel({
+                              paperFormat,
+                              duplexMode,
+                              printCount,
+                              includeThermalBarcode,
+                              hasCustomizedBefore: true,
+                              printYear,
+                            })}
+                          </b>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowPaperSetup((v) => !v)}
+                          className="h-9 px-3.5 rounded-xl bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-xs font-extrabold text-amber-300 inline-flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+                          <span>
+                            {showPaperSetup ? 'Tutup Atur Kertas & Sisi' : 'Atur Kertas & Sisi'}
+                          </span>
+                          {showPaperSetup ? (
+                            <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {showPaperSetup && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-800/60">
+                        {/* Duplex (2-Sided Back Barcode) OR Thermal Companion Barcode Control */}
+                        {isThermalMode ? (
+                          <label className="inline-flex items-center gap-2 text-xs font-bold text-zinc-200 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={includeThermalBarcode}
+                              onChange={(e) => setIncludeThermalBarcode(e.target.checked)}
+                              className="w-4 h-4 rounded accent-amber-500 cursor-pointer"
+                            />
+                            <span>
+                              Sertakan Barcode Besar &amp; Prefix (Lipat / Tempel Belakang)
+                            </span>
+                          </label>
+                        ) : (
+                          <div className="space-y-1.5 w-full">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] font-extrabold uppercase text-zinc-400">
+                                Arah Balik Cetak 2 Sisi (Barcode Belakang):
+                              </span>
+                              <div className="inline-flex flex-wrap p-0.5 rounded-xl bg-black border border-zinc-800 gap-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setDuplexMode('OFF')}
+                                  className={`h-7 px-2.5 rounded-lg text-[11px] font-bold cursor-pointer whitespace-nowrap ${
+                                    duplexMode === 'OFF'
+                                      ? 'bg-zinc-700 text-white'
+                                      : 'text-zinc-400 hover:text-white'
+                                  }`}
+                                >
+                                  1 Sisi
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDuplexMode('LONG_EDGE')}
+                                  className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold border cursor-pointer whitespace-nowrap transition-colors ${
+                                    duplexMode === 'LONG_EDGE'
+                                      ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                                      : 'text-zinc-400 border-transparent hover:text-white'
+                                  }`}
+                                >
+                                  2 Sisi • Long Edge (Balik Samping / Buku)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDuplexMode('SHORT_EDGE')}
+                                  className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold border cursor-pointer whitespace-nowrap transition-colors ${
+                                    duplexMode === 'SHORT_EDGE'
+                                      ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                                      : 'text-zinc-400 border-transparent hover:text-white'
+                                  }`}
+                                >
+                                  2 Sisi • Short Edge (Balik Atas-Bawah / Kalender)
+                                </button>
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-zinc-400">
+                              Panduan printer: <strong className="text-zinc-200">Long Edge</strong> = balik ke samping kiri-kanan seperti membaca buku. <strong className="text-zinc-200">Short Edge</strong> = balik ke atas seperti kalender dinding (sisi belakang otomatis diputar 180° agar sejajar).
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {printPdfError && (
+                      <div className="p-3 rounded-xl bg-red-950/50 border border-red-500/60 text-xs text-red-200 flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <div className="font-black text-red-300">Cetak / PDF Belum Berhasil</div>
+                          <p>{printPdfError}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Non-Locking Confirmation Banner: Only shown when fresh lots are pending */}
+                    {(pendingPrintBatch || isRetryingPending) && freshLotsToLock.length > 0 && (
+                      <div
+                        data-testid="pending-print-confirmation"
+                        className="p-3 sm:p-3.5 rounded-xl bg-[#0d0f14] border-2 border-amber-500/80 space-y-2.5"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="space-y-0.5">
+                            <div className="text-[11px] font-black uppercase tracking-wider text-amber-300">
+                              Konfirmasi Hasil Cetak / PDF (Nomor Baru Belum Dikunci)
+                            </div>
+                            <p className="text-xs text-zinc-200">
+                              Seri baru aktif:{' '}
+                              <strong className="font-mono text-amber-300">
+                                {freshLotsToLock[0]} s/d {freshLotsToLock[freshLotsToLock.length - 1]}
+                              </strong>
+                              . Jika PDF/Print tadi gagal, nomor tetap di sini agar bisa langsung diulang.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            onClick={handlePrintBluetoothThermal}
-                            disabled={isBluetoothPrinting || isPrintLocked}
-                            className="h-9 px-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 border border-amber-500/60 text-amber-300 font-extrabold text-xs inline-flex items-center gap-1.5 cursor-pointer"
+                            onClick={handleConfirmPendingBatch}
+                            className="h-9 px-3.5 rounded-xl bg-[#0c1411] hover:bg-emerald-950/60 border border-emerald-500/80 text-emerald-300 font-black text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                           >
-                            {isBluetoothPrinting ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <Bluetooth className="w-3.5 h-3.5" />
-                            )}
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Berhasil Cetak — Kunci Nomor</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={isThermalMode ? handleSystemPrintAttempt : handleDownloadA4Pdf}
+                            disabled={isGeneratingPdf}
+                            className="h-9 px-3.5 rounded-xl bg-black hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 font-extrabold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Cetak Ulang Nomor Ini</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelPendingBatch}
+                            title="Menutup draft ini tanpa mengunci nomor ke daftar terpakai (mis. jika Anda batal mencetak atau ingin ganti prefix/jumlah)"
+                            className="h-9 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 font-bold text-xs cursor-pointer transition-colors"
+                          >
+                            Tutup Draft (Jangan Kunci)
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-zinc-400">
+                          Info: <strong className="text-zinc-200">Tutup Draft (Jangan Kunci)</strong> menghapus pengingat cetak di atas tanpa mengunci nomor—pakai jika Anda batal ngeprint dan ingin ganti prefix/jumlah dulu.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {lastLockedBatch && !pendingPrintBatch && (
+                          <button
+                            type="button"
+                            onClick={handleUnlockLastBatch}
+                            className="h-9 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-amber-500/60 text-zinc-200 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            <Unlock className="w-3.5 h-3.5 text-amber-400" />
                             <span>
-                              {isBluetoothPrinting
-                                ? 'Mengirim ESC/POS...'
-                                : 'Bluetooth ESC/POS (1×)'}
+                              Buka Kunci Terakhir ({lastLockedBatch.lots[0]}–
+                              {lastLockedBatch.lots[lastLockedBatch.lots.length - 1]})
                             </span>
                           </button>
                         )}
+                      </div>
 
+                      <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
+                        {!isThermalMode && (
+                          <button
+                            type="button"
+                            onClick={handleDownloadA4Pdf}
+                            disabled={isGeneratingPdf || lotBatchNumbers.length === 0}
+                            className="h-9 px-4 rounded-xl bg-[#0d0f14] hover:bg-amber-500/10 disabled:opacity-50 border border-amber-500/80 text-amber-300 font-black text-xs inline-flex items-center justify-center gap-2 cursor-pointer shadow-lg whitespace-nowrap shrink-0 transition-colors"
+                          >
+                            {isGeneratingPdf ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Download className="w-4 h-4" />
+                            )}
+                            <span>
+                              {isGeneratingPdf
+                                ? 'Membuat File PDF A4...'
+                                : `Download PDF A4 (${totalA4SheetPages} Hal${
+                                    duplexMode !== 'OFF' ? ' Bolak-Balik' : ''
+                                  })`}
+                            </span>
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={handleSystemPrintOnce}
-                          disabled={isPrintLocked || isBluetoothPrinting}
-                          className="h-9 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-black text-xs inline-flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                          onClick={handleSystemPrintAttempt}
+                          disabled={lotBatchNumbers.length === 0}
+                          className={`h-9 px-4 rounded-xl font-black text-xs inline-flex items-center justify-center gap-2 cursor-pointer shadow-lg whitespace-nowrap shrink-0 transition-colors border ${
+                            isThermalMode
+                              ? 'bg-[#0d0f14] hover:bg-amber-500/10 border-amber-500/80 text-amber-300'
+                              : 'bg-black hover:bg-zinc-900 border-zinc-700 hover:border-amber-500/70 text-zinc-100'
+                          }`}
                         >
-                          <Printer className="w-4 h-4" />
+                          <Printer className="w-4 h-4 text-amber-400" />
                           <span>
-                            {isPrintLocked
-                              ? 'Mengunci Seri & Menyiapkan Cetak...'
-                              : isThermalMode
+                            {isThermalMode
                               ? `Cetak Thermal (${paperFormat === 'THERMAL_58' ? '58mm' : '80mm'})`
-                              : `Cetak / PDF (${totalA4SheetPages} Hal A4${
-                                  duplexMode !== 'OFF' ? ' Bolak-Balik' : ''
-                                })`}
+                              : `Print Sistem (${totalA4SheetPages} Hal A4)`}
                           </span>
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Screen Preview of Printable Sheets (A4 Front/Back Duplex OR Thermal Roll) */}
+                  {/* Screen Preview of Printable Sheets (Fixed 6-card A4 Front/Back Duplex OR Thermal Roll) */}
                   <div className="space-y-4">
-                    <div className="text-xs text-zinc-400 flex flex-wrap items-center justify-end gap-2">
+                    <div className="text-xs text-zinc-400 flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-mono text-[11px] text-zinc-300">
+                        {parsedReprintLots.length > 0 ? 'Batch Cetak Ulang: ' : 'Seri Berikutnya: '}
+                        <strong className="text-amber-300">
+                          {lotBatchNumbers.length === 1
+                            ? lotBatchNumbers[0]
+                            : `${lotBatchNumbers[0]} s/d ${lotBatchNumbers[lotBatchNumbers.length - 1]}`}
+                        </strong>
+                        {activeGraderName && (
+                          <span className="ml-2 text-zinc-400">• Grader: <b className="text-white">{activeGraderName}</b></span>
+                        )}
+                        <span className="ml-2 text-zinc-400">• Tahun: <b className="text-white">{printYear}</b></span>
+                      </span>
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[10px] font-extrabold">
                         <Lock className="w-3 h-3" />
                         <span>
@@ -2441,6 +3725,8 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                               profile={paperFormat === 'THERMAL_58' ? 'THERMAL_58' : 'THERMAL_80'}
                               includeBackBarcode={includeThermalBarcode}
                               customPrefix={customLotPrefix}
+                              graderName={activeGraderName}
+                              printYear={printYear}
                             />
                           </div>
                         ))}
@@ -2454,23 +3740,21 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                               : [];
                           return (
                             <React.Fragment key={pageIdx}>
-                              {/* FRONT SIDE SHEET */}
+                              {/* FRONT SIDE SHEET (Fixed 6 Cards / A4) */}
                               <div className="bg-white text-black rounded-xl p-4 shadow-2xl border border-zinc-300">
                                 <div className="text-[9px] font-mono font-bold text-zinc-500 mb-2 flex justify-between">
-                                  <span>HALAMAN A4 #{pageIdx + 1} — SISI DEPAN (FORM GRADING)</span>
+                                  <span>HALAMAN A4 #{pageIdx + 1} — SISI DEPAN (6 KARTU / A4)</span>
                                   <span>POTONG MENGIKUTI GARIS TEPI HITAM</span>
                                 </div>
-                                <div
-                                  className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${
-                                    paperFormat === 'A4_6' ? 'sm:grid-rows-3' : 'sm:grid-rows-2'
-                                  }`}
-                                >
-                                  {pageLots.map((lot) => (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-3 gap-3">
+                                  {pageLots.map((lot, sIdx) => (
                                     <PrintableGradeCardPaper
-                                      key={lot}
+                                      key={lot || `empty-front-${pageIdx}-${sIdx}`}
                                       lotNumber={lot}
                                       packagingChoices={masterDict.packagings}
-                                      compact={paperFormat === 'A4_6'}
+                                      compact={true}
+                                      graderName={activeGraderName}
+                                      printYear={printYear}
                                     />
                                   ))}
                                 </div>
@@ -2486,18 +3770,15 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                                     </span>
                                     <span>OTOMATIS SEJAJAR DI BALIK KARTU DEPAN</span>
                                   </div>
-                                  <div
-                                    className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${
-                                      paperFormat === 'A4_6' ? 'sm:grid-rows-3' : 'sm:grid-rows-2'
-                                    }`}
-                                  >
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-3 gap-3">
                                     {backSlots.map((slot, sIdx) => (
                                       <PrintableGradeCardBackPaper
                                         key={`${pageIdx}-back-${sIdx}`}
                                         lotNumber={slot.lot}
                                         customPrefix={customLotPrefix}
-                                        compact={paperFormat === 'A4_6'}
+                                        compact={true}
                                         rotate180={slot.rotate180}
+                                        blankUnusedSlots={blankUnusedSlots}
                                       />
                                     ))}
                                   </div>
@@ -2537,7 +3818,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                     type="button"
                     onClick={handleConfirmCommit}
                     disabled={selectedToSaveCount === 0}
-                    className="h-10 px-5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black font-black text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer shadow-lg"
+                    className="h-10 px-5 rounded-xl bg-[#0d0f14] hover:bg-amber-500/10 disabled:opacity-40 border border-amber-500/80 text-amber-300 font-black text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer shadow-lg transition-colors"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>Simpan &amp; Update ke Gudang ({selectedToSaveCount})</span>
@@ -2563,6 +3844,8 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                     profile={paperFormat === 'THERMAL_58' ? 'THERMAL_58' : 'THERMAL_80'}
                     includeBackBarcode={includeThermalBarcode}
                     customPrefix={customLotPrefix}
+                    graderName={activeGraderName}
+                    printYear={printYear}
                   />
                 ))
               : a4Pages.map((pageLots, pageIdx) => {
@@ -2572,21 +3855,24 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                       : [];
                   return (
                     <React.Fragment key={pageIdx}>
-                      {/* ODD PAGE: FRONT */}
+                      {/* ODD PAGE: FRONT (Fixed 6 Cards / A4) */}
                       <div
-                        className="grade-card-a4-page grid grid-cols-2 gap-3"
+                        className="grade-card-a4-page grid grid-cols-2"
                         style={{
-                          gridTemplateRows:
-                            paperFormat === 'A4_6' ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
-                          minHeight: '275mm',
+                          gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
+                          gap: `${A4_PRINT_PAGE_METRICS.gridGapMm}mm`,
+                          height: `${A4_PRINT_PAGE_METRICS.pageHeightMm}mm`,
+                          maxHeight: `${A4_PRINT_PAGE_METRICS.pageHeightMm}mm`,
                         }}
                       >
-                        {pageLots.map((lot) => (
+                        {pageLots.map((lot, sIdx) => (
                           <PrintableGradeCardPaper
-                            key={lot}
+                            key={lot || `empty-portal-front-${pageIdx}-${sIdx}`}
                             lotNumber={lot}
                             packagingChoices={masterDict.packagings}
-                            compact={paperFormat === 'A4_6'}
+                            compact={true}
+                            graderName={activeGraderName}
+                            printYear={printYear}
                           />
                         ))}
                       </div>
@@ -2594,11 +3880,12 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                       {/* EVEN PAGE: BACK (BIG BARCODE + PREFIX FOR 2-SIDED PRINTERS) */}
                       {duplexMode !== 'OFF' && (
                         <div
-                          className="grade-card-a4-page grid grid-cols-2 gap-3"
+                          className="grade-card-a4-page grid grid-cols-2"
                           style={{
-                            gridTemplateRows:
-                              paperFormat === 'A4_6' ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
-                            minHeight: '275mm',
+                            gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
+                            gap: `${A4_PRINT_PAGE_METRICS.gridGapMm}mm`,
+                            height: `${A4_PRINT_PAGE_METRICS.pageHeightMm}mm`,
+                            maxHeight: `${A4_PRINT_PAGE_METRICS.pageHeightMm}mm`,
                           }}
                         >
                           {backSlots.map((slot, sIdx) => (
@@ -2606,8 +3893,9 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                               key={`${pageIdx}-print-back-${sIdx}`}
                               lotNumber={slot.lot}
                               customPrefix={customLotPrefix}
-                              compact={paperFormat === 'A4_6'}
+                              compact={true}
                               rotate180={slot.rotate180}
+                              blankUnusedSlots={blankUnusedSlots}
                             />
                           ))}
                         </div>

@@ -15,12 +15,9 @@ import {
   FolderGit2,
   FileText,
   ExternalLink,
-  Calculator,
   FileSpreadsheet,
   Trash2,
   RotateCcw,
-  Sparkles,
-  Brain,
   Database,
   Building2,
   Package,
@@ -79,13 +76,10 @@ interface SettingsViewProps {
   onUpdateRollSample: (roll: TobaccoRollSample) => void;
   onDeleteRollSample: (id: string) => void;
   onOpenGoogleSheetsModal: () => void;
-  onOpenSimulator: () => void;
   onExportData: () => void;
   onOpenRestoreModal: () => void;
   onClearAllDemoData: () => void;
   onResetData: () => void;
-  onOpenPatchNotes: () => void;
-  onOpenNolanChat: () => void;
   onShowToast: (msg: string) => void;
   currentVersion: string;
   initialSegment?: SettingsSegment;
@@ -116,21 +110,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onUpdateRollSample,
   onDeleteRollSample,
   onOpenGoogleSheetsModal,
-  onOpenSimulator,
   onExportData,
   onOpenRestoreModal,
   onClearAllDemoData,
   onResetData,
-  onOpenPatchNotes,
-  onOpenNolanChat,
   onShowToast,
   currentVersion,
-  initialSegment = 'github',
+  initialSegment = 'packaging',
 }) => {
   const [activeSegment, setActiveSegment] = useState<SettingsSegment>(initialSegment);
+  const [showDeveloperSettings, setShowDeveloperSettings] = useState<boolean>(
+    initialSegment === 'github'
+  );
 
   useEffect(() => {
     setActiveSegment(initialSegment);
+    if (initialSegment === 'github') {
+      setShowDeveloperSettings(true);
+    }
   }, [initialSegment]);
 
   // GitHub A-Brain State
@@ -594,27 +591,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setRollLabel('');
   };
 
-  const segments: Array<{
+  const dailySegments: Array<{
     id: SettingsSegment;
     label: string;
     shortDesc: string;
     icon: React.ReactNode;
     badge?: string | number;
   }> = [
-    {
-      id: 'github',
-      label: 'GitHub A-Brain',
-      shortDesc: 'Memori Nolan & OAuth',
-      icon: <Github className="w-4 h-4 shrink-0" />,
-      badge: githubConnected ? 'ON' : undefined,
-    },
-    {
-      id: 'cloud',
-      label: 'Cloud & Sheets',
-      shortDesc: 'Akun Google & Spreadsheet',
-      icon: <Cloud className="w-4 h-4 shrink-0" />,
-      badge: cloudSyncStatus === 'synced' ? 'Sync' : undefined,
-    },
     {
       id: 'packaging',
       label: 'Format Kemasan',
@@ -637,9 +620,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       badge: rollSamples.length,
     },
     {
+      id: 'cloud',
+      label: 'Cloud & Sheets',
+      shortDesc: 'Akun Google & Spreadsheet',
+      icon: <Cloud className="w-4 h-4 shrink-0" />,
+      badge: cloudSyncStatus === 'synced' ? 'Sync' : undefined,
+    },
+    {
       id: 'data',
-      label: 'Data & Backup',
-      shortDesc: 'Backup & Restore JSON',
+      label: 'Backup & Data',
+      shortDesc: 'Simpan & Pulihkan File',
       icon: <Database className="w-4 h-4 shrink-0" />,
     },
   ];
@@ -663,34 +653,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Pilih segmen kategori di bawah untuk mengatur GitHub A-Brain, Cloud, Format Kemasan, Pabrik, Gulungan, atau Backup Data.
+                Atur daftar kemasan &amp; tarra, pabrik tujuan, gulungan, atau backup data gudang Anda.
               </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={onOpenNolanChat}
-              className="h-9 px-3.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-300 text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              <Brain className="w-4 h-4 text-emerald-400" />
-              <span>Buka Chat & Memori Nolan</span>
-            </button>
-            <button
-              type="button"
-              onClick={onOpenPatchNotes}
-              className="h-9 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Catatan Versi</span>
-            </button>
-          </div>
         </div>
 
-        {/* Category Segment Bar inside Setting */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-2 border-t border-zinc-800/80">
-          {segments.map((seg) => {
+        {/* Daily Warehouse Settings Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-2 border-t border-zinc-800/80">
+          {dailySegments.map((seg) => {
             const isActive = activeSegment === seg.id;
             return (
               <button
@@ -732,6 +703,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </button>
             );
           })}
+        </div>
+
+        {/* Collapsible Developer / Advanced Toggle (GitHub A-Brain tucked away from daily view) */}
+        <div className="pt-1 flex items-center justify-between flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const nextOpen = !showDeveloperSettings;
+              setShowDeveloperSettings(nextOpen);
+              if (nextOpen) {
+                setActiveSegment('github');
+              } else if (activeSegment === 'github') {
+                setActiveSegment('packaging');
+              }
+            }}
+            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
+              activeSegment === 'github'
+                ? 'bg-zinc-900 border-amber-500/60 text-amber-300'
+                : 'bg-black hover:bg-zinc-900 border-zinc-800/80 text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            <Github className="w-3.5 h-3.5" />
+            <span>
+              {activeSegment === 'github'
+                ? 'Sembunyikan Pengaturan Lanjutan (Developer)'
+                : 'Pengaturan Lanjutan / Developer (GitHub A-Brain)'}
+            </span>
+          </button>
+          {activeSegment !== 'github' && (
+            <span className="text-[10px] text-zinc-500">
+              Menampilkan pengaturan gudang harian — opsi developer disembunyikan agar rapi.
+            </span>
+          )}
         </div>
       </div>
 
@@ -867,7 +871,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <button
                     type="button"
                     onClick={handleSaveManualToken}
-                    className="h-8 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-black text-xs cursor-pointer shrink-0"
+                    className="h-8 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-black text-xs cursor-pointer shrink-0"
                   >
                     Simpan Token
                   </button>
@@ -1130,7 +1134,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={onGoogleLogin}
-                  className="h-9 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black inline-flex items-center gap-1.5 cursor-pointer"
+                  className="h-9 px-4 rounded-xl bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 text-xs font-black inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <LogIn className="w-4 h-4" />
                   <span>Login Google Cloud</span>
@@ -1139,7 +1143,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <button
               type="button"
               onClick={onOpenGoogleSheetsModal}
@@ -1151,20 +1155,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
               <p className="text-[11px] text-zinc-400">
                 Salin tabel nota pabrik, arsip HPP personal, atau hubungkan langsung dengan tautan Google Spreadsheet Anda.
-              </p>
-            </button>
-
-            <button
-              type="button"
-              onClick={onOpenSimulator}
-              className="p-4 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700 text-left space-y-1.5 cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-2 text-amber-400 font-black text-xs uppercase">
-                <Calculator className="w-4 h-4" />
-                <span>Simulator</span>
-              </div>
-              <p className="text-[11px] text-zinc-400">
-                Simulasikan potongan tarra petani vs pabrik dan hitung potensi Weight Profit (KG & Rp) tanpa mengubah data stok.
               </p>
             </button>
           </div>

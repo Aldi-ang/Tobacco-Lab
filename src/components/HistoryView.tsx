@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
 import {
   History,
   FileSpreadsheet,
   Search,
   Scroll,
-  Building2,
-  Calendar,
   CheckCircle2,
   Clock,
   RotateCcw,
@@ -15,14 +12,20 @@ import {
   Check,
   Download,
   Package,
-  Eye,
-  EyeOff,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  Folder,
+  FolderOpen,
   Pencil,
   BarChart3,
-  TrendingUp,
-  DollarSign,
   Trash2,
+  X,
 } from 'lucide-react';
+import {
+  RollFolderGroupingMode,
+  groupRollsIntoFolders,
+} from '../utils/rollGrouping';
 import {
   FactoryMaster,
   FinishedTobaccoSerial,
@@ -38,7 +41,6 @@ import {
   buildGoogleSheetText,
   GRADE_LABELS,
 } from '../utils/tobaccoMath';
-import { SegmentedControl } from './RatingSegmentSlider';
 import {
   CalculationDetailModal,
   CalculationDetailData,
@@ -68,33 +70,28 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   onUpdateSerial,
   onDeleteRoll,
   onDeleteSerial,
-  onClearAllDemoData,
   onOpenGoogleSheetsModal,
   onGoToRejectedStock,
 }) => {
-  const [activeSegment, setActiveSegment] = useState<'nota-history' | 'seri-status'>(
-    'nota-history'
-  );
+  const [activeSegment, setActiveSegment] = useState<
+    'nota-history' | 'seri-status' | 'factory-comparison'
+  >('nota-history');
   const [editingSerial, setEditingSerial] = useState<FinishedTobaccoSerial | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<
-    | 'ALL'
-    | 'ACCEPTED_CAIR'
-    | 'PENDING'
-    | 'REJECTED_STOCK'
-    | 'RENAMED_LINEAGE'
+    'ALL' | 'ACCEPTED_CAIR' | 'PENDING' | 'REJECTED_STOCK' | 'RENAMED_LINEAGE'
   >('ALL');
   const [factoryFilter, setFactoryFilter] = useState<string>('ALL');
-  const [expandedNotaRollIds, setExpandedNotaRollIds] = useState<Record<string, boolean>>(() => {
-    const firstId = rollSamples[0]?.id;
-    return firstId ? { [firstId]: true } : {};
-  });
+  const [notaGroupingMode, setNotaGroupingMode] = useState<RollFolderGroupingMode>('date');
+  const [expandedHistoryFolderKeys, setExpandedHistoryFolderKeys] = useState<
+    Record<string, boolean>
+  >({});
+  const [expandedNotaRollIds, setExpandedNotaRollIds] = useState<Record<string, boolean>>({});
   const [notaSheetModeMap, setNotaSheetModeMap] = useState<
     Record<string, 'INTERNAL_COST' | 'FACTORY_NOTA'>
   >({});
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
-  const [showProfitChart, setShowProfitChart] = useState<boolean>(true);
 
   const factories = [
     'ALL',
@@ -103,7 +100,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         ...rollSamples.map((r) => r.targetFactory),
         ...finishedBatches.map((b) => b.targetFactory),
       ])
-    ),
+    ).filter(Boolean),
   ];
 
   const activeFactoryLabel =
@@ -111,7 +108,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
   const q = searchTerm.trim().toLowerCase();
 
-  // Filter rolls & serials for top KPI cards based on factoryFilter and searchTerm ("sort menu bottom")
+  // Filter rolls & serials for top KPI ledger based on factoryFilter and searchTerm
   const kpiRolls = rollSamples.filter((r) => {
     if (factoryFilter !== 'ALL' && r.targetFactory !== factoryFilter) return false;
     if (!q) return true;
@@ -151,7 +148,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     );
   });
 
-  // Aggregate dynamic KPI metrics following the selected factory & search filter
   const cairBatches = kpiBatches.filter(
     (b) =>
       b.factoryStatus === 'ACCEPTED_CAIR' &&
@@ -176,7 +172,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     (b) => hasSerialLineage(b) || (b.transferHistory && b.transferHistory.length > 0)
   );
 
-  // Billable serials for the selected factory (excludes serials that were only rejected from another factory)
   const billableKpiBatches = kpiBatches.filter(
     (b) => factoryFilter === 'ALL' || b.targetFactory === factoryFilter
   );
@@ -193,6 +188,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   };
 
   const totalAllNotaRp = billableKpiBatches.reduce((sum, s) => sum + getSerialNotaRp(s), 0);
+  const totalAllModalRp = billableKpiBatches.reduce((sum, s) => sum + getSerialModalRp(s), 0);
+  const totalNettoAllKg = Number(
+    billableKpiBatches
+      .reduce((sum, s) => sum + Math.max(0, s.packaging.grossWeightPerPackage - s.factoryDeductionKg), 0)
+      .toFixed(1)
+  );
   const totalCairRp = cairBatches.reduce((sum, s) => sum + getSerialNotaRp(s), 0);
   const totalPaidCairRp = paidAcceptedBatches.reduce((sum, s) => sum + getSerialNotaRp(s), 0);
   const totalUnpaidAcceptedRp = unpaidAcceptedBatches.reduce(
@@ -200,10 +201,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     0
   );
   const totalPendingRp = pendingBatches.reduce((sum, s) => sum + getSerialNotaRp(s), 0);
-  const totalProfitRp = billableKpiBatches.reduce(
-    (sum, s) => sum + (getSerialNotaRp(s) - getSerialModalRp(s)),
-    0
-  );
+  const totalProfitRp = totalAllNotaRp - totalAllModalRp;
+  const totalMarginPct =
+    totalAllNotaRp > 0 ? Number(((totalProfitRp / totalAllNotaRp) * 100).toFixed(1)) : 0;
 
   const openHistoryKpiCalc = (
     focus: 'TOTAL_NOTA' | 'CAIR_VALUE' | 'PENDING_VALUE' | 'TOTAL_PROFIT'
@@ -322,8 +322,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       return;
     }
 
-    // TOTAL_PROFIT
-    const totalAllModalRp = billableKpiBatches.reduce((acc, s) => acc + getSerialModalRp(s), 0);
     setCalcDetail({
       title: `4. Total Profit Bersih — ${activeFactoryLabel} (${billableKpiBatches.length} Seri)`,
       subtitle: `Selisih Total Tagihan Nota dikurangi Total Modal Produksi (${activeFactoryLabel})`,
@@ -447,11 +445,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     );
     const serialText = allRelatedSerials.map((s) => formatSerialLineage(s)).join(' ');
     const matchSearch =
-      !searchTerm.trim() ||
-      roll.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      roll.recipeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      roll.targetFactory.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      serialText.toLowerCase().includes(searchTerm.toLowerCase());
+      !q ||
+      roll.rollNumber.toLowerCase().includes(q) ||
+      roll.recipeName.toLowerCase().includes(q) ||
+      roll.targetFactory.toLowerCase().includes(q) ||
+      serialText.toLowerCase().includes(q);
     return matchFactory && matchSearch;
   });
 
@@ -470,934 +468,1331 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       b.previousFactory === factoryFilter;
     const lineage = formatSerialLineage(b);
     const matchSearch =
-      !searchTerm.trim() ||
-      b.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lineage.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (b.rollNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (b.previousRollNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      b.targetFactory.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (b.previousFactory || '').toLowerCase().includes(searchTerm.toLowerCase());
+      !q ||
+      b.serialNumber.toLowerCase().includes(q) ||
+      lineage.toLowerCase().includes(q) ||
+      (b.rollNumber || '').toLowerCase().includes(q) ||
+      (b.previousRollNumber || '').toLowerCase().includes(q) ||
+      b.targetFactory.toLowerCase().includes(q) ||
+      (b.previousFactory || '').toLowerCase().includes(q);
     return matchStatus && matchFactory && matchSearch;
   });
 
+  // Per-factory analytical rows for collapsible comparison drawer
+  const factoryComparisonRows = (() => {
+    const factoryNamesList = Array.from(
+      new Set([
+        ...rollSamples.map((r) => r.targetFactory),
+        ...finishedBatches.map((b) => b.targetFactory),
+      ])
+    ).filter(Boolean);
+
+    return factoryNamesList.map((facName) => {
+      const facRolls = rollSamples.filter((r) => r.targetFactory === facName);
+      const facSerials = finishedBatches.filter((b) => b.targetFactory === facName);
+      const facRejectedSerials = finishedBatches.filter(
+        (b) =>
+          (b.targetFactory === facName && b.factoryStatus === 'REJECTED_STOCK') ||
+          (b.previousFactory === facName && b.targetFactory !== facName)
+      );
+      const notaRp = facSerials.reduce((sum, s) => sum + getSerialNotaRp(s), 0);
+      const modalRp = facSerials.reduce((sum, s) => sum + getSerialModalRp(s), 0);
+      const profitRp = notaRp - modalRp;
+      const acceptedRp = facSerials
+        .filter((s) => s.factoryStatus === 'ACCEPTED_CAIR')
+        .reduce((sum, s) => sum + getSerialNotaRp(s), 0);
+      const rejectRp = facRejectedSerials.reduce((sum, s) => sum + getSerialNotaRp(s), 0);
+      const marginPct = notaRp > 0 ? Number(((profitRp / notaRp) * 100).toFixed(1)) : 0;
+
+      return {
+        facName,
+        rollCount: facRolls.length,
+        serialCount: facSerials.length,
+        notaRp,
+        modalRp,
+        profitRp,
+        acceptedRp,
+        rejectRp,
+        marginPct,
+      };
+    });
+  })();
+
+  const statusMeta = (status: string, movedOut = false, movedToRoll?: string) => {
+    if (movedOut) {
+      return {
+        label: `Pindah (${movedToRoll || '-'})`,
+        textClass: 'text-amber-300',
+        dotClass: 'bg-amber-400',
+      };
+    }
+    if (status === 'ACCEPTED_CAIR') {
+      return {
+        label: 'Diterima',
+        textClass: 'text-emerald-400',
+        dotClass: 'bg-emerald-400',
+      };
+    }
+    if (status === 'REJECTED_STOCK') {
+      return {
+        label: 'Reject',
+        textClass: 'text-rose-400',
+        dotClass: 'bg-rose-400',
+      };
+    }
+    return {
+      label: 'Menunggu',
+      textClass: 'text-zinc-300',
+      dotClass: 'bg-zinc-400',
+    };
+  };
+
   return (
-    <div className="space-y-4 pb-20 md:pb-4">
-      {/* Top Segment Switcher + Google Sheets Action + 4 KPI Summary Cards */}
-      <div className="requiem-card p-3 sm:p-4 rounded-2xl border border-zinc-800/90 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex-1 min-w-0">
-            <SegmentedControl
-              value={activeSegment}
-              onChange={setActiveSegment}
-              options={[
-                {
-                  id: 'nota-history',
-                  label: '1. Riwayat Nota Gulungan',
-                  fullLabel: '1. Riwayat Nota Gulungan yang Dikirim ke Pabrik',
-                  icon: <Scroll className="w-3.5 h-3.5" />,
-                  badge: kpiRolls.length,
-                },
-                {
-                  id: 'seri-status',
-                  label: '2. Data Status Semua Seri',
-                  fullLabel: '2. Data Status Semua Seri & Riwayat Ganti Seri (AK 1 -> AL 1)',
-                  icon: <History className="w-3.5 h-3.5" />,
-                  badge: kpiBatches.length,
-                },
-              ]}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={onOpenGoogleSheetsModal}
-            className="btn-amber-outline h-10 px-4 rounded-xl font-black text-xs inline-flex items-center justify-center gap-2 cursor-pointer shrink-0 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
+    <div className="space-y-4 pb-20 md:pb-6">
+      {/* 1. UNIFIED WORKSPACE TOOLBAR (SEGMENT SWITCH + SEARCH + FACTORY + CHART TOGGLE + SHEETS CTA) */}
+      <div className="bg-[#09090c] border border-zinc-800 rounded-2xl p-3.5 sm:p-4 space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+          {/* Clean Segmented Switch (3 Dedicated Panels) */}
+          <div
+            role="tablist"
+            aria-label="Mode Tampilan Riwayat"
+            className="inline-grid grid-cols-3 p-1 rounded-xl bg-black border border-zinc-800/90 gap-1 w-full lg:w-auto"
           >
-            <FileSpreadsheet className="w-4 h-4 shrink-0" />
-            <span>Transfer ke Google Sheets</span>
-          </button>
-        </div>
-
-        {/* Active Factory Filter Indicator if filtered */}
-        {factoryFilter !== 'ALL' && (
-          <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-zinc-950 border border-amber-500/50 text-xs">
-            <span className="text-zinc-300">
-              Menampilkan khusus Pabrik: <b className="text-amber-400">{factoryFilter}</b>
-            </span>
             <button
               type="button"
-              onClick={() => setFactoryFilter('ALL')}
-              className="text-amber-400 hover:underline font-bold cursor-pointer"
-            >
-              Tampilkan Semua Pabrik
-            </button>
-          </div>
-        )}
-
-        {/* 4 Summary KPI Panels with ƒx Symbol Badges (Follows Selected Factory!) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-zinc-800/90">
-          <button
-            type="button"
-            onClick={() => openHistoryKpiCalc('TOTAL_NOTA')}
-            className="text-left bg-black p-3 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between space-y-1"
-          >
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[10px] font-bold uppercase text-zinc-400 truncate">
-                1. Total Nilai Nota ({kpiRolls.length} Gulungan)
-              </span>
-              <CalcSymbolBadge />
-            </div>
-            <div className="font-mono font-black text-white text-sm sm:text-base">
-              {formatRupiah(totalAllNotaRp)}
-            </div>
-            <div className="text-[10px] font-mono text-zinc-400 truncate">
-              {billableKpiBatches.length} Seri Aktif • {activeFactoryLabel}
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => openHistoryKpiCalc('CAIR_VALUE')}
-            className="text-left bg-black p-3 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between space-y-1"
-          >
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[10px] font-bold uppercase text-amber-300 truncate">
-                2. Diterima / Accepted ({cairBatches.length} Seri)
-              </span>
-              <CalcSymbolBadge />
-            </div>
-            <div className="font-mono font-black text-amber-400 text-sm sm:text-base">
-              {formatRupiah(totalCairRp)}
-            </div>
-            <div className="text-[10px] font-mono text-zinc-400 truncate">
-              Diterima: <b className="text-amber-300">{cairBatches.length}</b> • Reject:{' '}
-              <b className="text-red-400">{rejectedBatches.length}</b>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => openHistoryKpiCalc('PENDING_VALUE')}
-            className="text-left bg-black p-3 rounded-xl border border-zinc-800 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between space-y-1"
-          >
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[10px] font-bold uppercase text-zinc-300 truncate">
-                3. Nilai Menunggu Pabrik
-              </span>
-              <CalcSymbolBadge />
-            </div>
-            <div className="font-mono font-black text-white text-sm sm:text-base">
-              {formatRupiah(totalPendingRp)}
-            </div>
-            <div className="text-[10px] font-mono text-zinc-400">
-              {pendingBatches.length} Seri Menunggu Pabrik • {renamedBatches.length} Seri Ganti/Pindah
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => openHistoryKpiCalc('TOTAL_PROFIT')}
-            className="text-left bg-black p-3 rounded-xl border border-amber-500/80 hover:border-amber-400 transition-all cursor-pointer flex flex-col justify-between space-y-1"
-          >
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[10px] font-black uppercase text-amber-400 truncate">
-                4. Total Profit Bersih
-              </span>
-              <CalcSymbolBadge />
-            </div>
-            <div
-              className={`font-mono font-black text-sm sm:text-base ${
-                totalProfitRp >= 0 ? 'text-amber-400' : 'text-red-400'
+              role="tab"
+              aria-selected={activeSegment === 'nota-history'}
+              onClick={() => setActiveSegment('nota-history')}
+              className={`h-9 px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap border ${
+                activeSegment === 'nota-history'
+                  ? 'bg-[#101218] text-amber-300 border-amber-500/80 font-extrabold'
+                  : 'bg-transparent text-zinc-400 hover:text-white border-transparent'
               }`}
             >
-              {totalProfitRp >= 0 ? '+' : ''}
-              {formatRupiah(totalProfitRp)}
-            </div>
-            <div className="text-[10px] font-mono text-zinc-400 truncate">
-              Σ (Nota − Modal) • {activeFactoryLabel}
-            </div>
-          </button>
-        </div>
-
-        {/* Interactive Visual Graph: Total Semua Gulungan & Per Pabrik (Replaces Per-Gulungan Graph) */}
-        <div className="pt-2.5 border-t border-zinc-800/90 space-y-2.5">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/50 flex items-center justify-center text-amber-400 shrink-0">
-                <BarChart3 className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-white flex items-center gap-1.5">
-                  <span>Grafik Total Semua Gulungan &amp; Per Pabrik</span>
-                </h3>
-                <p className="text-[11px] text-zinc-400">
-                  Perbandingan Pendapatan (Nota), Modal, Profit Bersih &amp; Reject untuk <b className="text-amber-400">Total Semua Gulungan</b> &amp; <b className="text-white">Per Pabrik Tujuan</b>
-                </p>
-              </div>
-            </div>
+              <Scroll className="w-3.5 h-3.5 shrink-0" />
+              <span className="leading-none">Nota Gulungan</span>
+              <span
+                className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md font-mono font-black text-xs tabular-nums leading-none border ${
+                  activeSegment === 'nota-history'
+                    ? 'bg-amber-500/20 text-amber-200 border-amber-500/50'
+                    : 'bg-zinc-900 text-zinc-300 border-zinc-700/80'
+                }`}
+              >
+                {kpiRolls.length}
+              </span>
+            </button>
 
             <button
               type="button"
-              onClick={() => setShowProfitChart((prev) => !prev)}
-              className="h-8 px-3 rounded-lg bg-black hover:bg-zinc-900 text-amber-400 border border-zinc-700 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer"
+              role="tab"
+              aria-selected={activeSegment === 'seri-status'}
+              onClick={() => setActiveSegment('seri-status')}
+              className={`h-9 px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap border ${
+                activeSegment === 'seri-status'
+                  ? 'bg-[#101218] text-amber-300 border-amber-500/80 font-extrabold'
+                  : 'bg-transparent text-zinc-400 hover:text-white border-transparent'
+              }`}
             >
-              {showProfitChart ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              <span>{showProfitChart ? 'Sembunyikan Grafik' : 'Tampilkan Grafik'}</span>
+              <History className="w-3.5 h-3.5 shrink-0" />
+              <span className="leading-none">Semua Seri</span>
+              <span
+                className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md font-mono font-black text-xs tabular-nums leading-none border ${
+                  activeSegment === 'seri-status'
+                    ? 'bg-amber-500/20 text-amber-200 border-amber-500/50'
+                    : 'bg-zinc-900 text-zinc-300 border-zinc-700/80'
+                }`}
+              >
+                {kpiBatches.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeSegment === 'factory-comparison'}
+              onClick={() => setActiveSegment('factory-comparison')}
+              className={`h-9 px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap border ${
+                activeSegment === 'factory-comparison'
+                  ? 'bg-[#101218] text-amber-300 border-amber-500/80 font-extrabold'
+                  : 'bg-transparent text-zinc-400 hover:text-white border-transparent'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline leading-none">Perbandingan Pabrik</span>
+              <span className="sm:hidden leading-none">Pabrik</span>
+              <span
+                className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md font-mono font-black text-xs tabular-nums leading-none border ${
+                  activeSegment === 'factory-comparison'
+                    ? 'bg-amber-500/20 text-amber-200 border-amber-500/50'
+                    : 'bg-zinc-900 text-zinc-300 border-zinc-700/80'
+                }`}
+              >
+                {factoryComparisonRows.length}
+              </span>
             </button>
           </div>
 
-          {showProfitChart && (
-            <div className="bg-black p-3.5 sm:p-4 rounded-xl border border-zinc-800 space-y-3">
-              {/* Legend */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-zinc-900 text-[11px]">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="inline-flex items-center gap-1.5 font-bold text-zinc-200">
-                    <span className="w-3 h-3 rounded-xs bg-blue-500 inline-block" />
-                    Pendapatan (Nota Pabrik)
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 font-bold text-zinc-300">
-                    <span className="w-3 h-3 rounded-xs bg-zinc-500 inline-block" />
-                    Modal Produksi
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 font-bold text-amber-400">
-                    <span className="w-3 h-3 rounded-xs bg-amber-400 inline-block" />
-                    Profit Bersih
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 font-bold text-red-400">
-                    <span className="w-3 h-3 rounded-xs bg-red-500 inline-block" />
-                    Nilai Reject / Loss
-                  </span>
-                </div>
-                <span className="font-mono text-[10px] text-zinc-400">
-                  Margin Total:{' '}
-                  <b className="text-amber-400">
-                    {totalAllNotaRp > 0
-                      ? `${((totalProfitRp / totalAllNotaRp) * 100).toFixed(1)}%`
-                      : '0%'}
-                  </b>
-                </span>
-              </div>
-
-              {/* Total Gulungan & Per Pabrik Bar Comparison */}
-              {(() => {
-                // Build Per-Pabrik groups + 1 "TOTAL SEMUA GULUNGAN" summary card
-                const factoryNamesList = Array.from(
-                  new Set([
-                    ...rollSamples.map((r) => r.targetFactory),
-                    ...finishedBatches.map((b) => b.targetFactory),
-                  ])
-                ).filter(Boolean);
-
-                const perFactoryMetrics = factoryNamesList
-                  .filter((fac) => factoryFilter === 'ALL' || fac === factoryFilter)
-                  .map((facName) => {
-                    const facRolls = rollSamples.filter((r) => r.targetFactory === facName);
-                    const facActiveSerials = finishedBatches.filter(
-                      (b) => b.targetFactory === facName && b.factoryStatus !== 'REJECTED_STOCK'
-                    );
-                    const facAllCurrentSerials = finishedBatches.filter(
-                      (b) => b.targetFactory === facName
-                    );
-                    const facRejectedSerials = finishedBatches.filter(
-                      (b) =>
-                        (b.targetFactory === facName && b.factoryStatus === 'REJECTED_STOCK') ||
-                        (b.previousFactory === facName && b.targetFactory !== facName)
-                    );
-
-                    const notaRp = facAllCurrentSerials.reduce(
-                      (sum, s) => sum + getSerialNotaRp(s),
-                      0
-                    );
-                    const modalRp = facAllCurrentSerials.reduce(
-                      (sum, s) => sum + getSerialModalRp(s),
-                      0
-                    );
-                    const profitRp = notaRp - modalRp;
-                    const acceptedSerials = facAllCurrentSerials.filter(
-                      (s) => s.factoryStatus === 'ACCEPTED_CAIR'
-                    );
-                    const acceptedRp = acceptedSerials.reduce(
-                      (sum, s) => sum + getSerialNotaRp(s),
-                      0
-                    );
-                    const rejectRp = facRejectedSerials.reduce(
-                      (sum, s) => sum + getSerialNotaRp(s),
-                      0
-                    );
-                    const marginPct =
-                      notaRp > 0 ? Number(((profitRp / notaRp) * 100).toFixed(1)) : 0;
-
-                    return {
-                      id: `FACTORY_${facName}`,
-                      isTotal: false,
-                      title: facName,
-                      subtitle: `${facRolls.length} Gulungan • ${facActiveSerials.length} Seri Aktif`,
-                      notaRp,
-                      modalRp,
-                      profitRp,
-                      acceptedRp,
-                      rejectRp,
-                      marginPct,
-                    };
-                  });
-
-                const totalRollCount = kpiRolls.length;
-                const totalSeriCount = billableKpiBatches.length;
-                const totalModalAll = billableKpiBatches.reduce(
-                  (sum, s) => sum + getSerialModalRp(s),
-                  0
-                );
-                const totalRejectAll = rejectedBatches.reduce(
-                  (sum, s) => sum + getSerialNotaRp(s),
-                  0
-                );
-                const totalMarginAll =
-                  totalAllNotaRp > 0
-                    ? Number(((totalProfitRp / totalAllNotaRp) * 100).toFixed(1))
-                    : 0;
-
-                const chartItems = [
-                  {
-                    id: 'TOTAL_ALL_GULUNGAN',
-                    isTotal: true,
-                    title: 'TOTAL SEMUA GULUNGAN',
-                    subtitle: `${totalRollCount} Gulungan • ${totalSeriCount} Seri (${activeFactoryLabel})`,
-                    notaRp: totalAllNotaRp,
-                    modalRp: totalModalAll,
-                    profitRp: totalProfitRp,
-                    acceptedRp: totalCairRp,
-                    rejectRp: totalRejectAll,
-                    marginPct: totalMarginAll,
-                  },
-                  ...perFactoryMetrics,
-                ];
-
-                const maxVal = Math.max(
-                  1,
-                  ...chartItems.map((m) =>
-                    Math.max(m.notaRp, m.modalRp, Math.abs(m.profitRp), m.rejectRp)
-                  )
-                );
-
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {chartItems.map((m) => {
-                      const notaPct =
-                        m.notaRp > 0 ? Math.max(4, Math.round((m.notaRp / maxVal) * 100)) : 0;
-                      const modalPct =
-                        m.modalRp > 0 ? Math.max(4, Math.round((m.modalRp / maxVal) * 100)) : 0;
-                      const profitPct =
-                        m.profitRp !== 0
-                          ? Math.max(4, Math.round((Math.abs(m.profitRp) / maxVal) * 100))
-                          : 0;
-                      const rejectPct =
-                        m.rejectRp > 0 ? Math.max(4, Math.round((m.rejectRp / maxVal) * 100)) : 0;
-
-                      return (
-                        <div
-                          key={m.id}
-                          className={`p-3 rounded-xl bg-zinc-950 border space-y-2.5 ${
-                            m.isTotal
-                              ? 'border-amber-500/80 shadow-[0_0_16px_rgba(245,158,11,0.12)]'
-                              : 'border-zinc-800'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span
-                                  className={`px-2 py-0.5 rounded font-mono font-black text-[10px] border ${
-                                    m.isTotal
-                                      ? 'bg-amber-500 text-black border-amber-400'
-                                      : 'bg-black text-amber-400 border-amber-500/60'
-                                  }`}
-                                >
-                                  {m.isTotal ? 'TOTAL GULUNGAN' : 'PER PABRIK'}
-                                </span>
-                                <span className="font-extrabold text-white text-xs sm:text-sm truncate">
-                                  {m.title}
-                                </span>
-                              </div>
-                              <div className="text-[11px] text-zinc-400 mt-0.5">{m.subtitle}</div>
-                            </div>
-
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono font-black text-xs border shrink-0 ${
-                                m.profitRp >= 0
-                                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/50'
-                                  : 'bg-red-950/60 text-red-300 border-red-700/60'
-                              }`}
-                            >
-                              <TrendingUp className="w-3 h-3" />
-                              {m.marginPct}%
-                            </span>
-                          </div>
-
-                          {/* Horizontal Visual Bars */}
-                          <div className="space-y-1.5 font-mono text-[11px]">
-                            <div className="space-y-0.5">
-                              <div className="flex justify-between text-zinc-300">
-                                <span>Pendapatan (Nota):</span>
-                                <b className="text-white">{formatRupiah(m.notaRp)}</b>
-                              </div>
-                              <div className="w-full h-2.5 bg-black rounded-full overflow-hidden border border-zinc-800">
-                                <div
-                                  className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                                  style={{ width: `${notaPct}%` }}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="space-y-0.5">
-                              <div className="flex justify-between text-zinc-400">
-                                <span>Modal Produksi:</span>
-                                <b className="text-zinc-200">{formatRupiah(m.modalRp)}</b>
-                              </div>
-                              <div className="w-full h-2.5 bg-black rounded-full overflow-hidden border border-zinc-800">
-                                <div
-                                  className="h-full bg-zinc-500 rounded-full transition-all duration-500"
-                                  style={{ width: `${modalPct}%` }}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="space-y-0.5">
-                              <div className="flex justify-between text-amber-300">
-                                <span>Profit Bersih:</span>
-                                <b className={m.profitRp >= 0 ? 'text-amber-400' : 'text-red-400'}>
-                                  {m.profitRp >= 0 ? '+' : ''}
-                                  {formatRupiah(m.profitRp)}
-                                </b>
-                              </div>
-                              <div className="w-full h-2.5 bg-black rounded-full overflow-hidden border border-zinc-800">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-500 ${
-                                    m.profitRp >= 0 ? 'bg-amber-400' : 'bg-red-500'
-                                  }`}
-                                  style={{ width: `${profitPct}%` }}
-                                />
-                              </div>
-                            </div>
-
-                            {m.rejectRp > 0 && (
-                              <div className="space-y-0.5">
-                                <div className="flex justify-between text-red-300">
-                                  <span>Nilai Reject / Pindah:</span>
-                                  <b className="text-red-400">{formatRupiah(m.rejectRp)}</b>
-                                </div>
-                                <div className="w-full h-2 bg-black rounded-full overflow-hidden border border-zinc-800">
-                                  <div
-                                    className="h-full bg-red-500 rounded-full transition-all duration-500"
-                                    style={{ width: `${rejectPct}%` }}
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+          {/* Search + Factory Filter + Sheets Action */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 lg:justify-end">
+            <div className="relative flex-1 min-w-[200px] lg:max-w-xs">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Cari seri, GUL-..., pabrik..."
+                aria-label="Cari riwayat nota atau seri"
+                className="w-full h-9 pl-8.5 pr-8 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-amber-500/80 transition-colors"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  aria-label="Bersihkan pencarian riwayat"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-900 inline-flex items-center justify-center cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Search & Filters */}
-      <div className="requiem-card p-3 rounded-xl border border-zinc-800/90 space-y-2.5">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Cari nomor seri (AK 1 -> AL 1, 57...), kode gulungan (GUL-...), atau nama pabrik..."
-              className="w-full h-9 sm:h-10 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-amber-500"
-            />
+            <select
+              value={factoryFilter}
+              onChange={(e) => setFactoryFilter(e.target.value)}
+              aria-label="Filter Pabrik Riwayat"
+              className="w-full sm:w-auto sm:max-w-[185px] h-9 px-3 bg-black border border-zinc-800 hover:border-zinc-700 rounded-xl text-xs text-zinc-100 font-semibold focus:outline-hidden focus:border-amber-500/80 cursor-pointer shrink-0 truncate"
+            >
+              <option value="ALL">Semua Pabrik</option>
+              {factories
+                .filter((f) => f !== 'ALL')
+                .map((fac) => (
+                  <option key={fac} value={fac}>
+                    {fac}
+                  </option>
+                ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={onOpenGoogleSheetsModal}
+              className="h-9 px-3.5 rounded-xl bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-extrabold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+              <span>Google Sheets</span>
+            </button>
           </div>
-
-          <select
-            value={factoryFilter}
-            onChange={(e) => setFactoryFilter(e.target.value)}
-            className="h-9 sm:h-10 px-3 bg-black border border-zinc-800 rounded-xl text-xs text-amber-400 font-bold focus:outline-hidden focus:border-amber-500"
-            aria-label="Filter Pabrik Riwayat"
-          >
-            <option value="ALL">Semua Pabrik</option>
-            {factories
-              .filter((f) => f !== 'ALL')
-              .map((fac) => (
-                <option key={fac} value={fac}>
-                  {fac}
-                </option>
-              ))}
-          </select>
         </div>
 
+        {/* Status Quick Filters when viewing Segment 2 */}
         {activeSegment === 'seri-status' && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-zinc-900">
-            {[
-              { id: 'ALL', label: `Semua Seri (${kpiBatches.length})` },
-              { id: 'ACCEPTED_CAIR', label: `Diterima / Accepted (${cairBatches.length})` },
-              { id: 'PENDING', label: `Menunggu Pabrik (${pendingBatches.length})` },
-              { id: 'REJECTED_STOCK', label: `Reject di Gudang (${rejectedBatches.length})` },
-              {
-                id: 'RENAMED_LINEAGE',
-                label: `Riwayat Ganti Seri / Pindah (${renamedBatches.length})`,
-              },
-            ].map((tab) => (
+          <div className="pt-2.5 border-t border-zinc-800/80 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { id: 'ALL', label: 'Semua', count: kpiBatches.length },
+                { id: 'ACCEPTED_CAIR', label: 'Diterima', count: cairBatches.length },
+                { id: 'PENDING', label: 'Menunggu', count: pendingBatches.length },
+                { id: 'REJECTED_STOCK', label: 'Reject', count: rejectedBatches.length },
+                { id: 'RENAMED_LINEAGE', label: 'Ganti Seri', count: renamedBatches.length },
+              ].map((tab) => {
+                const isActive = statusFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setStatusFilter(tab.id as any)}
+                    className={`h-8 px-3 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'bg-zinc-900 text-amber-300 border border-amber-500/70'
+                        : 'bg-transparent text-zinc-400 hover:text-white border border-zinc-800/80 hover:border-zinc-700'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span className="font-mono tabular-nums text-[11px] opacity-80">
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {rejectedBatches.length > 0 && onGoToRejectedStock && (
               <button
-                key={tab.id}
                 type="button"
-                onClick={() => setStatusFilter(tab.id as any)}
-                className={`h-8 px-3 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
-                  statusFilter === tab.id
-                    ? 'bg-black text-amber-400 border border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
-                    : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
-                }`}
+                onClick={onGoToRejectedStock}
+                className="h-8 px-3 rounded-lg bg-rose-950/30 hover:bg-rose-950/50 text-rose-300 border border-rose-500/40 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0"
               >
-                {tab.label}
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                <span>Proses Reject di Stok Jadi ({rejectedBatches.length})</span>
               </button>
-            ))}
+            )}
           </div>
         )}
       </div>
 
-      {/* SEGMENT 1: RIWAYAT NOTA GULUNGAN */}
-      {activeSegment === 'nota-history' && (
-        <div className="space-y-4">
-          {filteredRolls.length === 0 ? (
-            <div className="text-center py-12 requiem-card rounded-2xl border border-zinc-800">
-              <Scroll className="w-10 h-10 text-zinc-600 mx-auto mb-2" />
-              <p className="text-white font-bold text-sm">
-                Tidak ada riwayat Nota Gulungan yang cocok
+      {/* 2. EXECUTIVE 4-COLUMN KPI LEDGER STRIP (SINGLE SURFACE, HAIRLINE DIVIDERS, TABULAR NUMERALS) */}
+      <div className="bg-[#09090c] border border-zinc-800 rounded-2xl overflow-hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-zinc-800/80">
+        <button
+          type="button"
+          onClick={() => openHistoryKpiCalc('TOTAL_NOTA')}
+          className="text-left p-4 hover:bg-zinc-900/40 transition-colors cursor-pointer flex flex-col justify-between gap-1.5"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-zinc-400">Total Nilai Nota</span>
+            <CalcSymbolBadge />
+          </div>
+          <div className="font-mono tabular-nums font-black text-lg sm:text-xl text-white tracking-tight">
+            {formatRupiah(totalAllNotaRp)}
+          </div>
+          <div className="text-[11px] text-zinc-400 font-mono tabular-nums truncate">
+            {billableKpiBatches.length} seri · {totalNettoAllKg} kg · {activeFactoryLabel}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => openHistoryKpiCalc('CAIR_VALUE')}
+          className="text-left p-4 hover:bg-zinc-900/40 transition-colors cursor-pointer flex flex-col justify-between gap-1.5"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-emerald-400">Diterima Pabrik</span>
+            <CalcSymbolBadge />
+          </div>
+          <div className="font-mono tabular-nums font-black text-lg sm:text-xl text-emerald-300 tracking-tight">
+            {formatRupiah(totalCairRp)}
+          </div>
+          <div className="text-[11px] text-zinc-400 font-mono tabular-nums truncate">
+            {cairBatches.length} seri
+            {paidAcceptedBatches.length > 0 ? ` · Cair ${formatRupiah(totalPaidCairRp)}` : ''}
+            {unpaidAcceptedBatches.length > 0 && paidAcceptedBatches.length > 0
+              ? ` · Proses ${formatRupiah(totalUnpaidAcceptedRp)}`
+              : ''}
+            {rejectedBatches.length > 0 ? ` · ${rejectedBatches.length} reject` : ''}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => openHistoryKpiCalc('PENDING_VALUE')}
+          className="text-left p-4 hover:bg-zinc-900/40 transition-colors cursor-pointer flex flex-col justify-between gap-1.5"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-zinc-400">Menunggu Pabrik</span>
+            <CalcSymbolBadge />
+          </div>
+          <div className="font-mono tabular-nums font-black text-lg sm:text-xl text-zinc-100 tracking-tight">
+            {formatRupiah(totalPendingRp)}
+          </div>
+          <div className="text-[11px] text-zinc-400 font-mono tabular-nums truncate">
+            {pendingBatches.length} seri menunggu · {renamedBatches.length} ganti seri
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => openHistoryKpiCalc('TOTAL_PROFIT')}
+          className="text-left p-4 hover:bg-zinc-900/40 transition-colors cursor-pointer flex flex-col justify-between gap-1.5 bg-amber-500/[0.03]"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold text-amber-400">Profit Bersih</span>
+            <CalcSymbolBadge />
+          </div>
+          <div
+            className={`font-mono tabular-nums font-black text-lg sm:text-xl tracking-tight ${
+              totalProfitRp >= 0 ? 'text-amber-400' : 'text-rose-400'
+            }`}
+          >
+            {totalProfitRp >= 0 ? '+' : ''}
+            {formatRupiah(totalProfitRp)}
+          </div>
+          <div className="text-[11px] text-zinc-400 font-mono tabular-nums truncate">
+            Margin {totalMarginPct}% · Modal {formatRupiah(totalAllModalRp)}
+          </div>
+        </button>
+      </div>
+
+      {/* 3. DEDICATED PANEL: PERBANDINGAN PABRIK */}
+      {activeSegment === 'factory-comparison' && (
+        <div className="bg-[#09090c] border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="px-4 py-3.5 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-xs sm:text-sm font-extrabold text-white flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Panel Perbandingan Performa Per Pabrik</span>
+              </h3>
+              <p className="text-[11px] text-zinc-400 mt-0.5">
+                Klik baris pabrik untuk memfilter data, atau buka nota gulungan khusus pabrik tersebut.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-[11px] text-zinc-400">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-xs bg-zinc-500 inline-block" /> Modal
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-amber-300">
+                <span className="w-2.5 h-2.5 rounded-xs bg-amber-400 inline-block" /> Profit
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-rose-300">
+                <span className="w-2.5 h-2.5 rounded-xs bg-rose-500 inline-block" /> Reject
+              </span>
+              {factoryFilter !== 'ALL' && (
+                <button
+                  type="button"
+                  onClick={() => setActiveSegment('nota-history')}
+                  className="h-8 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap"
+                >
+                  <span>Buka Nota {factoryFilter}</span>
+                  <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {factoryComparisonRows.length === 0 ? (
+            <div className="text-center py-12 px-4 space-y-2">
+              <BarChart3 className="w-8 h-8 text-zinc-600 mx-auto" />
+              <p className="text-sm font-bold text-white">Belum ada data pabrik untuk dibandingkan</p>
+              <p className="text-xs text-zinc-400">
+                Tambahkan gulungan atau seri tembakau jadi agar statistik per pabrik muncul di sini.
               </p>
             </div>
           ) : (
-            filteredRolls.map((roll) => {
-              // Active serials currently in this roll
-              const activeInRoll = finishedBatches.filter(
-                (b) => b.rollId === roll.id || b.rollNumber === roll.rollNumber
-              );
-              // Serials that were previously in this roll before being rejected & moved to another roll
-              const movedOutFromRoll = finishedBatches.filter(
-                (b) =>
-                  b.rollId !== roll.id &&
-                  b.rollNumber !== roll.rollNumber &&
-                  (b.previousRollId === roll.id ||
-                    (b.previousRollNumber && b.previousRollNumber.includes(roll.rollNumber)))
-              );
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-800/90 text-[11px] text-zinc-400 font-bold bg-black/40">
+                    <th className="py-2.5 px-4">Pabrik Tujuan</th>
+                    <th className="py-2.5 px-3 text-right">Gulungan / Seri</th>
+                    <th className="py-2.5 px-3 text-right">Modal</th>
+                    <th className="py-2.5 px-3 text-right">Nilai Nota</th>
+                    <th className="py-2.5 px-3 text-right">Profit</th>
+                    <th className="py-2.5 px-3 text-right">Margin</th>
+                    <th className="py-2.5 px-4 min-w-[160px]">Komposisi Nota</th>
+                    <th className="py-2.5 px-3 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/70 font-mono tabular-nums">
+                  {factoryComparisonRows.map((row) => {
+                    const isSelected = factoryFilter === row.facName;
+                    const denom = Math.max(1, row.notaRp, row.modalRp + Math.max(0, row.profitRp));
+                    const modalBarPct = Math.round((row.modalRp / denom) * 100);
+                    const profitBarPct =
+                      row.profitRp > 0 ? Math.max(4, Math.round((row.profitRp / denom) * 100)) : 0;
 
-              const allHistoricalSerials = [...activeInRoll, ...movedOutFromRoll];
-              const isExpanded = !!expandedNotaRollIds[roll.id];
-              const sheetMode = notaSheetModeMap[roll.id] || 'INTERNAL_COST';
-
-              const formattedDate = new Date(roll.sampleCreatedDate).toLocaleDateString(
-                'id-ID',
-                {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                }
-              );
-
-              const sumBruto = activeInRoll.reduce(
-                (acc, s) => acc + s.packaging.grossWeightPerPackage,
-                0
-              );
-              const sumTara = activeInRoll.reduce((acc, s) => acc + s.factoryDeductionKg, 0);
-              const sumNetto = activeInRoll.reduce(
-                (acc, s) =>
-                  acc + Math.max(0, s.packaging.grossWeightPerPackage - s.factoryDeductionKg),
-                0
-              );
-              const sumModal = activeInRoll.reduce((acc, s) => acc + getSerialModalRp(s), 0);
-              const sumNota = activeInRoll.reduce((acc, s) => acc + getSerialNotaRp(s), 0);
-              const sumProfit = sumNota - sumModal;
-
-              const cairCount = activeInRoll.filter(
-                (s) => s.factoryStatus === 'ACCEPTED_CAIR'
-              ).length;
-              const pendingCount = activeInRoll.filter(
-                (s) => (s.factoryStatus || 'PENDING') === 'PENDING'
-              ).length;
-              const rejectCount =
-                activeInRoll.filter((s) => s.factoryStatus === 'REJECTED_STOCK').length +
-                movedOutFromRoll.length;
-
-              return (
-                <div
-                  key={roll.id}
-                  className="requiem-card rounded-2xl border-2 border-zinc-800/90 hover:border-amber-500/70 overflow-hidden transition-all"
-                >
-                  {/* Roll Nota Header */}
-                  <div className="p-4 sm:p-5 bg-black/95 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2.5 py-1 rounded-lg bg-black text-amber-400 border border-amber-500 font-mono font-black text-xs">
-                          {roll.rollNumber}
-                        </span>
-                        <h2 className="font-black text-white text-sm sm:text-base">
-                          {roll.recipeName}
-                        </h2>
-                        <span className="px-2 py-0.5 rounded bg-zinc-900 text-amber-300 border border-zinc-700 font-mono text-[11px] font-bold">
-                          {activeInRoll.length} Seri Aktif
-                          {movedOutFromRoll.length > 0
-                            ? ` (+${movedOutFromRoll.length} Eks-Reject Pindah)`
-                            : ''}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-3 flex-wrap text-xs text-zinc-300">
-                        <span className="inline-flex items-center gap-1">
-                          <Building2 className="w-3.5 h-3.5 text-amber-400" />
-                          Pabrik: <b className="text-white">{roll.targetFactory}</b>
-                        </span>
-                        <span className="inline-flex items-center gap-1 font-mono text-amber-300">
-                          <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                          {formattedDate}
-                        </span>
-                      </div>
-
-                      {/* Status Badges */}
-                      <div className="flex items-center gap-2 flex-wrap text-[11px] font-mono pt-0.5">
-                        <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-amber-400">
-                          Diterima / Accepted: <b>{cairCount}</b>
-                        </span>
-                        <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-white">
-                          Menunggu Pabrik: <b>{pendingCount}</b>
-                        </span>
-                        <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-300">
-                          Riwayat Reject/Pindah: <b>{rejectCount}</b>
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Right Totals & Toggle Button */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                      <div className="bg-zinc-950 px-3.5 py-2 rounded-xl border border-zinc-800 text-right font-mono">
-                        <div className="text-[10px] text-zinc-400 uppercase font-bold">
-                          Total Nota ({sumNetto} kg Netto)
-                        </div>
-                        <div className="text-amber-400 font-black text-sm">
-                          {formatRupiah(sumNota)}
-                        </div>
-                        <div className="text-[10px] text-zinc-300">
-                          Profit:{' '}
-                          <b className={sumProfit >= 0 ? 'text-amber-300' : 'text-red-400'}>
-                            {sumProfit >= 0 ? '+' : ''}
-                            {formatRupiah(sumProfit)}
-                          </b>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpandedNotaRollIds((prev) => ({
-                              ...prev,
-                              [roll.id]: !prev[roll.id],
-                            }))
-                          }
-                          className="btn-amber-outline h-9 px-3.5 rounded-xl font-black text-xs inline-flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-                        >
-                          {isExpanded ? (
-                            <>
-                              <EyeOff className="w-3.5 h-3.5" />
-                              <span>Sembunyikan Nota</span>
-                            </>
-                          ) : (
-                            <>
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Lihat Tabel Nota</span>
-                            </>
-                          )}
-                        </button>
-
-                        {onDeleteRoll && (
-                          <button
-                            type="button"
-                            aria-label={`Hapus Riwayat Gulungan ${roll.rollNumber}`}
-                            onClick={() => onDeleteRoll(roll.id)}
-                            className="group relative h-9 w-9 shrink-0 rounded-xl bg-black hover:bg-red-950/70 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/70 flex items-center justify-center cursor-pointer transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4 shrink-0" />
-                            <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-red-500/70 text-red-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
-                              Hapus Gulungan {roll.rollNumber}
-                            </span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Expanded Nota Table */}
-                  {isExpanded && (
-                    <div className="p-4 sm:p-5 border-t border-zinc-800 bg-zinc-950/90 space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setNotaSheetModeMap((prev) => ({
-                                ...prev,
-                                [roll.id]: 'INTERNAL_COST',
-                              }))
-                            }
-                            className={`h-8 px-3 rounded-lg text-xs font-extrabold cursor-pointer ${
-                              sheetMode === 'INTERNAL_COST'
-                                ? 'bg-black text-amber-400 border border-amber-500'
-                                : 'bg-black text-zinc-400 border border-zinc-800 hover:text-white'
-                            }`}
-                          >
-                            Nota Arsip Personal (Modal + Profit)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setNotaSheetModeMap((prev) => ({
-                                ...prev,
-                                [roll.id]: 'FACTORY_NOTA',
-                              }))
-                            }
-                            className={`h-8 px-3 rounded-lg text-xs font-extrabold cursor-pointer ${
-                              sheetMode === 'FACTORY_NOTA'
-                                ? 'bg-black text-amber-400 border border-amber-500'
-                                : 'bg-black text-zinc-400 border border-zinc-800 hover:text-white'
-                            }`}
-                          >
-                            Nota Setor Pabrik (9 Kolom)
-                          </button>
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleCopyRollNota(roll, activeInRoll, sheetMode)}
-                            className="btn-amber-outline h-8 px-3 rounded-lg text-[11px] font-extrabold inline-flex items-center gap-1.5 cursor-pointer"
-                          >
-                            {copiedKey === `${roll.id}-${sheetMode}` ? (
-                              <>
-                                <Check className="w-3.5 h-3.5" /> Tersalin!
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3.5 h-3.5" /> Salin Nota
-                              </>
+                    return (
+                      <tr
+                        key={row.facName}
+                        onClick={() =>
+                          setFactoryFilter((prev) => (prev === row.facName ? 'ALL' : row.facName))
+                        }
+                        className={`cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-amber-500/10'
+                            : 'hover:bg-zinc-900/50'
+                        }`}
+                      >
+                        <td className="py-2.5 px-4 font-sans font-bold text-white">
+                          <div className="flex items-center gap-2">
+                            <span>{row.facName}</span>
+                            {isSelected && (
+                              <span className="text-[10px] font-mono text-amber-400">Aktif</span>
                             )}
-                          </button>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-zinc-300 whitespace-nowrap">
+                          {row.rollCount} gul · {row.serialCount} seri
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-zinc-300 whitespace-nowrap">
+                          {formatRupiah(row.modalRp)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-white whitespace-nowrap">
+                          {formatRupiah(row.notaRp)}
+                        </td>
+                        <td
+                          className={`py-2.5 px-3 text-right font-bold whitespace-nowrap ${
+                            row.profitRp >= 0 ? 'text-amber-400' : 'text-rose-400'
+                          }`}
+                        >
+                          {row.profitRp >= 0 ? '+' : ''}
+                          {formatRupiah(row.profitRp)}
+                        </td>
+                        <td
+                          className={`py-2.5 px-3 text-right font-bold whitespace-nowrap ${
+                            row.marginPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                          }`}
+                        >
+                          {row.marginPct}%
+                        </td>
+                        <td className="py-2.5 px-4">
+                          <div className="w-full h-2 bg-black rounded-full overflow-hidden flex border border-zinc-800">
+                            <div
+                              className="h-full bg-zinc-500"
+                              style={{ width: `${Math.min(100, modalBarPct)}%` }}
+                            />
+                            {profitBarPct > 0 && (
+                              <div
+                                className="h-full bg-amber-400"
+                                style={{
+                                  width: `${Math.min(100 - Math.min(100, modalBarPct), profitBarPct)}%`,
+                                }}
+                              />
+                            )}
+                          </div>
+                          {row.rejectRp > 0 && (
+                            <div className="text-[10px] text-rose-400 mt-0.5">
+                              Reject: {formatRupiah(row.rejectRp)}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
                           <button
                             type="button"
-                            onClick={() => handleDownloadRollCsv(roll, activeInRoll, sheetMode)}
-                            className="h-8 px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-700 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFactoryFilter(row.facName);
+                              setActiveSegment('nota-history');
+                            }}
+                            className="h-7 px-2.5 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/70 text-amber-300 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
                           >
-                            <Download className="w-3.5 h-3.5 text-amber-400" /> CSV
+                            <span>Lihat Nota</span>
+                            <ArrowRight className="w-3 h-3" />
                           </button>
-                        </div>
-                      </div>
-
-                      <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-black">
-                        <table className="w-full text-left border-collapse font-mono text-[11px]">
-                          <thead>
-                            <tr className="bg-zinc-900 text-white border-b border-zinc-800 text-center font-black whitespace-nowrap">
-                              <th className="py-2.5 px-2.5 border-r border-zinc-800">NO</th>
-                              <th className="py-2.5 px-3 border-r border-zinc-800">
-                                {sheetMode === 'FACTORY_NOTA' ? 'SERI' : 'SERI (ASAL -> BARU)'}
-                              </th>
-                              {sheetMode === 'INTERNAL_COST' && (
-                                <th className="py-2.5 px-2 border-r border-zinc-800">STATUS</th>
-                              )}
-                              <th className="py-2.5 px-2 border-r border-zinc-800">BRUTO</th>
-                              <th className="py-2.5 px-2 border-r border-zinc-800">TARA</th>
-                              <th className="py-2.5 px-2 border-r border-zinc-800">NETTO</th>
-                              <th className="py-2.5 px-2 border-r border-zinc-800">PACKAGING</th>
-                              <th className="py-2.5 px-2 border-r border-zinc-800">GRADE</th>
-                              {sheetMode === 'INTERNAL_COST' && (
-                                <>
-                                  <th className="py-2.5 px-2 border-r border-zinc-800">
-                                    HARGA MODAL
-                                  </th>
-                                  <th className="py-2.5 px-2 border-r border-zinc-800">
-                                    JUMLAH MODAL
-                                  </th>
-                                </>
-                              )}
-                              <th className="py-2.5 px-2 border-r border-zinc-800 text-amber-300">
-                                {sheetMode === 'FACTORY_NOTA' ? 'HARGA' : 'HARGA PABRIK'}
-                              </th>
-                              <th
-                                className={`py-2.5 px-2 text-amber-300 ${
-                                  sheetMode === 'INTERNAL_COST' ? 'border-r border-zinc-800' : ''
-                                }`}
-                              >
-                                {sheetMode === 'FACTORY_NOTA' ? 'JUMLAH' : 'JUMLAH PABRIK'}
-                              </th>
-                              {sheetMode === 'INTERNAL_COST' && (
-                                <th className="py-2.5 px-2 text-amber-400">PROFIT</th>
-                              )}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-zinc-900 text-center">
-                            {(sheetMode === 'FACTORY_NOTA' && activeInRoll.length > 0
-                              ? activeInRoll
-                              : allHistoricalSerials
-                            ).map((s, idx) => {
-                              const movedOut =
-                                s.rollId !== roll.id && s.rollNumber !== roll.rollNumber;
-                              const bruto = s.packaging.grossWeightPerPackage;
-                              const tara = s.factoryDeductionKg;
-                              const netto = Math.max(0, bruto - tara);
-                              const modalPerKg = Math.round(
-                                s.effectiveHppAfterTaraPerKg || s.hppPerNetKg || 0
-                              );
-                              const jumlahModal = getSerialModalRp(s);
-                              const jumlahNota = getSerialNotaRp(s);
-                              const profit = jumlahNota - jumlahModal;
-                              const lineage = formatSerialLineage(s);
-
-                              return (
-                                <tr
-                                  key={`${roll.id}-${s.id}`}
-                                  className={`hover:bg-zinc-950/90 ${
-                                    movedOut ? 'text-zinc-500 bg-zinc-950/50' : 'text-zinc-200'
-                                  }`}
-                                >
-                                  <td className="py-2 px-2 border-r border-zinc-900">
-                                    {idx + 1}
-                                  </td>
-                                  <td className="py-2 px-2 border-r border-zinc-900 font-black text-amber-400 whitespace-nowrap">
-                                    {sheetMode === 'FACTORY_NOTA' ? s.serialNumber : lineage}
-                                  </td>
-                                  {sheetMode === 'INTERNAL_COST' && (
-                                    <td className="py-2 px-2 border-r border-zinc-900 whitespace-nowrap text-[10px]">
-                                      {movedOut ? (
-                                        <span className="px-2 py-0.5 rounded bg-zinc-900 text-amber-300 border border-amber-500/50 font-bold">
-                                          REJECTED ({s.rollNumber})
-                                        </span>
-                                      ) : s.factoryStatus === 'ACCEPTED_CAIR' ? (
-                                        <span className="px-2 py-0.5 rounded bg-black text-amber-400 border border-amber-500 font-black">
-                                          DITERIMA / ACCEPTED
-                                        </span>
-                                      ) : s.factoryStatus === 'REJECTED_STOCK' ? (
-                                        <span className="px-2 py-0.5 rounded bg-zinc-900 text-white border border-zinc-600 font-bold">
-                                          REJECTED
-                                        </span>
-                                      ) : (
-                                        <span className="px-2 py-0.5 rounded bg-zinc-950 text-zinc-300 border border-zinc-700">
-                                          MENUNGGU PABRIK
-                                        </span>
-                                      )}
-                                    </td>
-                                  )}
-                                  <td className="py-2 px-2 border-r border-zinc-900">{bruto}</td>
-                                  <td className="py-2 px-2 border-r border-zinc-900">{tara}</td>
-                                  <td className="py-2 px-2 border-r border-zinc-900 font-bold text-white">
-                                    {netto}
-                                  </td>
-                                  <td className="py-2 px-2 border-r border-zinc-900">
-                                    {s.packaging.packagingType}
-                                  </td>
-                                  <td className="py-2 px-2 border-r border-zinc-900 font-bold text-white">
-                                    {s.compositeColorGrade}
-                                  </td>
-                                  {sheetMode === 'INTERNAL_COST' && (
-                                    <>
-                                      <td className="py-2 px-2 border-r border-zinc-900 text-right">
-                                        {formatSheetRp(modalPerKg)}
-                                      </td>
-                                      <td className="py-2 px-2 border-r border-zinc-900 text-right font-bold text-white">
-                                        {formatSheetRp(jumlahModal)}
-                                      </td>
-                                    </>
-                                  )}
-                                  <td className="py-2 px-2 border-r border-zinc-900 text-right text-amber-300 font-bold">
-                                    {formatSheetRp(s.factoryTargetPricePerKg)}
-                                  </td>
-                                  <td
-                                    className={`py-2 px-2 text-right text-amber-400 font-black ${
-                                      sheetMode === 'INTERNAL_COST' ? 'border-r border-zinc-900' : ''
-                                    }`}
-                                  >
-                                    {formatSheetRp(jumlahNota)}
-                                  </td>
-                                  {sheetMode === 'INTERNAL_COST' && (
-                                    <td className="py-2 px-2 text-right font-black text-white">
-                                      {formatSheetRp(profit)}
-                                    </td>
-                                  )}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot>
-                            <tr className="bg-zinc-900 border-t-2 border-amber-500/60 font-black text-white text-center">
-                              <td
-                                colSpan={sheetMode === 'FACTORY_NOTA' ? 2 : 3}
-                                className="py-2.5 px-3 border-r border-zinc-800 text-left text-amber-400"
-                              >
-                                TOTAL AKTIF ({activeInRoll.length} SERI)
-                              </td>
-                              <td className="py-2.5 px-2 border-r border-zinc-800 text-amber-400">
-                                {sumBruto}
-                              </td>
-                              <td className="py-2.5 px-2 border-r border-zinc-800 text-amber-400">
-                                {sumTara}
-                              </td>
-                              <td className="py-2.5 px-2 border-r border-zinc-800 text-white">
-                                {sumNetto}
-                              </td>
-                              <td colSpan={2} className="py-2.5 px-2 border-r border-zinc-800" />
-                              {sheetMode === 'INTERNAL_COST' && (
-                                <>
-                                  <td className="py-2.5 px-2 border-r border-zinc-800" />
-                                  <td className="py-2.5 px-2 border-r border-zinc-800 text-right text-white">
-                                    {formatSheetRp(sumModal)}
-                                  </td>
-                                </>
-                              )}
-                              <td className="py-2.5 px-2 border-r border-zinc-800" />
-                              <td
-                                className={`py-2.5 px-2 text-right text-amber-400 ${
-                                  sheetMode === 'INTERNAL_COST' ? 'border-r border-zinc-800' : ''
-                                }`}
-                              >
-                                {formatSheetRp(sumNota)}
-                              </td>
-                              {sheetMode === 'INTERNAL_COST' && (
-                                <td className="py-2.5 px-2 text-right text-amber-400">
-                                  {formatSheetRp(sumProfit)}
-                                </td>
-                              )}
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
 
-      {/* SEGMENT 2: DATA STATUS & JEJAK SEMUA SERI */}
+      {/* 4. SEGMENT 1: RIWAYAT NOTA GULUNGAN (FOLDER GROUPED + COMPACT CARDS) */}
+      {activeSegment === 'nota-history' && (
+        <div className="space-y-3" data-testid="history-nota-folders">
+          {filteredRolls.length === 0 ? (
+            <div className="bg-[#09090c] border border-zinc-800 rounded-2xl text-center py-12 px-4 space-y-2">
+              <Scroll className="w-8 h-8 text-zinc-600 mx-auto" />
+              <p className="text-white font-bold text-sm">
+                Belum ada Nota Gulungan yang cocok dengan filter ini
+              </p>
+              {(searchTerm || factoryFilter !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setFactoryFilter('ALL');
+                  }}
+                  className="text-xs font-bold text-amber-400 hover:underline cursor-pointer"
+                >
+                  Reset filter pencarian
+                </button>
+              )}
+            </div>
+          ) : (
+            (() => {
+              const folders = groupRollsIntoFolders(
+                filteredRolls,
+                finishedBatches,
+                notaGroupingMode
+              );
+
+              return (
+                <>
+                  {/* Folder Grouping Controls */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
+                    <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#09090c] border border-zinc-800">
+                      <span className="text-[10px] font-bold uppercase text-zinc-500 px-2">
+                        Folder:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setNotaGroupingMode('date')}
+                        className={`h-7 px-2.5 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
+                          notaGroupingMode === 'date'
+                            ? 'bg-[#101218] text-amber-300 border border-amber-500/70'
+                            : 'text-zinc-400 hover:text-white border border-transparent'
+                        }`}
+                      >
+                        Per Tanggal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNotaGroupingMode('factory')}
+                        className={`h-7 px-2.5 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
+                          notaGroupingMode === 'factory'
+                            ? 'bg-[#101218] text-amber-300 border border-amber-500/70'
+                            : 'text-zinc-400 hover:text-white border border-transparent'
+                        }`}
+                      >
+                        Per Pabrik
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <span className="text-zinc-400 font-mono">
+                        {folders.length} Folder • {filteredRolls.length} Gulungan
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next: Record<string, boolean> = {};
+                          folders.forEach((f) => {
+                            next[f.folderKey] = true;
+                          });
+                          setExpandedHistoryFolderKeys(next);
+                        }}
+                        className="h-7 px-2.5 rounded-lg bg-[#09090c] hover:bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold cursor-pointer"
+                      >
+                        Buka Semua
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next: Record<string, boolean> = {};
+                          folders.forEach((f) => {
+                            next[f.folderKey] = false;
+                          });
+                          setExpandedHistoryFolderKeys(next);
+                        }}
+                        className="h-7 px-2.5 rounded-lg bg-[#09090c] hover:bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold cursor-pointer"
+                      >
+                        Tutup Semua
+                      </button>
+                    </div>
+                  </div>
+
+                  {folders.map((folder, folderIdx) => {
+                    const isFolderOpen =
+                      expandedHistoryFolderKeys[folder.folderKey] !== undefined
+                        ? expandedHistoryFolderKeys[folder.folderKey]
+                        : folderIdx === 0;
+
+                    return (
+                      <div
+                        key={folder.folderKey}
+                        className="bg-[#09090c] border border-zinc-800 rounded-2xl overflow-hidden"
+                      >
+                        <button
+                          type="button"
+                          aria-expanded={isFolderOpen}
+                          onClick={() =>
+                            setExpandedHistoryFolderKeys((prev) => ({
+                              ...prev,
+                              [folder.folderKey]: !isFolderOpen,
+                            }))
+                          }
+                          className="w-full px-3.5 py-2.5 bg-black/70 hover:bg-zinc-950/90 flex flex-wrap items-center justify-between gap-2 text-left cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {isFolderOpen ? (
+                              <FolderOpen className="w-4 h-4 text-amber-400 shrink-0" />
+                            ) : (
+                              <Folder className="w-4 h-4 text-zinc-400 shrink-0" />
+                            )}
+                            <span className="font-extrabold text-white text-xs sm:text-sm truncate">
+                              {folder.folderLabel}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md bg-zinc-900 border border-zinc-700 font-mono text-[11px] font-bold text-amber-300 tabular-nums shrink-0">
+                              {folder.rolls.length} Gulungan
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-[11px] font-mono tabular-nums text-zinc-400 shrink-0">
+                            <span>{folder.stats.totalSerials} Seri</span>
+                            <span className="hidden sm:inline text-zinc-300">
+                              {folder.stats.totalNettoKg} kg
+                            </span>
+                            <span className="text-white font-bold">
+                              {formatRupiah(folder.stats.totalNotaRp)}
+                            </span>
+                            <span
+                              className={`hidden sm:inline font-bold ${
+                                folder.stats.totalProfitRp >= 0
+                                  ? 'text-amber-400'
+                                  : 'text-rose-400'
+                              }`}
+                            >
+                              {folder.stats.totalProfitRp >= 0 ? '+' : ''}
+                              {formatRupiah(folder.stats.totalProfitRp)}
+                            </span>
+                            {isFolderOpen ? (
+                              <ChevronDown className="w-4 h-4 text-zinc-400 shrink-0" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
+                            )}
+                          </div>
+                        </button>
+
+                        {isFolderOpen && (
+                          <div className="p-3 border-t border-zinc-800/80 bg-black/30 space-y-2.5">
+                            {/* Compact Grid of Roll Cards for Fast Scanning */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {folder.rolls.map((roll) => {
+                                const activeInRoll = finishedBatches.filter(
+                                  (b) => b.rollId === roll.id || b.rollNumber === roll.rollNumber
+                                );
+                                const movedOutFromRoll = finishedBatches.filter(
+                                  (b) =>
+                                    b.rollId !== roll.id &&
+                                    b.rollNumber !== roll.rollNumber &&
+                                    (b.previousRollId === roll.id ||
+                                      (b.previousRollNumber &&
+                                        b.previousRollNumber.includes(roll.rollNumber)))
+                                );
+
+                                const isExpanded = !!expandedNotaRollIds[roll.id];
+                                const formattedDate = new Date(
+                                  roll.sampleCreatedDate
+                                ).toLocaleDateString('id-ID', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                });
+
+                                const sumNetto = activeInRoll.reduce(
+                                  (acc, s) =>
+                                    acc +
+                                    Math.max(
+                                      0,
+                                      s.packaging.grossWeightPerPackage - s.factoryDeductionKg
+                                    ),
+                                  0
+                                );
+                                const sumModal = activeInRoll.reduce(
+                                  (acc, s) => acc + getSerialModalRp(s),
+                                  0
+                                );
+                                const sumNota = activeInRoll.reduce(
+                                  (acc, s) => acc + getSerialNotaRp(s),
+                                  0
+                                );
+                                const sumProfit = sumNota - sumModal;
+                                const cairCount = activeInRoll.filter(
+                                  (s) => s.factoryStatus === 'ACCEPTED_CAIR'
+                                ).length;
+                                const rejectCount =
+                                  activeInRoll.filter((s) => s.factoryStatus === 'REJECTED_STOCK')
+                                    .length + movedOutFromRoll.length;
+
+                                return (
+                                  <div
+                                    key={roll.id}
+                                    className={`rounded-xl border transition-colors ${
+                                      isExpanded
+                                        ? 'col-span-full bg-[#0a0c10] border-amber-500/70'
+                                        : 'bg-[#0d0f14] border-zinc-800 hover:border-amber-500/60 flex flex-col justify-between'
+                                    }`}
+                                  >
+                                    <div className={isExpanded ? 'p-3 flex flex-wrap items-center justify-between gap-2' : 'p-3 flex flex-col justify-between gap-2.5 h-full'}>
+                                      <button
+                                        type="button"
+                                        aria-expanded={isExpanded}
+                                        onClick={() =>
+                                          setExpandedNotaRollIds((prev) => ({
+                                            ...prev,
+                                            [roll.id]: !prev[roll.id],
+                                          }))
+                                        }
+                                        className="min-w-0 flex-1 text-left cursor-pointer space-y-1"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="px-1.5 py-0.5 rounded bg-black border border-amber-500/60 font-mono font-black text-[11px] text-amber-300 shrink-0">
+                                            {roll.rollNumber}
+                                          </span>
+                                          <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold shrink-0">
+                                            {cairCount > 0 && (
+                                              <span className="text-emerald-400">
+                                                {cairCount} OK
+                                              </span>
+                                            )}
+                                            {rejectCount > 0 && (
+                                              <span className="text-rose-400">
+                                                {rejectCount} Rej
+                                              </span>
+                                            )}
+                                            {cairCount === 0 && rejectCount === 0 && (
+                                              <span className="text-zinc-400">
+                                                {activeInRoll.length} seri
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="font-bold text-white text-xs truncate">
+                                          {roll.recipeName}
+                                        </div>
+                                        <div className="text-[11px] text-zinc-400 truncate">
+                                          {roll.targetFactory} · {formattedDate}
+                                        </div>
+                                      </button>
+
+                                      <div
+                                        className={
+                                          isExpanded
+                                            ? 'flex items-center gap-2 shrink-0'
+                                            : 'pt-2 border-t border-zinc-800/70 flex items-center justify-between gap-2'
+                                        }
+                                      >
+                                        <div className="flex items-center gap-2 font-mono text-[11px] tabular-nums min-w-0">
+                                          <span className="text-zinc-300 shrink-0">{sumNetto} kg</span>
+                                          <span className="font-bold text-white truncate">
+                                            {formatRupiah(sumNota)}
+                                          </span>
+                                          <span
+                                            className={`hidden sm:inline font-bold shrink-0 ${
+                                              sumProfit >= 0 ? 'text-amber-400' : 'text-rose-400'
+                                            }`}
+                                          >
+                                            {sumProfit >= 0 ? '+' : ''}
+                                            {formatRupiah(sumProfit)}
+                                          </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setExpandedNotaRollIds((prev) => ({
+                                                ...prev,
+                                                [roll.id]: !prev[roll.id],
+                                              }))
+                                            }
+                                            aria-expanded={isExpanded}
+                                            className={`h-7 px-2.5 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap ${
+                                              isExpanded
+                                                ? 'bg-zinc-800 text-white'
+                                                : 'bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-zinc-700/80'
+                                            }`}
+                                          >
+                                            <span>{isExpanded ? 'Tutup' : 'Buka'}</span>
+                                            {isExpanded ? (
+                                              <ChevronUp className="w-3 h-3 shrink-0" />
+                                            ) : (
+                                              <ChevronDown className="w-3 h-3 shrink-0" />
+                                            )}
+                                          </button>
+
+                                          {onDeleteRoll && (
+                                            <button
+                                              type="button"
+                                              aria-label={`Hapus Riwayat Gulungan ${roll.rollNumber}`}
+                                              onClick={() => onDeleteRoll(roll.id)}
+                                              className="h-7 w-7 shrink-0 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-950/30 border border-transparent hover:border-rose-500/40 flex items-center justify-center cursor-pointer transition-colors"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {isExpanded &&
+                                      (() => {
+                                        const allHistoricalSerials = [
+                                          ...activeInRoll,
+                                          ...movedOutFromRoll,
+                                        ];
+                                        const sheetMode =
+                                          notaSheetModeMap[roll.id] || 'INTERNAL_COST';
+                                        const sumBruto = activeInRoll.reduce(
+                                          (acc, s) => acc + s.packaging.grossWeightPerPackage,
+                                          0
+                                        );
+                                        const sumTara = activeInRoll.reduce(
+                                          (acc, s) => acc + s.factoryDeductionKg,
+                                          0
+                                        );
+
+                                        return (
+                                          <div className="border-t border-zinc-800 bg-black/50 p-3.5 sm:p-4 space-y-3">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                              <div className="inline-flex p-0.5 rounded-lg bg-black border border-zinc-800 gap-1 self-start">
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    setNotaSheetModeMap((prev) => ({
+                                                      ...prev,
+                                                      [roll.id]: 'INTERNAL_COST',
+                                                    }))
+                                                  }
+                                                  className={`h-7 px-3 rounded-md text-xs font-bold cursor-pointer transition-colors whitespace-nowrap ${
+                                                    sheetMode === 'INTERNAL_COST'
+                                                      ? 'bg-zinc-800 text-amber-300'
+                                                      : 'text-zinc-400 hover:text-white'
+                                                  }`}
+                                                >
+                                                  Arsip Personal (Modal &amp; Profit)
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    setNotaSheetModeMap((prev) => ({
+                                                      ...prev,
+                                                      [roll.id]: 'FACTORY_NOTA',
+                                                    }))
+                                                  }
+                                                  className={`h-7 px-3 rounded-md text-xs font-bold cursor-pointer transition-colors whitespace-nowrap ${
+                                                    sheetMode === 'FACTORY_NOTA'
+                                                      ? 'bg-zinc-800 text-amber-300'
+                                                      : 'text-zinc-400 hover:text-white'
+                                                  }`}
+                                                >
+                                                  Setor Pabrik (9 Kolom)
+                                                </button>
+                                              </div>
+
+                                              <div className="flex items-center gap-1.5">
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    handleCopyRollNota(
+                                                      roll,
+                                                      activeInRoll,
+                                                      sheetMode
+                                                    )
+                                                  }
+                                                  className="h-8 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-amber-300 border border-zinc-700 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                                                >
+                                                  {copiedKey === `${roll.id}-${sheetMode}` ? (
+                                                    <>
+                                                      <Check className="w-3.5 h-3.5 shrink-0" />{' '}
+                                                      Tersalin
+                                                    </>
+                                                  ) : (
+                                                    <>
+                                                      <Copy className="w-3.5 h-3.5 shrink-0" />{' '}
+                                                      Salin TSV
+                                                    </>
+                                                  )}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    handleDownloadRollCsv(
+                                                      roll,
+                                                      activeInRoll,
+                                                      sheetMode
+                                                    )
+                                                  }
+                                                  className="h-8 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                                                >
+                                                  <Download className="w-3.5 h-3.5 text-amber-400 shrink-0" />{' '}
+                                                  CSV
+                                                </button>
+                                              </div>
+                                            </div>
+
+                                            <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-[#050507]">
+                                              <table className="w-full text-left border-collapse font-mono tabular-nums text-xs">
+                                                <thead>
+                                                  <tr className="bg-zinc-900/90 text-zinc-300 border-b border-zinc-800 text-[11px] font-bold whitespace-nowrap">
+                                                    <th className="py-2.5 px-3 w-10 text-center">
+                                                      No
+                                                    </th>
+                                                    <th className="py-2.5 px-3">
+                                                      {sheetMode === 'FACTORY_NOTA'
+                                                        ? 'Seri'
+                                                        : 'Seri & Jejak'}
+                                                    </th>
+                                                    {sheetMode === 'INTERNAL_COST' && (
+                                                      <th className="py-2.5 px-3">Status</th>
+                                                    )}
+                                                    <th className="py-2.5 px-2.5 text-right">
+                                                      Bruto
+                                                    </th>
+                                                    <th className="py-2.5 px-2.5 text-right">
+                                                      Tara
+                                                    </th>
+                                                    <th className="py-2.5 px-2.5 text-right">
+                                                      Netto
+                                                    </th>
+                                                    <th className="py-2.5 px-2.5 text-center">
+                                                      Wadah
+                                                    </th>
+                                                    <th className="py-2.5 px-2.5 text-center">
+                                                      Grade
+                                                    </th>
+                                                    {sheetMode === 'INTERNAL_COST' && (
+                                                      <>
+                                                        <th className="py-2.5 px-3 text-right">
+                                                          Modal/kg
+                                                        </th>
+                                                        <th className="py-2.5 px-3 text-right">
+                                                          Jml Modal
+                                                        </th>
+                                                      </>
+                                                    )}
+                                                    <th className="py-2.5 px-3 text-right">
+                                                      {sheetMode === 'FACTORY_NOTA'
+                                                        ? 'Harga'
+                                                        : 'Harga/kg'}
+                                                    </th>
+                                                    <th className="py-2.5 px-3 text-right text-amber-300">
+                                                      {sheetMode === 'FACTORY_NOTA'
+                                                        ? 'Jumlah'
+                                                        : 'Jml Nota'}
+                                                    </th>
+                                                    {sheetMode === 'INTERNAL_COST' && (
+                                                      <th className="py-2.5 px-3 text-right text-amber-400">
+                                                        Profit
+                                                      </th>
+                                                    )}
+                                                  </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-zinc-800/60">
+                                                  {(sheetMode === 'FACTORY_NOTA' &&
+                                                  activeInRoll.length > 0
+                                                    ? activeInRoll
+                                                    : allHistoricalSerials
+                                                  ).map((s, idx) => {
+                                                    const movedOut =
+                                                      s.rollId !== roll.id &&
+                                                      s.rollNumber !== roll.rollNumber;
+                                                    const bruto =
+                                                      s.packaging.grossWeightPerPackage;
+                                                    const tara = s.factoryDeductionKg;
+                                                    const netto = Math.max(0, bruto - tara);
+                                                    const modalPerKg = Math.round(
+                                                      s.effectiveHppAfterTaraPerKg ||
+                                                        s.hppPerNetKg ||
+                                                        0
+                                                    );
+                                                    const jumlahModal = getSerialModalRp(s);
+                                                    const jumlahNota = getSerialNotaRp(s);
+                                                    const profit = jumlahNota - jumlahModal;
+                                                    const lineage = formatSerialLineage(s);
+                                                    const sm = statusMeta(
+                                                      s.factoryStatus || 'PENDING',
+                                                      movedOut,
+                                                      s.rollNumber
+                                                    );
+
+                                                    return (
+                                                      <tr
+                                                        key={`${roll.id}-${s.id}`}
+                                                        className={`hover:bg-zinc-900/40 transition-colors ${
+                                                          movedOut
+                                                            ? 'text-zinc-500'
+                                                            : 'text-zinc-200'
+                                                        }`}
+                                                      >
+                                                        <td className="py-2 px-3 text-center text-zinc-500">
+                                                          {idx + 1}
+                                                        </td>
+                                                        <td className="py-2 px-3 font-bold text-amber-400 whitespace-nowrap">
+                                                          {sheetMode === 'FACTORY_NOTA'
+                                                            ? s.serialNumber
+                                                            : lineage}
+                                                        </td>
+                                                        {sheetMode === 'INTERNAL_COST' && (
+                                                          <td className="py-2 px-3 whitespace-nowrap font-sans text-xs">
+                                                            <span
+                                                              className={`inline-flex items-center gap-1.5 font-semibold ${sm.textClass}`}
+                                                            >
+                                                              <span
+                                                                className={`w-1.5 h-1.5 rounded-full ${sm.dotClass}`}
+                                                              />
+                                                              {sm.label}
+                                                            </span>
+                                                          </td>
+                                                        )}
+                                                        <td className="py-2 px-2.5 text-right">
+                                                          {bruto}
+                                                        </td>
+                                                        <td className="py-2 px-2.5 text-right">
+                                                          {tara}
+                                                        </td>
+                                                        <td className="py-2 px-2.5 text-right font-bold text-white">
+                                                          {netto}
+                                                        </td>
+                                                        <td className="py-2 px-2.5 text-center font-sans text-[11px] text-zinc-300">
+                                                          {s.packaging.packagingType}
+                                                        </td>
+                                                        <td className="py-2 px-2.5 text-center font-bold text-white">
+                                                          {s.compositeColorGrade}
+                                                        </td>
+                                                        {sheetMode === 'INTERNAL_COST' && (
+                                                          <>
+                                                            <td className="py-2 px-3 text-right text-zinc-300">
+                                                              {formatSheetRp(modalPerKg)}
+                                                            </td>
+                                                            <td className="py-2 px-3 text-right font-semibold text-white">
+                                                              {formatSheetRp(jumlahModal)}
+                                                            </td>
+                                                          </>
+                                                        )}
+                                                        <td className="py-2 px-3 text-right text-zinc-200">
+                                                          {formatSheetRp(s.factoryTargetPricePerKg)}
+                                                        </td>
+                                                        <td className="py-2 px-3 text-right font-bold text-white">
+                                                          {formatSheetRp(jumlahNota)}
+                                                        </td>
+                                                        {sheetMode === 'INTERNAL_COST' && (
+                                                          <td
+                                                            className={`py-2 px-3 text-right font-bold ${
+                                                              profit >= 0
+                                                                ? 'text-amber-400'
+                                                                : 'text-rose-400'
+                                                            }`}
+                                                          >
+                                                            {formatSheetRp(profit)}
+                                                          </td>
+                                                        )}
+                                                      </tr>
+                                                    );
+                                                  })}
+                                                </tbody>
+                                                <tfoot>
+                                                  <tr className="bg-zinc-900/90 border-t border-zinc-700 font-bold text-white whitespace-nowrap">
+                                                    <td
+                                                      colSpan={
+                                                        sheetMode === 'FACTORY_NOTA' ? 2 : 3
+                                                      }
+                                                      className="py-2.5 px-3 text-amber-400"
+                                                    >
+                                                      Total Aktif ({activeInRoll.length} seri)
+                                                    </td>
+                                                    <td className="py-2.5 px-2.5 text-right">
+                                                      {sumBruto}
+                                                    </td>
+                                                    <td className="py-2.5 px-2.5 text-right">
+                                                      {sumTara}
+                                                    </td>
+                                                    <td className="py-2.5 px-2.5 text-right text-white">
+                                                      {sumNetto}
+                                                    </td>
+                                                    <td colSpan={2} />
+                                                    {sheetMode === 'INTERNAL_COST' && (
+                                                      <>
+                                                        <td />
+                                                        <td className="py-2.5 px-3 text-right text-white">
+                                                          {formatSheetRp(sumModal)}
+                                                        </td>
+                                                      </>
+                                                    )}
+                                                    <td />
+                                                    <td className="py-2.5 px-3 text-right text-white">
+                                                      {formatSheetRp(sumNota)}
+                                                    </td>
+                                                    {sheetMode === 'INTERNAL_COST' && (
+                                                      <td
+                                                        className={`py-2.5 px-3 text-right ${
+                                                          sumProfit >= 0
+                                                            ? 'text-amber-400'
+                                                            : 'text-rose-400'
+                                                        }`}
+                                                      >
+                                                        {formatSheetRp(sumProfit)}
+                                                      </td>
+                                                    )}
+                                                  </tr>
+                                                </tfoot>
+                                              </table>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              );
+            })()
+          )}
+        </div>
+      )}
+
+      {/* 5. SEGMENT 2: DATA STATUS & JEJAK SEMUA SERI (ERGONOMIC LEDGER TABLE + MOBILE CARDS) */}
       {activeSegment === 'seri-status' && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filteredSerials.length === 0 ? (
-            <div className="text-center py-12 requiem-card rounded-2xl border border-zinc-800">
-              <Package className="w-10 h-10 text-zinc-600 mx-auto mb-2" />
+            <div className="bg-[#09090c] border border-zinc-800 rounded-2xl text-center py-12 px-4 space-y-2">
+              <Package className="w-8 h-8 text-zinc-600 mx-auto" />
               <p className="text-white font-bold text-sm">
                 Tidak ada Nomor Seri yang cocok dengan filter ini
               </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setFactoryFilter('ALL');
+                  setStatusFilter('ALL');
+                }}
+                className="text-xs font-bold text-amber-400 hover:underline cursor-pointer"
+              >
+                Tampilkan semua seri
+              </button>
             </div>
           ) : (
             <>
-              {/* Master Status & Lineage Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {/* Desktop High-Density Scannable Ledger Table */}
+              <div className="hidden lg:block bg-[#09090c] border border-zinc-800 rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-800 bg-black/50 text-[11px] font-bold text-zinc-400 whitespace-nowrap">
+                        <th className="py-2.5 pl-3.5 pr-2">Seri</th>
+                        <th className="py-2.5 px-2">Gulungan &amp; Pabrik</th>
+                        <th className="py-2.5 px-2 text-center">Grade</th>
+                        <th className="py-2.5 px-2 text-right">Netto</th>
+                        <th className="py-2.5 px-2 text-right">Modal</th>
+                        <th className="py-2.5 px-2 text-right">Nota</th>
+                        <th className="py-2.5 px-2 text-right">Profit</th>
+                        <th className="py-2.5 px-2">Status</th>
+                        <th className="py-2.5 pl-2 pr-3.5 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/70">
+                      {filteredSerials.map((s) => {
+                        const status = s.factoryStatus || 'PENDING';
+                        const lineage = formatSerialLineage(s);
+                        const isRenamed = hasSerialLineage(s);
+                        const bruto = s.packaging.grossWeightPerPackage;
+                        const tara = s.factoryDeductionKg;
+                        const netto = Math.max(0, bruto - tara);
+                        const modalRp = getSerialModalRp(s);
+                        const notaRp = getSerialNotaRp(s);
+                        const profitRp = notaRp - modalRp;
+                        const gradeInfo =
+                          GRADE_LABELS[s.compositeColorGrade] || GRADE_LABELS['D'];
+                        const sm = statusMeta(status);
+
+                        return (
+                          <tr
+                            key={s.id}
+                            className="hover:bg-zinc-900/40 transition-colors align-middle"
+                          >
+                            <td className="py-3 pl-3.5 pr-2">
+                              <div className="font-mono font-bold text-amber-400 whitespace-nowrap">
+                                {lineage}
+                              </div>
+                              {(isRenamed || s.previousRollNumber) && (
+                                <div className="text-[11px] text-zinc-400 font-mono mt-0.5 whitespace-nowrap">
+                                  {s.previousRollNumber ? `ex ${s.previousRollNumber}` : 'Ganti Seri'}
+                                </div>
+                              )}
+                            </td>
+
+                            <td className="py-3 px-2">
+                              <div className="max-w-[165px] xl:max-w-[200px]">
+                                <div className="font-bold text-white truncate" title={s.targetFactory}>
+                                  {s.targetFactory}
+                                </div>
+                                <div
+                                  className="text-[11px] text-zinc-400 font-mono truncate"
+                                  title={`${s.rollNumber || '-'} · ${s.recipeName}`}
+                                >
+                                  {s.rollNumber || '-'} · {s.recipeName}
+                                </div>
+                                {s.previousFactory && s.previousFactory !== s.targetFactory && (
+                                  <div
+                                    className="text-[11px] text-amber-300/90 mt-0.5 flex items-center gap-1"
+                                    title={`${s.previousFactory} → ${s.targetFactory}`}
+                                  >
+                                    <span className="truncate">{s.previousFactory}</span>
+                                    <ArrowRight className="w-3 h-3 shrink-0" />
+                                    <span className="truncate">{s.targetFactory}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-2 text-center">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold border ${gradeInfo.color}`}
+                              >
+                                {s.compositeColorGrade}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-2 text-right font-mono tabular-nums whitespace-nowrap">
+                              <div className="font-bold text-white">{netto} kg</div>
+                              <div className="text-[11px] text-zinc-400">
+                                {bruto} − {tara} kg · {s.packaging.packagingType}
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-2 text-right font-mono tabular-nums text-zinc-300 whitespace-nowrap">
+                              {formatRupiah(modalRp)}
+                            </td>
+
+                            <td className="py-3 px-2 text-right font-mono tabular-nums font-bold text-white whitespace-nowrap">
+                              <div>{formatRupiah(notaRp)}</div>
+                              <div className="text-[11px] text-zinc-400 font-normal">
+                                {formatRupiah(s.factoryTargetPricePerKg)}/kg
+                              </div>
+                            </td>
+
+                            <td
+                              className={`py-3 px-2 text-right font-mono tabular-nums font-bold whitespace-nowrap ${
+                                profitRp >= 0 ? 'text-amber-400' : 'text-rose-400'
+                              }`}
+                            >
+                              {profitRp >= 0 ? '+' : ''}
+                              {formatRupiah(profitRp)}
+                            </td>
+
+                            <td className="py-3 px-2 whitespace-nowrap">
+                              <span className={`inline-flex items-center gap-1.5 font-semibold ${sm.textClass}`}>
+                                {status === 'ACCEPTED_CAIR' ? (
+                                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                ) : status === 'REJECTED_STOCK' ? (
+                                  <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                                ) : (
+                                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                                )}
+                                <span>{sm.label}</span>
+                              </span>
+                            </td>
+
+                            <td className="py-3 pl-2 pr-3.5 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center justify-end gap-1.5">
+                                {status === 'REJECTED_STOCK' && onGoToRejectedStock && (
+                                  <button
+                                    type="button"
+                                    onClick={onGoToRejectedStock}
+                                    className="h-7 px-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/50 text-[11px] font-bold cursor-pointer transition-colors"
+                                  >
+                                    Pindah
+                                  </button>
+                                )}
+                                {onUpdateSerial && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingSerial(s)}
+                                    aria-label={`Edit Seri ${s.serialNumber}`}
+                                    className="h-7 px-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                                  >
+                                    <Pencil className="w-3 h-3 text-amber-400 shrink-0" />
+                                    <span>Edit</span>
+                                  </button>
+                                )}
+                                {onDeleteSerial && (
+                                  <button
+                                    type="button"
+                                    aria-label={`Hapus Seri ${s.serialNumber}`}
+                                    onClick={() => onDeleteSerial(s.id)}
+                                    className="h-7 w-7 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-950/30 border border-transparent hover:border-rose-500/40 inline-flex items-center justify-center cursor-pointer transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile & Tablet Clean Single-Level Cards (<lg) */}
+              <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-3">
                 {filteredSerials.map((s) => {
                   const status = s.factoryStatus || 'PENDING';
                   const lineage = formatSerialLineage(s);
@@ -1408,187 +1803,97 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   const modalRp = getSerialModalRp(s);
                   const notaRp = getSerialNotaRp(s);
                   const profitRp = notaRp - modalRp;
-                  const gradeInfo =
-                    GRADE_LABELS[s.compositeColorGrade] || GRADE_LABELS['D'];
+                  const sm = statusMeta(status);
 
                   return (
-                    <motion.div
+                    <div
                       key={s.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="requiem-card rounded-2xl border border-zinc-800/90 hover:border-amber-500 p-4 flex flex-col justify-between gap-3 transition-all"
+                      className="bg-[#09090c] border border-zinc-800 rounded-2xl p-4 space-y-3"
                     >
-                      <div className="space-y-2.5">
-                        {/* Top Header: Serial Lineage Badge & Status */}
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="px-3 py-1 rounded-xl bg-black text-amber-400 border-2 border-amber-500 font-mono font-black text-xs sm:text-sm shadow-[0_0_12px_rgba(245,158,11,0.2)]">
-                              SERI {lineage}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-sm text-amber-400">
+                              Seri {lineage}
                             </span>
-                            {isRenamed && (
-                              <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/60 font-mono font-bold text-[10px]">
-                                Ganti Seri ({lineage})
-                              </span>
-                            )}
-                            <span
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${gradeInfo.color}`}
-                            >
-                              Grade {s.compositeColorGrade}
+                            <span className="text-xs font-mono text-zinc-400">
+                              · Grade {s.compositeColorGrade}
                             </span>
                           </div>
-
-                          <div className="flex items-center gap-1.5">
-                            {onUpdateSerial && (
-                              <button
-                                type="button"
-                                onClick={() => setEditingSerial(s)}
-                                title={`Edit Seri ${s.serialNumber} (Tersinkron ke Gulungan)`}
-                                className="h-7 px-2.5 rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-700 hover:border-amber-500 text-[10px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors"
-                              >
-                                <Pencil className="w-3 h-3 text-amber-400" />
-                                <span>Edit</span>
-                              </button>
-                            )}
-                            {onDeleteSerial && (
-                              <button
-                                type="button"
-                                aria-label={`Hapus Seri ${s.serialNumber}`}
-                                onClick={() => onDeleteSerial(s.id)}
-                                className="group/del relative h-7 w-7 shrink-0 rounded-lg bg-black hover:bg-red-950/70 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/70 flex items-center justify-center cursor-pointer transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5 shrink-0" />
-                                <span className="pointer-events-none opacity-0 group-hover/del:opacity-100 transition-opacity duration-150 absolute -top-7 right-0 z-50 px-2 py-0.5 rounded bg-black border border-red-500/70 text-red-300 text-[10px] font-bold whitespace-nowrap shadow-xl">
-                                  Hapus Seri {s.serialNumber}
-                                </span>
-                              </button>
-                            )}
-                            <span
-                              className={`px-2.5 py-1 rounded-lg font-mono font-black text-[10px] border inline-flex items-center gap-1 ${
-                                status === 'ACCEPTED_CAIR'
-                                  ? 'bg-black text-amber-400 border-amber-400'
-                                  : status === 'REJECTED_STOCK'
-                                    ? 'bg-zinc-900 text-white border-amber-500/70'
-                                    : 'bg-zinc-950 text-zinc-300 border-zinc-700'
-                              }`}
-                            >
-                              {status === 'ACCEPTED_CAIR' ? (
-                                <>
-                                  <CheckCircle2 className="w-3 h-3 text-amber-400" />
-                                  <span>DITERIMA / ACCEPTED</span>
-                                </>
-                              ) : status === 'REJECTED_STOCK' ? (
-                                <>
-                                  <RotateCcw className="w-3 h-3 text-amber-400" />
-                                  <span>REJECTED</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Clock className="w-3 h-3 text-amber-400" />
-                                  <span>MENUNGGU PABRIK</span>
-                                </>
-                              )}
-                            </span>
+                          <div className="text-xs text-zinc-300 font-semibold mt-0.5">
+                            {s.targetFactory} ·{' '}
+                            <span className="font-mono text-zinc-400">{s.rollNumber || '-'}</span>
                           </div>
                         </div>
 
-                        {/* Current vs Previous Gulungan & Factory Box */}
-                        <div className="bg-black p-3 rounded-xl border border-zinc-800/90 space-y-1.5 text-xs">
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <span className="text-zinc-400 flex items-center gap-1">
-                              <Scroll className="w-3.5 h-3.5 text-amber-400" />
-                              Gulungan Aktif:
-                            </span>
-                            <b className="font-mono text-white">
-                              {s.rollNumber || '-'} ({s.recipeName})
-                            </b>
-                          </div>
+                        <span className={`inline-flex items-center gap-1 text-xs font-bold shrink-0 ${sm.textClass}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${sm.dotClass}`} />
+                          {sm.label}
+                        </span>
+                      </div>
 
-                          <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <span className="text-zinc-400 flex items-center gap-1">
-                              <Building2 className="w-3.5 h-3.5 text-amber-400" />
-                              Pabrik Tujuan:
-                            </span>
-                            <b className="text-amber-300">{s.targetFactory}</b>
-                          </div>
-
-                          {(s.previousRollNumber || s.previousFactory || isRenamed) && (
-                            <div className="pt-2 mt-1 border-t border-zinc-900 space-y-1 text-[11px]">
-                              <div className="text-amber-400 font-bold flex items-center gap-1">
-                                <History className="w-3 h-3" />
-                                <span>Jejak Riwayat Sebelumnya (Eks-Reject / Pindah):</span>
-                              </div>
-                              {isRenamed && (
-                                <div className="font-mono text-zinc-200 flex items-center gap-1.5">
-                                  <span>Perubahan Nomor Seri:</span>
-                                  <b className="text-amber-400 px-1.5 py-0.5 rounded bg-zinc-950 border border-amber-500/50">
-                                    {lineage}
-                                  </b>
-                                </div>
-                              )}
-                              {s.previousRollNumber && (
-                                <div className="text-zinc-300">
-                                  Eks-Gulungan:{' '}
-                                  <b className="text-white font-mono">{s.previousRollNumber}</b>{' '}
-                                  <ArrowRight className="w-3 h-3 inline text-amber-400 mx-0.5" />{' '}
-                                  <b className="text-amber-300 font-mono">{s.rollNumber}</b>
-                                </div>
-                              )}
-                              {s.previousFactory && (
-                                <div className="text-zinc-300">
-                                  Eks-Pabrik: <b className="text-white">{s.previousFactory}</b>{' '}
-                                  <ArrowRight className="w-3 h-3 inline text-amber-400 mx-0.5" />{' '}
-                                  <b className="text-amber-300">{s.targetFactory}</b>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                      {(s.previousRollNumber || s.previousFactory || isRenamed) && (
+                        <div className="text-[11px] font-mono text-amber-300/90 border-t border-zinc-800/70 pt-2">
+                          Jejak: {lineage}
+                          {s.previousRollNumber ? ` · Eks-${s.previousRollNumber}` : ''}
+                          {s.previousFactory ? ` (${s.previousFactory})` : ''}
                         </div>
+                      )}
 
-                        {/* Weights & Financials Strip */}
-                        <div className="grid grid-cols-3 gap-2 bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/90 font-mono text-[11px] text-center">
-                          <div>
-                            <span className="text-[9px] text-zinc-400 uppercase block font-bold">
-                              Bruto / Tara / Netto
-                            </span>
-                            <b className="text-white">
-                              {bruto} − {tara} = <span className="text-amber-400">{netto}kg</span>
-                            </b>
-                          </div>
-                          <div>
-                            <span className="text-[9px] text-zinc-400 uppercase block font-bold">
-                              Jumlah Nota
-                            </span>
-                            <b className="text-amber-300">{formatRupiah(notaRp)}</b>
-                          </div>
-                          <div>
-                            <span className="text-[9px] text-zinc-400 uppercase block font-bold">
-                              Profit Bersih
-                            </span>
-                            <b className={profitRp >= 0 ? 'text-amber-400' : 'text-red-400'}>
-                              {profitRp >= 0 ? '+' : ''}
-                              {formatRupiah(profitRp)}
-                            </b>
+                      <div className="grid grid-cols-3 divide-x divide-zinc-800 border-y border-zinc-800/80 py-2 font-mono tabular-nums text-xs">
+                        <div className="pr-2">
+                          <div className="text-[10px] font-sans text-zinc-500">Netto</div>
+                          <div className="font-bold text-white">{netto} kg</div>
+                        </div>
+                        <div className="px-2">
+                          <div className="text-[10px] font-sans text-zinc-500">Nota</div>
+                          <div className="font-bold text-white">{formatRupiah(notaRp)}</div>
+                        </div>
+                        <div className="pl-2 text-right">
+                          <div className="text-[10px] font-sans text-zinc-500">Profit</div>
+                          <div
+                            className={`font-bold ${
+                              profitRp >= 0 ? 'text-amber-400' : 'text-rose-400'
+                            }`}
+                          >
+                            {profitRp >= 0 ? '+' : ''}
+                            {formatRupiah(profitRp)}
                           </div>
                         </div>
                       </div>
 
-                      {/* Action Footer if Currently Rejected */}
-                      {status === 'REJECTED_STOCK' && onGoToRejectedStock && (
-                        <div className="pt-2 border-t border-zinc-900 flex items-center justify-between gap-2">
-                          <span className="text-[11px] text-zinc-400">
-                            Tersedia di Gudang Stok Jadi (Bisa ganti seri mis.{' '}
-                            <b className="text-amber-300">{s.serialNumber} -&gt; AL 1</b>)
-                          </span>
+                      <div className="flex items-center justify-end gap-2">
+                        {status === 'REJECTED_STOCK' && onGoToRejectedStock && (
                           <button
                             type="button"
                             onClick={onGoToRejectedStock}
-                            className="btn-amber-outline h-8 px-3 rounded-lg text-[11px] font-black inline-flex items-center gap-1 cursor-pointer shrink-0"
+                            className="h-9 px-3 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/50 text-xs font-bold cursor-pointer mr-auto"
                           >
-                            <span>Ubah Seri &amp; Pindah Gulungan →</span>
+                            Pindah Gulungan
                           </button>
-                        </div>
-                      )}
-                    </motion.div>
+                        )}
+                        {onUpdateSerial && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingSerial(s)}
+                            className="h-9 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Edit</span>
+                          </button>
+                        )}
+                        {onDeleteSerial && (
+                          <button
+                            type="button"
+                            aria-label={`Hapus Seri ${s.serialNumber}`}
+                            onClick={() => onDeleteSerial(s.id)}
+                            className="h-9 w-9 rounded-lg text-zinc-400 hover:text-rose-400 border border-zinc-800 hover:border-rose-500/50 inline-flex items-center justify-center cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   );
                 })}
               </div>

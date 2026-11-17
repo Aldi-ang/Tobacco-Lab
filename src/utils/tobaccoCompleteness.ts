@@ -37,6 +37,7 @@ export interface SerialMissingFlags {
 export interface RawQuickPatch {
   name?: string;
   sellerName?: string;
+  graderName?: string;
   origin?: string;
   packagingType?: string;
   packagingMassKg?: number;
@@ -144,6 +145,10 @@ export function applyQuickPatchToRawTobacco(
     patch.sellerName !== undefined
       ? patch.sellerName.trim()
       : (existing.sellerName || existing.taraFormula?.sellerName || '').trim();
+  const nextGrader =
+    patch.graderName !== undefined
+      ? patch.graderName.trim()
+      : (existing.graderName || '').trim();
   const nextName =
     patch.name !== undefined ? patch.name.trim() || 'Tembakau Mentah' : existing.name;
   const nextOrigin =
@@ -239,6 +244,7 @@ export function applyQuickPatchToRawTobacco(
     name: nextName,
     origin: nextOrigin,
     sellerName: nextSeller,
+    ...(nextGrader ? { graderName: nextGrader } : { graderName: undefined }),
     grossWeightKg: nextGrossWeightKg,
     packagingMassKg: nextPkgMassKg,
     pricePerKgPurchase: nextPricePerKg,

@@ -96,6 +96,7 @@ import {
   calculateRawTobaccoCost,
   calculateTaraDeduction,
 } from './utils/tobaccoMath';
+import { getRollStatusSummary, partitionShippedRolls } from './utils/factoryStatusFlow';
 
 function normalizeRawTobaccoRounding(item: RawTobacco): RawTobacco {
   if (!item || !item.taraFormula) return item;
@@ -312,7 +313,7 @@ export default function App() {
       });
       undoTimerRef.current = setTimeout(() => {
         setUndoDeletionSnapshot(null);
-      }, 15000);
+      }, 5000);
     },
     [rawTobaccos, finishedBatches, rollSamples, packagingList, factoryList]
   );
@@ -329,7 +330,7 @@ export default function App() {
     setPackagingList(undoDeletionSnapshot.packagingList);
     setFactoryList(undoDeletionSnapshot.factoryList);
     setUndoDeletionSnapshot(null);
-    showToast('Penghapusan dibatalkan (Undo) — Data berhasil dipulihkan utuh!');
+    showToast('Perubahan terakhir dibatalkan (Undo) — Data berhasil dipulihkan!');
   }, [undoDeletionSnapshot, showToast]);
 
   // Nolan Agentic Brain State (persisted per user email + synced with server & GitHub A-Brain)
@@ -864,8 +865,9 @@ export default function App() {
 
   const handleSaveRawTobacco = (tobacco: RawTobacco) => {
     hasLocalUserMutationRef.current = true;
-    const exists = rawTobaccos.some((t) => t.id === tobacco.id);
-    if (exists) {
+    const existingItem = rawTobaccos.find((t) => t.id === tobacco.id);
+    if (existingItem) {
+      recordUndoSnapshot(`Data "${existingItem.name}" diubah`);
       setRawTobaccos(rawTobaccos.map((t) => (t.id === tobacco.id ? tobacco : t)));
       showToast(`Data "${tobacco.name}" berhasil diperbarui.`);
     } else {
@@ -1142,7 +1144,7 @@ export default function App() {
     );
 
     setActiveTab('rolls');
-    showToast(`${createdSerials.length} Nomor Seri Tembakau Jadi berhasil diterbitkan & masuk ke Gulungan!`);
+    showToast(`${createdSerials.length} Seri Jadi masuk ke Gulungan! Cek nota lalu tekan Kirim ke Pabrik.`);
 
     if (createdSerials.length > 0) {
       const sample = createdSerials[0];
@@ -1171,37 +1173,64 @@ export default function App() {
     status: SerialFactoryStatus,
     currentRoll?: TobaccoRollSample
   ) => {
+    const targetForUndo = finishedBatches.find((s) => s.id === serialId);
+    const statusText =
+      status === 'ACCEPTED_CAIR'
+        ? 'Diterima'
+        : status === 'REJECTED_STOCK'
+          ? 'Reject'
+          : 'Menunggu Pabrik';
+    if (targetForUndo) {
+      recordUndoSnapshot(`Status Seri ${targetForUndo.serialNumber} → ${statusText}`);
+    }
     hasLocalUserMutationRef.current = true;
-    setFinishedBatches((prev) =>
-      prev.map((ser) => {
-        if (ser.id !== serialId) return ser;
-        const matchedRoll =
-          currentRoll || rollSamples.find((r) => r.id === ser.rollId);
-        if (status === 'REJECTED_STOCK') {
-          return {
-            ...ser,
-            factoryStatus: 'REJECTED_STOCK',
-            previousRollId: matchedRoll?.id || ser.rollId,
-            previousRollNumber: matchedRoll
-              ? `${matchedRoll.rollNumber} (${matchedRoll.recipeName})`
-              : ser.rollNumber || 'GUL-LAMA',
-            previousFactory: matchedRoll?.targetFactory || ser.targetFactory,
-            rejectedAt: new Date().toISOString().split('T')[0],
-            rejectionNotes:
-              ser.rejectionNotes ||
-              `Direject dari ${matchedRoll?.rollNumber || ser.rollNumber || 'Gulungan'} (${matchedRoll?.targetFactory || ser.targetFactory}), kemasan & berat tetap utuh di Stok Tembakau Jadi.`,
-          };
-        }
+    const nextBatches = finishedBatches.map((ser) => {
+      if (ser.id !== serialId) return ser;
+      const matchedRoll =
+        currentRoll || rollSamples.find((r) => r.id === ser.rollId);
+      if (status === 'REJECTED_STOCK') {
         return {
           ...ser,
-          factoryStatus: status,
+          factoryStatus: 'REJECTED_STOCK' as const,
+          previousRollId: matchedRoll?.id || ser.rollId,
+          previousRollNumber: matchedRoll
+            ? `${matchedRoll.rollNumber} (${matchedRoll.recipeName})`
+            : ser.rollNumber || 'GUL-LAMA',
+          previousFactory: matchedRoll?.targetFactory || ser.targetFactory,
+          rejectedAt: new Date().toISOString().split('T')[0],
+          rejectionNotes:
+            ser.rejectionNotes ||
+            `Direject dari ${matchedRoll?.rollNumber || ser.rollNumber || 'Gulungan'} (${matchedRoll?.targetFactory || ser.targetFactory}), kemasan & berat tetap utuh di Stok Tembakau Jadi.`,
         };
-      })
-    );
+      }
+      return {
+        ...ser,
+        factoryStatus: status,
+      };
+    });
+
+    setFinishedBatches(nextBatches);
 
     const targetSer = finishedBatches.find((s) => s.id === serialId);
+    const parentRoll =
+      currentRoll ||
+      (targetSer
+        ? rollSamples.find(
+            (r) => r.id === targetSer.rollId || r.rollNumber === targetSer.rollNumber
+          )
+        : undefined);
+    const rollJustCompleted =
+      status !== 'PENDING' &&
+      parentRoll &&
+      !!parentRoll.isSentToFactory &&
+      getRollStatusSummary(parentRoll, nextBatches).isFullyResolved;
+
     if (status === 'ACCEPTED_CAIR') {
-      showToast('Status Seri diperbarui: Diterima / Accepted!');
+      showToast(
+        rollJustCompleted
+          ? `Semua seri ${parentRoll.rollNumber} selesai — gulungan dipindah ke Riwayat!`
+          : 'Status Seri diperbarui: Diterima / Accepted!'
+      );
       if (targetSer) {
         recordNolanDecisionEpisode(
           'FACTORY_ACCEPTED',
@@ -1222,7 +1251,11 @@ export default function App() {
         );
       }
     } else if (status === 'REJECTED_STOCK') {
-      showToast('Seri di-Reject & otomatis masuk ke Panel 2: Stok Tembakau Jadi (Kemasan & Berat Tetap)!');
+      showToast(
+        rollJustCompleted
+          ? `Seri di-Reject ke Stok Jadi & semua seri ${parentRoll.rollNumber} selesai → pindah ke Riwayat!`
+          : 'Seri di-Reject & otomatis masuk ke Panel 2: Stok Tembakau Jadi (Kemasan & Berat Tetap)!'
+      );
       if (targetSer) {
         recordNolanDecisionEpisode(
           'FACTORY_REJECTED',
@@ -1249,6 +1282,11 @@ export default function App() {
   const handleSendRollToFactory = (rollId: string, isSent: boolean) => {
     const targetRoll = rollSamples.find((r) => r.id === rollId);
     if (!targetRoll) return;
+    recordUndoSnapshot(
+      isSent
+        ? `Gulungan "${targetRoll.rollNumber}" dikirim ke Pabrik`
+        : `Gulungan "${targetRoll.rollNumber}" ditarik ke Gudang`
+    );
     hasLocalUserMutationRef.current = true;
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -1288,6 +1326,7 @@ export default function App() {
     const targetSerial = finishedBatches.find((b) => b.id === serialId);
     if (!targetSerial) return;
 
+    recordUndoSnapshot(`Seri ${targetSerial.serialNumber} dipindah ke ${targetRoll.rollNumber}`);
     hasLocalUserMutationRef.current = true;
     const oldSerialNum = targetSerial.serialNumber;
     const { updatedSerial, updatedTargetRollSerialNumbers, lineageDisplay } =
@@ -1618,7 +1657,10 @@ export default function App() {
     (b) => b.factoryStatus === 'REJECTED_STOCK'
   ).length;
   const warehouseRollCount = rollSamples.filter((r) => !r.isSentToFactory).length;
-  const shippedRollCount = rollSamples.filter((r) => !!r.isSentToFactory).length;
+  const shippedRollCount = partitionShippedRolls(
+    rollSamples,
+    finishedBatches
+  ).activePendingRolls.length;
 
   if (authReady && !currentUser && !offlineBypass) {
     return (
@@ -1649,10 +1691,6 @@ export default function App() {
           finishedCount={finishedBatches.length}
           pendingQcCount={shippedRollCount}
           rollCount={warehouseRollCount}
-          onOpenAddModal={() => {
-            setEditingTobacco(null);
-            setIsRawModalOpen(true);
-          }}
           onOpenMasterModal={() => {
             setMasterInitialSection('packaging');
             setIsMasterModalOpen(true);
@@ -1687,8 +1725,8 @@ export default function App() {
             }
           }}
           onOpenNolanAgent={() => setIsNolanModalOpen(true)}
-          onOpenGradeScanner={() => {
-            setGradeScannerInitialTab('scan');
+          onOpenGradeScanner={(tab) => {
+            setGradeScannerInitialTab(tab);
             setIsGradeScannerModalOpen(true);
           }}
         />
@@ -1718,10 +1756,6 @@ export default function App() {
                   onAddToBlend={handleAddToBlend}
                   onReassignRejectedToRoll={handleReassignRejectedToRoll}
                   onUnpackRejectedToBlend={handleUnpackRejectedToBlend}
-                  onOpenGradeScanner={(tab) => {
-                    setGradeScannerInitialTab(tab);
-                    setIsGradeScannerModalOpen(true);
-                  }}
                 />
               )}
 
@@ -1735,12 +1769,6 @@ export default function App() {
                   existingSerialCount={finishedBatches.length}
                   onSaveMultipleFinished={handleSaveMultipleFinished}
                   initialIngredients={blendPrefilledIngredients}
-                  onAskNolanRecommendation={() => {
-                    setNolanInitialPrompt(
-                      'Nolan, rekomendasikan komposisi racikan terbaik dari sisa stok tembakau mentah saat ini lengkap dengan takaran KG, estimasi HPP/kg, dan target harga pabrik.'
-                    );
-                    setIsNolanModalOpen(true);
-                  }}
                 />
               )}
 
@@ -1870,6 +1898,8 @@ export default function App() {
                     showToast(`Jenis Packaging "${updatedPkg.name}" berhasil diperbarui!`);
                   }}
                   onDeletePackaging={(id) => {
+                    const pkg = packagingList.find((p) => p.id === id);
+                    if (pkg) recordUndoSnapshot(`Kemasan "${pkg.name}" dihapus`);
                     hasLocalUserMutationRef.current = true;
                     setPackagingList(packagingList.filter((p) => p.id !== id));
                     showToast('Jenis Packaging dihapus.');
@@ -1887,6 +1917,8 @@ export default function App() {
                     showToast(`Data Pabrik "${updatedFac.name}" berhasil diperbarui!`);
                   }}
                   onDeleteFactory={(id) => {
+                    const fac = factoryList.find((f) => f.id === id);
+                    if (fac) recordUndoSnapshot(`Pabrik "${fac.name}" dihapus`);
                     hasLocalUserMutationRef.current = true;
                     setFactoryList(factoryList.filter((f) => f.id !== id));
                     showToast('Data pabrik dihapus.');
@@ -1916,26 +1948,17 @@ export default function App() {
                     showToast(`Gulungan "${updatedRoll.rollNumber}" berhasil diperbarui!`);
                   }}
                   onDeleteRollSample={(id) => {
+                    const roll = rollSamples.find((r) => r.id === id);
+                    if (roll) recordUndoSnapshot(`Gulungan "${roll.rollNumber}" dihapus`);
                     hasLocalUserMutationRef.current = true;
                     setRollSamples((prev) => prev.filter((r) => r.id !== id));
                     showToast('Gulungan Sampel dihapus.');
                   }}
                   onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
-                  onOpenSimulator={() => setIsSimulatorOpen(true)}
                   onExportData={handleExportData}
                   onOpenRestoreModal={() => setBackupModalMode('restore')}
                   onClearAllDemoData={handleClearAllDemoData}
                   onResetData={handleResetData}
-                  onOpenPatchNotes={() => {
-                    setIsPatchNotesOpen(true);
-                    setHasUnreadPatch(false);
-                    try {
-                      localStorage.setItem(STORAGE_KEYS.SEEN_PATCH, CURRENT_APP_VERSION);
-                    } catch {
-                      // ignore
-                    }
-                  }}
-                  onOpenNolanChat={() => setIsNolanModalOpen(true)}
                   onShowToast={showToast}
                   currentVersion={CURRENT_APP_VERSION}
                 />
@@ -2277,7 +2300,7 @@ export default function App() {
               sugarRating: d.sugarRating ?? 4.0,
               aromaRating: d.aromaRating ?? 4.2,
               colorGrade: d.colorGrade || 'D',
-              characterNotes: d.characterNotes || 'Diinput oleh Nolan AI atas izin pengguna',
+              characterNotes: d.characterNotes || 'Diinput oleh Nolan atas izin pengguna',
             });
             handleSaveRawTobacco(newTobacco);
             setActiveTab('inventory');
@@ -2388,38 +2411,34 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Undo Deletion Banner (Bottom Left / Center) */}
+      {/* Compact Undo Banner (Bottom Left — Auto-dismisses after 5 seconds) */}
       <AnimatePresence>
         {undoDeletionSnapshot && (
           <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.95 }}
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 24, scale: 0.95 }}
-            className="fixed bottom-16 md:bottom-5 left-4 z-[65] bg-[#09090c] border-2 border-amber-500 text-white px-4 py-3 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.9)] flex items-center gap-3 max-w-md"
+            exit={{ opacity: 0, y: 16, scale: 0.96 }}
+            data-testid="undo-toast"
+            className="fixed bottom-16 md:bottom-4 left-4 z-[65] bg-[#09090c]/95 border border-amber-500/75 text-white px-2.5 py-1.5 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.85)] flex items-center gap-2 max-w-[300px]"
           >
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-black uppercase tracking-wider text-amber-400">
-                Data Dihapus • Bisa Diurungkan
-              </div>
-              <div className="text-xs font-bold text-zinc-200 truncate">
-                {undoDeletionSnapshot.label}
-              </div>
-            </div>
+            <span className="text-[11px] font-semibold text-zinc-200 truncate min-w-0 flex-1">
+              {undoDeletionSnapshot.label}
+            </span>
             <button
               type="button"
               onClick={handleRestoreUndoSnapshot}
-              className="h-8 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs inline-flex items-center gap-1.5 cursor-pointer shrink-0 shadow-md"
+              className="h-6 px-2 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
             >
-              <Undo2 className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Urungkan (Undo)</span>
+              <Undo2 className="w-3 h-3 stroke-[2.2]" />
+              <span>Undo</span>
             </button>
             <button
               type="button"
               onClick={() => setUndoDeletionSnapshot(null)}
-              className="h-8 w-8 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer shrink-0"
+              className="h-6 w-6 rounded-lg bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer shrink-0"
               aria-label="Tutup banner undo"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3 h-3" />
             </button>
           </motion.div>
         )}

@@ -2,12 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   extractCustomGenerationPrefixFromLot,
+  getPrefixStartSequence,
   mergeRegistryWithDiscoveredPrefixes,
   normalizePrefixInput,
   recordPrintedBatchToPrefixRegistry,
   registerNewPrefix,
   removeRegisteredPrefix,
   selectActivePrefix,
+  setPrefixStartSequence,
 } from './prefixRegistryEngine';
 import { extractLotPrefixCode } from './thermalPrintEngine';
 import { RawTobacco } from '../types/tobacco';
@@ -113,4 +115,38 @@ test('mergeRegistryWithDiscoveredPrefixes discovers prefixes from warehouse stoc
   const afterDelete = removeRegisteredPrefix(merged, 'MTL');
   assert.deepEqual(afterDelete.registeredPrefixes, ['TMG', 'BOJ-']);
   assert.equal(afterDelete.lastSelectedPrefix, '');
+
+  // Even when re-merging with issuedPrintedLots or stocks containing MTL, dismissed prefix stays deleted
+  const remergedAfterDelete = mergeRegistryWithDiscoveredPrefixes(
+    afterDelete,
+    [makeMockTobacco('1', 'BOJ-003'), makeMockTobacco('2', 'MTL002')],
+    ['MTL001', 'TMG001']
+  );
+  assert.deepEqual(remergedAfterDelete.registeredPrefixes, ['TMG', 'BOJ-']);
+  assert.equal(remergedAfterDelete.lastSelectedPrefix, '');
+
+  // Deleting TMG too stays deleted across merges
+  const deleteTmg = removeRegisteredPrefix(remergedAfterDelete, 'TMG');
+  const remergedAfterTmg = mergeRegistryWithDiscoveredPrefixes(
+    deleteTmg,
+    [makeMockTobacco('1', 'BOJ-003')],
+    ['MTL001', 'TMG001']
+  );
+  assert.deepEqual(remergedAfterTmg.registeredPrefixes, ['BOJ-']);
+
+  // User can explicitly re-register MTL later with custom skip number (e.g. 19) to resume paper numbering
+  const { nextState: readded } = registerNewPrefix(remergedAfterTmg, 'MTL', 19);
+  assert.equal(readded.lastSelectedPrefix, 'MTL');
+  assert.deepEqual(readded.registeredPrefixes, ['MTL', 'BOJ-']);
+  assert.equal(getPrefixStartSequence(readded, 'MTL'), 19);
+
+  // Skip number persists across merges & can be updated or cleared cleanly
+  const afterMerge = mergeRegistryWithDiscoveredPrefixes(readded, [], []);
+  assert.equal(getPrefixStartSequence(afterMerge, 'MTL'), 19);
+
+  const bumped = setPrefixStartSequence(afterMerge, 'MTL', 25);
+  assert.equal(getPrefixStartSequence(bumped, 'MTL'), 25);
+
+  const reset = setPrefixStartSequence(bumped, 'MTL', null);
+  assert.equal(getPrefixStartSequence(reset, 'MTL'), null);
 });

@@ -8,6 +8,7 @@ import {
   classifyScannedCardsForReview,
   materializeRawTobaccoFromReview,
   buildEditableReviewCardFromExistingStock,
+  normalizeScannedPurchaseDate,
 } from './gradeCardEngine';
 import { PackagingMaster, RawTobacco } from '../types/tobacco';
 
@@ -115,6 +116,26 @@ test('generateNextLotBatchNumbers skips existing AND previously printed lots (si
     firstPrintBatch
   );
   assert.deepEqual(secondPrintBatch, ['LOT-TEST-007', 'LOT-TEST-008', 'LOT-TEST-009']);
+
+  // User skips ahead (e.g. printed up to #18 on physical paper before resetting/re-adding prefix)
+  const skippedBatch = generateNextLotBatchNumbers(
+    existing,
+    6,
+    'MTL',
+    ['MTL001', 'MTL002'],
+    19
+  );
+  assert.deepEqual(skippedBatch, ['MTL019', 'MTL020', 'MTL021', 'MTL022', 'MTL023', 'MTL024']);
+
+  // Collision safety: if user enters lower than maxSeq+1, never re-issue an already-existing lot
+  const collisionSafe = generateNextLotBatchNumbers(
+    existing,
+    3,
+    'MTL',
+    ['MTL001', 'MTL002', 'MTL006'],
+    4
+  );
+  assert.deepEqual(collisionSafe, ['MTL007', 'MTL008', 'MTL009']);
 });
 
 test('buildEditableReviewCardFromExistingStock opens barcode-matched stock in editable UPDATE mode', () => {
@@ -283,4 +304,113 @@ test('formatRating5 hides .0 for integers while keeping legacy historical decima
   });
   assert.equal(updatedWeightOnly.powerRating, 3.5);
   assert.equal(updatedWeightOnly.aromaRating, 4.2);
+});
+
+test('Paper-First Update: rescanning complete card via Kamera Stok Baru updates existing stock when paper has new writing', () => {
+  const submittedBefore = makeSampleRaw({
+    id: 'raw-mtl-1',
+    lotNumber: 'MTL001',
+    name: 'Muntilan Pagi',
+    origin: 'Muntilan',
+    sellerName: 'Bu Menik',
+    colorGrade: 'D+',
+    grossWeightKg: 46,
+    pricePerKgPurchase: 100000,
+    powerRating: 4,
+    impactRating: 3,
+    bitterRating: 3,
+    burnRating: 4,
+    sugarRating: 3,
+    aromaRating: 4,
+    characterNotes: 'Daun agak tebal',
+  });
+
+  // 1. User wrote updated price (115000), updated weight (52kg), and new note on paper card MTL001
+  const paperEditedRescan = classifyScannedCardsForReview({
+    scannedCards: [
+      {
+        lotNumber: 'MTL001',
+        name: 'Muntilan Pagi',
+        origin: 'Muntilan',
+        sellerName: 'Bu Menik',
+        colorGrade: 'C',
+        packagingType: 'KRJ MUNTILAN',
+        grossWeightKg: 52,
+        pricePerKgPurchase: 115000,
+        characterNotes: 'Daun tebal + kering bagus',
+        confidenceScore: 93,
+      },
+    ],
+    rawTobaccos: [submittedBefore],
+    packagingList: SAMPLE_PACKAGINGS,
+  });
+
+  assert.equal(paperEditedRescan.length, 1);
+  assert.equal(paperEditedRescan[0].matchStatus, 'UPDATE_MENYUSUL');
+  assert.equal(paperEditedRescan[0].selectedForSave, true);
+  assert.equal(paperEditedRescan[0].matchedExistingId, 'raw-mtl-1');
+  assert.ok(paperEditedRescan[0].updateDiffSummary.some((s) => s.includes('Bruto diubah')));
+  assert.ok(paperEditedRescan[0].updateDiffSummary.some((s) => s.includes('Harga diubah')));
+  assert.ok(paperEditedRescan[0].updateDiffSummary.some((s) => s.includes('Grade diubah')));
+  assert.ok(paperEditedRescan[0].updateDiffSummary.some((s) => s.includes('Catatan diubah')));
+
+  const savedUpdate = materializeRawTobaccoFromReview({
+    card: paperEditedRescan[0],
+    existingRecord: submittedBefore,
+    packagingList: SAMPLE_PACKAGINGS,
+  });
+
+  assert.equal(savedUpdate.id, 'raw-mtl-1');
+  assert.equal(savedUpdate.grossWeightKg, 52);
+  assert.equal(savedUpdate.pricePerKgPurchase, 115000);
+  assert.equal(savedUpdate.colorGrade, 'C');
+  assert.equal(savedUpdate.characterNotes, 'Daun tebal + kering bagus');
+  // Unchanged ratings stay preserved (not wiped to defaults)
+  assert.equal(savedUpdate.powerRating, 4);
+  assert.equal(savedUpdate.impactRating, 3);
+});
+
+test('normalizeScannedPurchaseDate parses DMY with editable card year & defaults blank scans to today', () => {
+  assert.deepEqual(normalizeScannedPurchaseDate('15/11', 2027, '2026-11-16'), {
+    isoDate: '2027-11-15',
+    wasAutoDefaulted: false,
+  });
+  assert.deepEqual(normalizeScannedPurchaseDate('___ / ___ / 2026', 2026, '2026-11-16'), {
+    isoDate: '2026-11-16',
+    wasAutoDefaulted: true,
+  });
+  assert.deepEqual(normalizeScannedPurchaseDate('', 2026, '2026-11-16'), {
+    isoDate: '2026-11-16',
+    wasAutoDefaulted: true,
+  });
+
+  // Classify a new scan with blank date & handwritten grader name -> today's date + matched Grader
+  const reviewed = classifyScannedCardsForReview({
+    scannedCards: [
+      {
+        lotNumber: 'MTL099',
+        graderName: 'Pak Jko',
+        purchaseDate: '',
+        name: 'Klaten Harum',
+        origin: 'Klaten',
+        colorGrade: 'C+',
+        confidenceScore: 91,
+      },
+    ],
+    rawTobaccos: [],
+    packagingList: SAMPLE_PACKAGINGS,
+    defaultPrintYear: 2027,
+    registeredGraders: ['Pak Joko'],
+    todayIsoOverride: '2026-11-16',
+  });
+  assert.equal(reviewed[0].purchaseDate, '2026-11-16');
+  assert.equal(reviewed[0].dateWasAutoDefaulted, true);
+  assert.equal(reviewed[0].graderName, 'Pak Joko');
+
+  const materialized = materializeRawTobaccoFromReview({
+    card: reviewed[0],
+    packagingList: SAMPLE_PACKAGINGS,
+  });
+  assert.equal(materialized.purchaseDate, '2026-11-16');
+  assert.equal(materialized.graderName, 'Pak Joko');
 });

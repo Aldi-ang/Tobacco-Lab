@@ -24,6 +24,7 @@ import {
   Bot,
   Settings,
   Camera,
+  Printer,
 } from 'lucide-react';
 import { PWAInstallButton, OfflineIndicator } from './PWAInstallButton';
 import { CURRENT_APP_VERSION } from './PatchNotesModal';
@@ -47,7 +48,6 @@ interface NavbarProps {
   totalNetStockKg: number;
   finishedCount: number;
   rollCount: number;
-  onOpenAddModal: () => void;
   onOpenMasterModal: () => void;
   onOpenSimulator?: () => void;
   isSimulatorOpen?: boolean;
@@ -63,7 +63,7 @@ interface NavbarProps {
   onGoogleLogout?: () => void;
   onForceCloudSync?: () => void;
   onOpenNolanAgent?: () => void;
-  onOpenGradeScanner?: () => void;
+  onOpenGradeScanner?: (tab: 'scan' | 'print') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -75,7 +75,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   totalNetStockKg,
   finishedCount,
   rollCount,
-  onOpenAddModal,
   onOpenMasterModal,
   onOpenSimulator,
   isSimulatorOpen = false,
@@ -142,11 +141,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     {
       id: 'qc-status',
       shortLabel: 'Status Barang',
-      mobileLabel: 'Status Barang',
+      mobileLabel: 'Status',
       fullLabel: 'Status Barang Kiriman Pabrik (Menunggu Pabrik, Terima Cair & Reject)',
       icon: <ClipboardCheck className="w-4 h-4 shrink-0" />,
       countText: `${pendingQcCount}`,
-      desktopFlexClass: 'flex-[1.25]',
+      desktopFlexClass: 'flex-[1.35]',
     },
     {
       id: 'history',
@@ -276,7 +275,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap sm:flex-nowrap items-center justify-between sm:justify-end gap-1 sm:gap-1.5 w-full sm:w-auto">
                 {userEmail ? (
                   <button
                     type="button"
@@ -311,17 +310,41 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <PWAInstallButton />
 
+                {onOpenGradeScanner && (
+                  <>
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => onOpenGradeScanner('scan')}
+                      aria-label="Scan Kartu Grade"
+                      className="group relative inline-flex items-center justify-center h-8 px-1.5 sm:h-9 sm:px-3 gap-1 sm:gap-1.5 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 text-amber-300 border border-amber-500/80 transition-colors cursor-pointer shrink-0 font-extrabold text-[10px] sm:text-xs whitespace-nowrap"
+                    >
+                      <Camera className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
+                      <span>Scan Kartu</span>
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => onOpenGradeScanner('print')}
+                      aria-label="Cetak Kartu Grade (A4 6/Hal)"
+                      className="group relative inline-flex items-center justify-center h-8 px-1.5 sm:h-9 sm:px-3 gap-1 sm:gap-1.5 rounded-lg bg-black hover:bg-zinc-900 text-zinc-100 border border-zinc-700 hover:border-amber-500/70 transition-colors cursor-pointer shrink-0 font-bold text-[10px] sm:text-xs whitespace-nowrap"
+                    >
+                      <Printer className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
+                      <span>Cetak Kartu</span>
+                    </motion.button>
+                  </>
+                )}
+
                 {onOpenNolanAgent && (
                   <motion.button
                     type="button"
                     whileTap={{ scale: 0.96 }}
                     onClick={onOpenNolanAgent}
-                    aria-label="Buka Nolan AI Assistant"
-                    className="group relative inline-flex items-center justify-center h-8 px-2.5 sm:h-9 sm:px-3 gap-1.5 rounded-lg bg-[#042f2e] hover:bg-[#064e3b] text-emerald-300 border border-emerald-500/70 hover:border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.2)] transition-colors cursor-pointer shrink-0 font-extrabold text-xs"
+                    aria-label="Buka Nolan"
+                    className="group relative inline-flex items-center justify-center h-8 px-1.5 sm:h-9 sm:px-3 gap-1 sm:gap-1.5 rounded-lg bg-[#042f2e] hover:bg-[#064e3b] text-emerald-300 border border-emerald-500/70 hover:border-emerald-400 transition-colors cursor-pointer shrink-0 font-extrabold text-[10px] sm:text-xs whitespace-nowrap"
                   >
-                    <Bot className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Nolan AI</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                    <Bot className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
+                    <span>Nolan</span>
                   </motion.button>
                 )}
 
@@ -331,9 +354,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                     whileTap={{ scale: 0.96 }}
                     onClick={onOpenSimulator}
                     aria-label="Simulator"
-                    className={`group relative inline-flex items-center justify-center h-8 px-2.5 sm:h-9 sm:px-3 gap-1.5 rounded-lg transition-colors cursor-pointer shrink-0 border font-bold text-xs ${
+                    className={`group relative inline-flex items-center justify-center h-8 w-7 sm:w-auto sm:h-9 sm:px-3 gap-1.5 rounded-lg transition-colors cursor-pointer shrink-0 border font-bold text-xs whitespace-nowrap ${
                       isSimulatorOpen
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500'
                         : 'bg-black hover:bg-zinc-900 text-white border-zinc-800 hover:border-amber-500/70'
                     }`}
                   >
@@ -342,28 +365,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </motion.button>
                 )}
 
-                {onOpenGradeScanner && (
-                  <motion.button
-                    type="button"
-                    whileTap={{ scale: 0.96 }}
-                    onClick={onOpenGradeScanner}
-                    aria-label="Scan Kartu Grade"
-                    className="group relative inline-flex items-center justify-center h-8 px-2.5 sm:h-9 sm:px-3 gap-1.5 rounded-lg bg-black hover:bg-zinc-900 text-amber-300 border border-amber-500/60 hover:border-amber-400 transition-colors cursor-pointer shrink-0 font-extrabold text-xs"
-                  >
-                    <Camera className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="hidden sm:inline">Scan Kartu</span>
-                  </motion.button>
-                )}
-
-                <button
+                <motion.button
                   type="button"
-                  onClick={onOpenAddModal}
-                  aria-label="Tambah Stok Tembakau Mentah"
-                  className="group relative btn-amber-outline inline-flex items-center justify-center h-8 px-2.5 sm:h-9 sm:px-3 gap-1.5 rounded-lg font-extrabold cursor-pointer shrink-0 text-xs"
+                  whileTap={{ scale: 0.96 }}
+                  onClick={onOpenPatchNotes}
+                  aria-label={`Catatan Versi ${CURRENT_APP_VERSION}`}
+                  className="group relative inline-flex items-center justify-center h-8 w-7 sm:w-auto sm:h-9 sm:px-3 gap-1.5 rounded-lg bg-black hover:bg-zinc-900 text-zinc-200 hover:text-white border border-zinc-800 hover:border-amber-500/60 transition-colors cursor-pointer shrink-0 font-bold text-xs whitespace-nowrap"
                 >
-                  <Plus className="w-4 h-4 stroke-[2.5] text-amber-400 shrink-0" />
-                  <span>Input Stok</span>
-                </button>
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="hidden sm:inline">Catatan Versi</span>
+                  {hasUnreadPatch && (
+                    <span
+                      className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 sm:static absolute top-1 right-1"
+                      aria-hidden="true"
+                    />
+                  )}
+                </motion.button>
               </div>
             </div>
           </div>
@@ -385,8 +402,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               </button>
 
-              {/* Fixed 7-column grid so navigation buttons NEVER shift position when active or hovered */}
-              <div className="grid grid-cols-7 gap-1 lg:gap-1.5 flex-1 min-w-0">
+              {/* Proportional flex row using desktopFlexClass so longer labels like Status Barang never truncate */}
+              <div className="flex items-center gap-1 lg:gap-1.5 flex-1 min-w-0">
                 {tabs.map((tab) => {
                   const isActive = activeTab === tab.id;
                   return (
@@ -394,7 +411,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveTab(tab.id)}
-                      className={`group relative w-full min-w-0 h-9 px-2 lg:px-3 text-[11px] lg:text-xs font-extrabold rounded-lg flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${
+                      className={`group relative ${
+                        tab.desktopFlexClass || 'flex-1'
+                      } min-w-fit h-9 px-2 lg:px-2.5 text-[11px] lg:text-xs font-extrabold rounded-lg flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${
                         isActive
                           ? 'text-white'
                           : 'text-zinc-400 hover:text-white border border-transparent hover:border-zinc-800/80'
@@ -407,11 +426,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                           className="absolute inset-0 rounded-lg bg-black border border-amber-500/80 shadow-[0_0_12px_rgba(245,158,11,0.14)]"
                         />
                       )}
-                      <span className="relative z-10 flex items-center justify-center gap-1.5 min-w-0">
+                      <span className="relative z-10 flex items-center justify-center gap-1.5">
                         <span className={isActive ? 'text-amber-400 shrink-0' : 'shrink-0'}>
                           {tab.icon}
                         </span>
-                        <span className="truncate">{tab.shortLabel}</span>
+                        <span className="whitespace-nowrap">{tab.shortLabel}</span>
                         {tab.countText !== undefined && (
                           <span
                             className={`text-[10px] font-mono font-bold shrink-0 ${
@@ -450,7 +469,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </header>
 
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-md border-t border-zinc-800 safe-bottom-nav shadow-[0_-8px_24px_rgba(0,0,0,0.9)]">
-        <div className="flex items-center justify-between gap-1 px-1.5">
+        <div className="flex items-center justify-between gap-0.5 px-1">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -459,16 +478,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 title={tab.fullLabel}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[9px] font-bold transition-all duration-250 ease-out cursor-pointer min-w-0 ${
+                className={`relative flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl text-[8.5px] tracking-tight font-bold transition-all duration-200 ease-out cursor-pointer min-w-0 ${
                   isActive
-                    ? 'flex-[1.35] bg-black text-white border border-amber-500/80 shadow-[0_0_8px_rgba(245,158,11,0.14)]'
-                    : 'flex-1 text-zinc-400 hover:text-white border border-transparent'
+                    ? 'bg-black text-white border border-amber-500/80 shadow-[0_0_8px_rgba(245,158,11,0.14)]'
+                    : 'text-zinc-400 hover:text-white border border-transparent'
                 }`}
               >
                 <span className={isActive ? 'text-amber-400 shrink-0' : 'shrink-0'}>
                   {tab.icon}
                 </span>
-                <span className="mt-0.5 truncate max-w-full">{tab.mobileLabel}</span>
+                <span className="mt-0.5 whitespace-nowrap leading-tight">{tab.mobileLabel}</span>
               </button>
             );
           })}

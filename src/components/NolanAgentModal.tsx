@@ -870,116 +870,7 @@ export const NolanAgentModal: React.FC<NolanAgentModalProps> = ({
 
   return (
     <>
-      {/* ========================================================================
-          1. FACEBOOK MESSENGER-STYLE FLOATING CHAT HEAD BUBBLE (SNAPS TO EDGES)
-          ======================================================================== */}
-      {showFloatingBubble && (
-        <motion.button
-          type="button"
-          onPointerDown={handleBubblePointerDown}
-          onPointerMove={handleBubblePointerMove}
-          onPointerUp={handleBubblePointerUp}
-          animate={{
-            left: bubblePos.x,
-            top: bubblePos.y,
-            scale: isHoveringDeleteZone ? 0.78 : isDraggingBubble ? 1.08 : 1,
-          }}
-          transition={
-            isDraggingBubble
-              ? { duration: 0 }
-              : { type: 'spring', stiffness: 420, damping: 28 }
-          }
-          style={{
-            width: BUBBLE_SIZE,
-            height: BUBBLE_SIZE,
-            touchAction: 'none',
-          }}
-          aria-label="Gelembung Chat Nolan AI (Geser ke tepi atau tarik ke X di bawah untuk menutup)"
-          className={`fixed z-50 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing select-none shadow-[0_10px_30px_rgba(0,0,0,0.85)] border-2 transition-colors group ${
-            isHoveringDeleteZone
-              ? 'bg-rose-600 border-rose-300 text-white'
-              : isOpen
-                ? 'bg-amber-500 border-white text-black'
-                : 'bg-[#071a14] border-emerald-400/90 text-emerald-300 hover:border-amber-400'
-          }`}
-        >
-          <div className="relative flex items-center justify-center w-full h-full">
-            <Bot className={`w-7 h-7 ${isOpen ? 'text-black' : 'text-amber-400'}`} />
 
-            {/* Online Green Dot (WhatsApp/Messenger status) */}
-            <span className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-black" />
-
-            {/* Unread / Active Badge */}
-            {(unreadCount > 0 || isSending) && (
-              <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center border-2 border-black animate-bounce">
-                {isSending ? '•••' : unreadCount}
-              </span>
-            )}
-          </div>
-
-          {/* Preview Tooltip on Hover when Chatbox is Minimized */}
-          {!isOpen && !isDraggingBubble && (
-            <div
-              className={`pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute top-1/2 -translate-y-1/2 ${
-                bubbleSide === 'right' ? 'right-16' : 'left-16'
-              } w-56 px-3 py-2 rounded-2xl bg-[#071410] border border-emerald-500/50 text-left shadow-2xl`}
-            >
-              <div className="flex items-center justify-between text-[10px] font-bold text-emerald-400 mb-0.5">
-                <span>Nolan AI • Chat &amp; Suara</span>
-                <MessageCircle className="w-3 h-3" />
-              </div>
-              <p className="text-[11px] text-zinc-200 line-clamp-2 leading-snug">
-                {lastMessagePreview}...
-              </p>
-              <span className="block text-[9px] text-zinc-400 mt-1">
-                Klik untuk buka • Tarik ke bawah (X) untuk hapus
-              </span>
-            </div>
-          )}
-        </motion.button>
-      )}
-
-      {/* ========================================================================
-          2. MIDDLE-BOTTOM (X) DISMISS DROP TARGET WHEN DRAGGING BUBBLE
-          ======================================================================== */}
-      <AnimatePresence>
-        {isDraggingBubble && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.8 }}
-            animate={{
-              opacity: 1,
-              y: 0,
-              scale: isHoveringDeleteZone ? 1.22 : 1,
-            }}
-            exit={{ opacity: 0, y: 40, scale: 0.8 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center gap-1.5"
-          >
-            <div
-              className={`w-14 h-14 rounded-full flex items-center justify-center border-2 shadow-[0_0_35px_rgba(0,0,0,0.95)] transition-colors ${
-                isHoveringDeleteZone
-                  ? 'bg-rose-600 border-white text-white shadow-[0_0_30px_rgba(225,29,72,0.8)]'
-                  : 'bg-black/90 border-zinc-500 text-zinc-200'
-              }`}
-            >
-              <X className="w-7 h-7 stroke-[2.5]" />
-            </div>
-            <span
-              className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
-                isHoveringDeleteZone
-                  ? 'bg-rose-600 text-white border-rose-300'
-                  : 'bg-black/90 text-zinc-300 border-zinc-700'
-              }`}
-            >
-              {isHoveringDeleteZone ? 'Lepaskan untuk Hapus' : 'Tarik ke X untuk Tutup'}
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ========================================================================
-          3. WHATSAPP-STYLE FLOATING CHATBOX WINDOW
-          ======================================================================== */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -990,9 +881,7 @@ export const NolanAgentModal: React.FC<NolanAgentModalProps> = ({
             className={`fixed z-40 flex flex-col overflow-hidden rounded-2xl border-2 border-emerald-500/60 bg-[#0b141a] shadow-[0_24px_70px_rgba(0,0,0,0.95)] ${
               isExpandedWindow
                 ? 'inset-3 sm:inset-6'
-                : bubbleSide === 'left'
-                  ? 'bottom-16 sm:bottom-6 left-3 sm:left-20 w-[calc(100vw-1.5rem)] sm:w-[430px] h-[78vh] sm:h-[630px] max-h-[86vh]'
-                  : 'bottom-16 sm:bottom-6 right-3 sm:right-20 w-[calc(100vw-1.5rem)] sm:w-[430px] h-[78vh] sm:h-[630px] max-h-[86vh]'
+                : 'bottom-16 sm:bottom-6 right-3 sm:right-6 w-[calc(100vw-1.5rem)] sm:w-[430px] h-[78vh] sm:h-[630px] max-h-[86vh]'
             }`}
           >
             {/* WhatsApp Dark Green Top Header Bar */}
@@ -1005,7 +894,7 @@ export const NolanAgentModal: React.FC<NolanAgentModalProps> = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <h2 className="text-sm font-black text-white truncate">
-                      Nolan AI (Tobacco Lab)
+                      Nolan (Tobacco Lab)
                     </h2>
                     <span className="px-1.5 py-0.5 rounded bg-[#00a884]/20 text-[#00a884] text-[9px] font-mono font-bold shrink-0">
                       Humanizer
@@ -1069,18 +958,8 @@ export const NolanAgentModal: React.FC<NolanAgentModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  title="Kecilkan ke Gelembung Chat (Messenger Bubble)"
-                  className="h-8 w-8 rounded-lg hover:bg-white/10 text-zinc-300 hover:text-white flex items-center justify-center cursor-pointer"
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    setIsBubbleDismissed(true);
-                  }}
-                  title="Tutup Chat & Gelembung"
+                  title="Tutup Chat Nolan"
+                  aria-label="Tutup Chat Nolan"
                   className="h-8 w-8 rounded-lg hover:bg-rose-500/20 text-zinc-300 hover:text-rose-400 flex items-center justify-center cursor-pointer"
                 >
                   <X className="w-4 h-4" />
@@ -1150,7 +1029,7 @@ export const NolanAgentModal: React.FC<NolanAgentModalProps> = ({
                         >
                           {!isUser && (
                             <div className="text-[10px] font-extrabold text-[#00a884] mb-0.5">
-                              Nolan AI
+                              Nolan
                             </div>
                           )}
 

@@ -15,7 +15,6 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
-  Bot,
   Zap,
   Undo2,
 } from 'lucide-react';
@@ -62,7 +61,6 @@ interface BlendCalculatorProps {
   existingSerialCount: number;
   onSaveMultipleFinished: (finishedList: FinishedTobaccoSerial[]) => void;
   initialIngredients?: BlendIngredient[];
-  onAskNolanRecommendation?: () => void;
 }
 
 export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
@@ -73,7 +71,6 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
   existingSerialCount,
   onSaveMultipleFinished,
   initialIngredients = [],
-  onAskNolanRecommendation,
 }) => {
   // Mobile one-by-one snapped panel switcher (< lg)
   const [mobilePanel, setMobilePanel] = useState<'ingredients' | 'packaging' | 'summary'>(
@@ -678,20 +675,6 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
             <span>Auto-Racik</span>
           </button>
 
-          {onAskNolanRecommendation && (
-            <button
-              type="button"
-              aria-label="Minta Rekomendasi Racikan Nolan AI"
-              onClick={onAskNolanRecommendation}
-              className="group relative h-9 w-9 shrink-0 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/70 flex items-center justify-center transition-colors cursor-pointer"
-            >
-              <Bot className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-amber-500/70 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
-                Tanya Nolan (Rekomendasi Racikan AI)
-              </span>
-            </button>
-          )}
-
           {ingredients.length > 0 && (
             <button
               type="button"
@@ -755,7 +738,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                 setIngredients(undoBlendSnapshot.previousIngredients);
                 setUndoBlendSnapshot(null);
               }}
-              className="h-7 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-xs font-black inline-flex items-center gap-1 cursor-pointer"
+              className="h-7 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 text-xs font-black inline-flex items-center gap-1 cursor-pointer"
             >
               <Undo2 className="w-3.5 h-3.5" />
               <span>Urungkan (Undo)</span>
@@ -831,7 +814,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                     onClick={() => setIsCategoryPickerOpen((v) => !v)}
                     className={`h-9 px-3 rounded-xl text-xs font-extrabold border inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
                       isCategoryPickerOpen
-                        ? 'bg-amber-500 text-black border-amber-400'
+                        ? 'bg-[#0e1015] text-amber-300 border-amber-500/85'
                         : 'bg-zinc-900 hover:bg-zinc-800 text-amber-300 border-amber-500/50'
                     }`}
                   >

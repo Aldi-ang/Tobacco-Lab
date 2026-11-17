@@ -25,6 +25,13 @@ import {
   Weight,
   Sliders,
   Hand,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  Folder,
+  FolderOpen,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import {
   TobaccoRollSample,
@@ -45,7 +52,6 @@ import {
   formatRating5,
 } from '../utils/tobaccoMath';
 import { NumericInput } from './NumericInput';
-import { SegmentedControl } from './RatingSegmentSlider';
 import { TobaccoRoll3D, FullScreenScrollModal } from './TobaccoRoll3D';
 import {
   CalculationDetailModal,
@@ -56,6 +62,13 @@ import { EditFinishedSerialModal } from './EditFinishedSerialModal';
 import { RollCompositionAndEvaluationPanel } from './RollDetailModal';
 import { getSerialMissingFlags } from '../utils/tobaccoCompleteness';
 import { HoldQuickMenuOverlay, useHoldDragMenu } from './HoldQuickMenu';
+import { getRollStatusSummary, partitionShippedRolls } from '../utils/factoryStatusFlow';
+import {
+  RollFolderGroupingMode,
+  computeRollCompactStats,
+  groupRollsIntoFolders,
+  isSerialDecisionLocked,
+} from '../utils/rollGrouping';
 
 const toScale5 = (v: number) => (v > 5 ? Number((v / 2).toFixed(1)) : v);
 
@@ -112,10 +125,9 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
   onOpenGoogleSheetsModal,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<
-    'ALL' | 'PENDING' | 'ACCEPTED_CAIR' | 'REJECTED_STOCK'
-  >('ALL');
+  const [shippedViewSegment, setShippedViewSegment] = useState<'pending' | 'completed'>('pending');
   const [activeRollId, setActiveRollId] = useState<string | null>(null);
+  const [isPricingLocked, setIsPricingLocked] = useState<boolean>(true);
   const [editingSerial, setEditingSerial] = useState<FinishedTobaccoSerial | null>(null);
   const [editingSerialSection, setEditingSerialSection] = useState<
     'main' | 'weights' | 'character' | 'all'
@@ -127,30 +139,54 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
   const [sheetViewMode, setSheetViewMode] = useState<'personal' | 'factory' | 'both'>('personal');
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [unlockedStatusIds, setUnlockedStatusIds] = useState<Record<string, boolean>>({});
+  const [completedGroupingMode, setCompletedGroupingMode] =
+    useState<RollFolderGroupingMode>('date');
+  const [expandedFolderKeys, setExpandedFolderKeys] = useState<Record<string, boolean>>({});
   const serialPriceInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const serialHoldMenu = useHoldDragMenu();
 
-  // Filter rolls based on whether they are still in Warehouse ('warehouse') or Sent to Factory ('shipped')
-  const stageRolls = rollSamples.filter((roll) =>
-    viewMode === 'shipped' ? !!roll.isSentToFactory : !roll.isSentToFactory
+  const handleLockedDecision = (
+    serialId: string,
+    currentStatus: SerialFactoryStatus | undefined,
+    nextStatus: SerialFactoryStatus,
+    targetRoll: TobaccoRollSample
+  ) => {
+    if (!onUpdateSerialStatus) return;
+    if (isSerialDecisionLocked(currentStatus, unlockedStatusIds, serialId)) return;
+    onUpdateSerialStatus(serialId, nextStatus, targetRoll);
+    setUnlockedStatusIds((prev) => {
+      if (!prev[serialId]) return prev;
+      const next = { ...prev };
+      delete next[serialId];
+      return next;
+    });
+  };
+
+  const handleUnlockSerialStatus = (serialId: string) => {
+    setUnlockedStatusIds((prev) => ({ ...prev, [serialId]: true }));
+  };
+
+  const handleRelockSerialStatus = (serialId: string) => {
+    setUnlockedStatusIds((prev) => {
+      const next = { ...prev };
+      delete next[serialId];
+      return next;
+    });
+  };
+
+  // Partition shipped rolls cleanly along the pipeline: pending QC vs all serials completed (moved to Riwayat)
+  const { activePendingRolls, completedShippedRolls } = partitionShippedRolls(
+    rollSamples,
+    finishedBatches
   );
 
-  // Counts for shipped status filter pills
-  const shippedSerials = finishedBatches.filter((b) => {
-    const parentRoll = rollSamples.find(
-      (r) => r.id === b.rollId || r.rollNumber === b.rollNumber
-    );
-    return parentRoll ? !!parentRoll.isSentToFactory : false;
-  });
-  const pendingShippedCount = shippedSerials.filter(
-    (s) => (s.factoryStatus || 'PENDING') === 'PENDING'
-  ).length;
-  const acceptedShippedCount = shippedSerials.filter(
-    (s) => s.factoryStatus === 'ACCEPTED_CAIR'
-  ).length;
-  const rejectedShippedCount = shippedSerials.filter(
-    (s) => s.factoryStatus === 'REJECTED_STOCK'
-  ).length;
+  const stageRolls =
+    viewMode === 'shipped'
+      ? shippedViewSegment === 'pending'
+        ? activePendingRolls
+        : completedShippedRolls
+      : rollSamples.filter((roll) => !roll.isSentToFactory);
 
   const filtered = stageRolls.filter((roll) => {
     const serialsInRoll = finishedBatches.filter(
@@ -160,14 +196,6 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
         b.previousRollId === roll.id ||
         (b.previousRollNumber && b.previousRollNumber.includes(roll.rollNumber))
     );
-
-    if (viewMode === 'shipped' && statusFilter !== 'ALL') {
-      const hasMatchingStatus = serialsInRoll.some((s) => {
-        const st = s.factoryStatus || 'PENDING';
-        return st === statusFilter;
-      });
-      if (!hasMatchingStatus) return false;
-    }
 
     const serialsText = serialsInRoll.map((s) => formatSerialLineage(s)).join(' ');
 
@@ -186,6 +214,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
     setActiveRollId(roll.id);
     setActiveRollTab('SERI');
     setModalSeriStatusFilter('ALL');
+    setIsPricingLocked(true);
   };
 
   const handleCopySheet = (
@@ -368,12 +397,17 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                     </td>
                     <td className="py-1 px-1.5 border-r border-zinc-900 align-middle">
                       <NumericInput
+                        disabled={isPricingLocked}
                         value={s.factoryTargetPricePerKg}
                         onChange={(val) =>
                           onRepriceSerial(s.id, { factoryTargetPricePerKg: val })
                         }
                         aria-label={`Harga Pabrik Seri ${s.serialNumber}`}
-                        className="h-7 w-full min-w-[88px] px-1.5 bg-zinc-950 border border-zinc-800 focus:border-zinc-700 rounded-md text-right text-zinc-200 font-mono font-bold text-[11px] focus:outline-hidden"
+                        className={`h-7 w-full min-w-[88px] px-1.5 bg-zinc-950 border rounded-md text-right font-mono font-bold text-[11px] focus:outline-hidden ${
+                          isPricingLocked
+                            ? 'border-zinc-800/70 text-zinc-400 cursor-not-allowed opacity-75'
+                            : 'border-amber-500/60 focus:border-amber-400 text-amber-300'
+                        }`}
                       />
                     </td>
                     <td className="py-1.5 px-2 border-r border-zinc-900 text-right font-bold text-zinc-200">
@@ -530,6 +564,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                     </td>
                     <td className="py-1 px-1.5 border-r border-zinc-900 align-middle">
                       <select
+                        disabled={isPricingLocked}
                         value={s.compositeColorGrade}
                         onChange={(e) =>
                           onRepriceSerial(s.id, {
@@ -537,7 +572,11 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                           })
                         }
                         aria-label={`Grade Seri ${s.serialNumber}`}
-                        className="h-7 w-full min-w-[60px] px-1 bg-zinc-950 border border-zinc-800 rounded-md text-center text-white font-mono font-bold text-[11px] focus:outline-hidden"
+                        className={`h-7 w-full min-w-[60px] px-1 bg-zinc-950 border rounded-md text-center font-mono font-bold text-[11px] focus:outline-hidden ${
+                          isPricingLocked
+                            ? 'border-zinc-800/70 text-zinc-400 cursor-not-allowed opacity-75'
+                            : 'border-amber-500/60 text-amber-300 cursor-pointer'
+                        }`}
                       >
                         {(Object.keys(GRADE_LABELS) as TobaccoGrade[]).map((g) => (
                           <option key={g} value={g}>
@@ -548,12 +587,17 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                     </td>
                     <td className="py-1 px-1.5 border-r border-zinc-900 align-middle">
                       <NumericInput
+                        disabled={isPricingLocked}
                         value={s.factoryTargetPricePerKg}
                         onChange={(val) =>
                           onRepriceSerial(s.id, { factoryTargetPricePerKg: val })
                         }
                         aria-label={`Harga Pabrik Seri ${s.serialNumber}`}
-                        className="h-7 w-full min-w-[92px] px-2 bg-zinc-950 border border-zinc-800 focus:border-zinc-700 rounded-md text-right text-white font-mono font-bold text-[11px] focus:outline-hidden"
+                        className={`h-7 w-full min-w-[92px] px-2 bg-zinc-950 border rounded-md text-right font-mono font-bold text-[11px] focus:outline-hidden ${
+                          isPricingLocked
+                            ? 'border-zinc-800/70 text-zinc-400 cursor-not-allowed opacity-75'
+                            : 'border-amber-500/60 focus:border-amber-400 text-amber-300'
+                        }`}
                       />
                     </td>
                     <td className="py-1.5 px-2 text-right font-black text-white align-middle">
@@ -594,54 +638,77 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
 
   return (
     <div className="space-y-3 pb-16 md:pb-4">
-      {/* Stage Banner & Status Filter when in Shipped / Status Barang mode */}
-      {viewMode === 'shipped' ? (
-        <div className="space-y-2.5">
-          <SegmentedControl
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              {
-                id: 'ALL',
-                label: 'Semua Dikirim',
-                fullLabel: 'Semua Gulungan yang Sudah Dikirim ke Pabrik',
-                icon: <Scroll className="w-3.5 h-3.5" />,
-                badge: stageRolls.length,
-              },
-              {
-                id: 'PENDING',
-                label: 'Menunggu Pabrik',
-                fullLabel: 'Gulungan dengan Seri Menunggu Keputusan Pabrik',
-                icon: <Clock className="w-3.5 h-3.5" />,
-                badge: pendingShippedCount,
-              },
-              {
-                id: 'ACCEPTED_CAIR',
-                label: 'Diterima / Accepted',
-                fullLabel: 'Gulungan dengan Seri yang Diterima Pabrik (Accepted)',
-                icon: <CheckCircle2 className="w-3.5 h-3.5" />,
-                badge: acceptedShippedCount,
-              },
-              {
-                id: 'REJECTED_STOCK',
-                label: 'Reject',
-                fullLabel: 'Gulungan dengan Seri yang Direject (Masuk Stok Tembakau Jadi)',
-                icon: <RotateCcw className="w-3.5 h-3.5" />,
-                badge: rejectedShippedCount,
-              },
-            ]}
-          />
-        </div>
-      ) : (
-        <div className="requiem-card px-3.5 py-2.5 rounded-xl border border-zinc-800/90 flex items-center justify-between flex-wrap gap-2 text-xs">
-          <div className="flex items-center gap-2 text-zinc-300">
-            <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/50 font-mono font-black text-[10px]">
-              DI GUDANG KITA ({stageRolls.length})
-            </span>
-            <span>
-              Gulungan di bawah masih ada di kita. Tekan <b className="text-amber-400">Kirim ke Pabrik</b> untuk memindahkan ke <b className="text-white">Status Barang</b>.
-            </span>
+      {/* Streamlined 2-Step Pipeline Toolbar when in Status Barang mode */}
+      {viewMode === 'shipped' && (
+        <div className="bg-[#09090c] border border-zinc-800 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div
+            role="tablist"
+            aria-label="Filter Pipeline Status Barang"
+            className="inline-grid grid-cols-2 p-1 rounded-xl bg-black border border-zinc-800 gap-1 w-full sm:w-auto"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={shippedViewSegment === 'pending'}
+              onClick={() => setShippedViewSegment('pending')}
+              className={`h-9 px-3.5 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap border ${
+                shippedViewSegment === 'pending'
+                  ? 'bg-[#101218] text-amber-300 border-amber-500/80 font-extrabold'
+                  : 'bg-transparent text-zinc-400 hover:text-white border-transparent'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              <span className="leading-none">Update</span>
+              <span
+                className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md font-mono font-black text-xs tabular-nums leading-none border ${
+                  shippedViewSegment === 'pending'
+                    ? 'bg-amber-500/20 text-amber-200 border-amber-500/50'
+                    : 'bg-zinc-900 text-zinc-200 border-zinc-700/80'
+                }`}
+              >
+                {activePendingRolls.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={shippedViewSegment === 'completed'}
+              onClick={() => setShippedViewSegment('completed')}
+              className={`h-9 px-3.5 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap border ${
+                shippedViewSegment === 'completed'
+                  ? 'bg-[#101218] text-amber-300 border-amber-500/80 font-extrabold'
+                  : 'bg-transparent text-zinc-400 hover:text-white border-transparent'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="leading-none">Selesai</span>
+              <span
+                className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md font-mono font-black text-xs tabular-nums leading-none border ${
+                  shippedViewSegment === 'completed'
+                    ? 'bg-amber-500/20 text-amber-200 border-amber-500/50'
+                    : 'bg-zinc-900 text-zinc-200 border-zinc-700/80'
+                }`}
+              >
+                {completedShippedRolls.length}
+              </span>
+            </button>
           </div>
+
+          <p className="text-[11px] text-zinc-400 leading-snug">
+            {shippedViewSegment === 'pending' ? (
+              <>
+                Tandai tiap seri <b className="text-amber-300">Diterima</b> atau{' '}
+                <b className="text-red-400">Reject</b>. Setelah dipilih, tombol terkunci otomatis
+                (klik <b className="text-zinc-200">Buka Kunci</b> bila salah pencet).
+              </>
+            ) : (
+              <>
+                Gulungan selesai dikelompokkan rapi dalam folder. Ketuk kartu gulungan untuk melihat
+                detail lengkap &amp; nota.
+              </>
+            )}
+          </p>
         </div>
       )}
 
@@ -653,8 +720,8 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Cari nama gulungan, kode (GUL-...), tanggal, nomor seri, atau pabrik..."
-            className="w-full h-9 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700"
+            placeholder="Cari nama gulungan, kode (GUL-...), nomor seri, atau pabrik..."
+            className="w-full h-9 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-amber-500/70"
           />
         </div>
 
@@ -671,20 +738,463 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
         )}
       </div>
 
-      {/* Grid of 1-Card 3D Gulungan Items (Shows Name, Date, 3D Scroll, and Send/Return Action) */}
+      {/* Empty State or Mode-Specific Listing */}
       {filtered.length === 0 ? (
         <div className="text-center py-12 requiem-card rounded-2xl border border-zinc-800 space-y-2">
           <Scroll className="w-12 h-12 text-zinc-600 mx-auto mb-2" />
           <p className="text-white font-bold text-sm">
             {viewMode === 'warehouse'
               ? 'Tidak ada gulungan yang sedang di gudang'
-              : 'Tidak ada gulungan terkirim pada kategori ini'}
+              : shippedViewSegment === 'pending'
+                ? 'Semua barang kiriman sudah selesai di-update!'
+                : 'Belum ada gulungan yang selesai di-update'}
           </p>
           <p className="text-xs text-zinc-400">
             {viewMode === 'warehouse'
               ? 'Semua gulungan sudah dikirim ke menu Status Barang atau buat Gulungan Baru.'
-              : 'Tekan tombol "Kirim ke Pabrik" pada menu Gulungan saat barang dikirim.'}
+              : shippedViewSegment === 'pending'
+                ? 'Gulungan yang seluruh serinya telah ditandai Diterima/Reject otomatis berpindah ke tab Selesai & Riwayat.'
+                : 'Gulungan akan tampil rapi per folder di sini setelah seluruh serinya diberi keputusan.'}
           </p>
+        </div>
+      ) : viewMode === 'shipped' && shippedViewSegment === 'completed' ? (
+        (() => {
+          const folders = groupRollsIntoFolders(filtered, finishedBatches, completedGroupingMode);
+          return (
+            <div className="space-y-3" data-testid="completed-archive-folders">
+              {/* Compact Folder Grouping Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#09090c] border border-zinc-800">
+                  <span className="text-[10px] font-bold uppercase text-zinc-500 px-2">
+                    Folder:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCompletedGroupingMode('date')}
+                    className={`h-7 px-2.5 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
+                      completedGroupingMode === 'date'
+                        ? 'bg-[#101218] text-amber-300 border border-amber-500/70'
+                        : 'text-zinc-400 hover:text-white border border-transparent'
+                    }`}
+                  >
+                    Per Tanggal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCompletedGroupingMode('factory')}
+                    className={`h-7 px-2.5 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
+                      completedGroupingMode === 'factory'
+                        ? 'bg-[#101218] text-amber-300 border border-amber-500/70'
+                        : 'text-zinc-400 hover:text-white border border-transparent'
+                    }`}
+                  >
+                    Per Pabrik
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <span className="text-zinc-400 font-mono">
+                    {folders.length} Folder • {filtered.length} Gulungan
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next: Record<string, boolean> = {};
+                      folders.forEach((f) => {
+                        next[f.folderKey] = true;
+                      });
+                      setExpandedFolderKeys(next);
+                    }}
+                    className="h-7 px-2.5 rounded-lg bg-[#09090c] hover:bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold cursor-pointer"
+                  >
+                    Buka Semua
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next: Record<string, boolean> = {};
+                      folders.forEach((f) => {
+                        next[f.folderKey] = false;
+                      });
+                      setExpandedFolderKeys(next);
+                    }}
+                    className="h-7 px-2.5 rounded-lg bg-[#09090c] hover:bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold cursor-pointer"
+                  >
+                    Tutup Semua
+                  </button>
+                </div>
+              </div>
+
+              {folders.map((folder, folderIdx) => {
+                const isOpen =
+                  expandedFolderKeys[folder.folderKey] !== undefined
+                    ? expandedFolderKeys[folder.folderKey]
+                    : folderIdx === 0;
+
+                return (
+                  <div
+                    key={folder.folderKey}
+                    className="bg-[#09090c] border border-zinc-800 rounded-2xl overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      aria-expanded={isOpen}
+                      onClick={() =>
+                        setExpandedFolderKeys((prev) => ({
+                          ...prev,
+                          [folder.folderKey]: !isOpen,
+                        }))
+                      }
+                      className="w-full px-3.5 py-2.5 bg-black/70 hover:bg-zinc-950/90 flex flex-wrap items-center justify-between gap-2 text-left cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {isOpen ? (
+                          <FolderOpen className="w-4 h-4 text-amber-400 shrink-0" />
+                        ) : (
+                          <Folder className="w-4 h-4 text-zinc-400 shrink-0" />
+                        )}
+                        <span className="font-extrabold text-white text-xs sm:text-sm truncate">
+                          {folder.folderLabel}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-zinc-900 border border-zinc-700 font-mono text-[11px] font-bold text-amber-300 tabular-nums shrink-0">
+                          {folder.rolls.length} Gulungan
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-[11px] font-mono tabular-nums text-zinc-400 shrink-0">
+                        <span>{folder.stats.totalSerials} Seri</span>
+                        {folder.stats.acceptedCount > 0 && (
+                          <span className="text-emerald-400 font-bold">
+                            {folder.stats.acceptedCount} Terima
+                          </span>
+                        )}
+                        {folder.stats.rejectedCount > 0 && (
+                          <span className="text-red-400 font-bold">
+                            {folder.stats.rejectedCount} Reject
+                          </span>
+                        )}
+                        <span className="hidden sm:inline text-zinc-300">
+                          {folder.stats.totalNettoKg} kg
+                        </span>
+                        <span className="text-white font-bold">
+                          {formatRupiah(folder.stats.totalNotaRp)}
+                        </span>
+                        {isOpen ? (
+                          <ChevronDown className="w-4 h-4 text-zinc-400 shrink-0" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" />
+                        )}
+                      </div>
+                    </button>
+
+                    {isOpen && (
+                      <div className="p-3 border-t border-zinc-800/80 bg-black/35 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+                        {folder.rolls.map((roll) => {
+                          const rs = computeRollCompactStats(roll, finishedBatches);
+                          const sentStr = new Date(
+                            roll.sentToFactoryDate || roll.sampleCreatedDate
+                          ).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                          });
+
+                          return (
+                            <button
+                              key={roll.id}
+                              type="button"
+                              data-testid={`compact-selesai-card-${roll.rollNumber}`}
+                              onClick={() => handleOpenRollCard(roll)}
+                              className="group text-left p-3 rounded-xl bg-[#0d0f14] hover:bg-zinc-900/90 border border-zinc-800 hover:border-amber-500/75 transition-all cursor-pointer flex flex-col justify-between gap-2"
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between gap-1.5">
+                                  <span className="px-1.5 py-0.5 rounded bg-black border border-amber-500/60 font-mono font-black text-[11px] text-amber-300">
+                                    {roll.rollNumber}
+                                  </span>
+                                  <span className="text-[10px] font-mono font-bold text-emerald-400 inline-flex items-center gap-1">
+                                    <Lock className="w-2.5 h-2.5 shrink-0" />
+                                    <span>
+                                      {rs.acceptedCount}/{rs.totalSerials} OK
+                                      {rs.rejectedCount > 0 ? ` · ${rs.rejectedCount} Rej` : ''}
+                                    </span>
+                                  </span>
+                                </div>
+
+                                <div className="font-bold text-white text-xs truncate">
+                                  {roll.recipeName}
+                                </div>
+                                <div className="text-[10px] text-zinc-400 truncate">
+                                  {roll.targetFactory} · {sentStr}
+                                </div>
+                              </div>
+
+                              <div className="pt-2 border-t border-zinc-800/70 flex items-center justify-between gap-2 font-mono text-[11px] tabular-nums">
+                                <span className="text-zinc-300">{rs.totalNettoKg} kg</span>
+                                <span className="font-bold text-white">
+                                  {formatRupiah(rs.totalNotaRp)}
+                                </span>
+                                <span className="font-sans text-[10px] font-extrabold text-amber-400 group-hover:translate-x-0.5 transition-transform">
+                                  Detail →
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()
+      ) : viewMode === 'shipped' ? (
+        <div className="space-y-3">
+          {filtered.map((roll) => {
+            const allSerialsInRoll = finishedBatches.filter(
+              (b) => b.rollId === roll.id || b.rollNumber === roll.rollNumber
+            );
+            const summary = getRollStatusSummary(roll, finishedBatches);
+            const formattedSentDate = new Date(
+              roll.sentToFactoryDate || roll.sampleCreatedDate
+            ).toLocaleDateString('id-ID', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            });
+
+            return (
+              <div
+                key={roll.id}
+                className="bg-[#09090c] border border-zinc-800 rounded-2xl overflow-hidden"
+              >
+                {/* Clean Actionable Gulungan Header */}
+                <div className="px-4 py-3 bg-black/60 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2 py-0.5 rounded-md bg-black border border-amber-500/60 font-mono font-black text-amber-300 text-xs">
+                        {roll.rollNumber}
+                      </span>
+                      <h2 className="font-extrabold text-white text-sm sm:text-base truncate">
+                        {roll.recipeName}
+                      </h2>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap text-[11px] text-zinc-400 font-mono">
+                      <span className="font-sans font-semibold text-zinc-200 inline-flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-amber-400 shrink-0" />
+                        {roll.targetFactory}
+                      </span>
+                      <span>·</span>
+                      <span>Kirim {formattedSentDate}</span>
+                      <span>·</span>
+                      <span className="text-zinc-200 font-bold">
+                        {summary.resolvedCount}/{summary.totalSerials} Selesai
+                      </span>
+                      {summary.pendingCount > 0 && (
+                        <>
+                          <span>·</span>
+                          <span className="text-amber-300 font-bold">
+                            {summary.pendingCount} Menunggu
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenRollCard(roll)}
+                    className="h-8 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/75 text-amber-300 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Buka Detail / Nota</span>
+                  </button>
+                </div>
+
+                {/* Inline Seri Rows with Lockable 1-Tap Diterima / Reject Controls */}
+                {allSerialsInRoll.length === 0 ? (
+                  <div className="p-4 text-xs text-zinc-400 text-center">
+                    Gulungan ini belum memiliki nomor seri.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-zinc-800/70">
+                    {allSerialsInRoll.map((ser) => {
+                      const status = ser.factoryStatus || 'PENDING';
+                      const isStatusLocked = isSerialDecisionLocked(
+                        status,
+                        unlockedStatusIds,
+                        ser.id
+                      );
+                      const bruto = ser.packaging.grossWeightPerPackage;
+                      const tara = ser.factoryDeductionKg;
+                      const netto = Math.max(0, bruto - tara);
+                      const notaRp = Math.round(netto * ser.factoryTargetPricePerKg);
+
+                      const statusBadge =
+                        status === 'ACCEPTED_CAIR'
+                          ? {
+                              label: 'Status: Diterima',
+                              cls: 'bg-emerald-500/15 border-emerald-500/60 text-emerald-300',
+                              dot: 'bg-emerald-400',
+                            }
+                          : status === 'REJECTED_STOCK'
+                            ? {
+                                label: 'Status: Reject',
+                                cls: 'bg-red-500/15 border-red-500/60 text-red-300',
+                                dot: 'bg-red-400',
+                              }
+                            : {
+                                label: 'Status: Menunggu',
+                                cls: 'bg-zinc-900 border-amber-500/50 text-amber-300',
+                                dot: 'bg-amber-400',
+                              };
+
+                      return (
+                        <div
+                          key={ser.id}
+                          className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-zinc-950/60 transition-colors"
+                        >
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-w-0">
+                            <span className="font-mono font-black text-xs text-amber-400 min-w-[76px]">
+                              Seri {formatSerialLineage(ser)}
+                            </span>
+                            <span
+                              data-testid="serial-status-badge"
+                              className={`px-2 py-0.5 rounded-md border text-[10px] font-black inline-flex items-center gap-1.5 uppercase tracking-wide ${statusBadge.cls}`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusBadge.dot}`}
+                              />
+                              <span>{statusBadge.label}</span>
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-black border border-zinc-800 font-mono text-[11px] font-bold text-zinc-300 inline-flex items-center gap-1">
+                              <Lock className="w-2.5 h-2.5 text-zinc-500 shrink-0" />
+                              Grade {ser.compositeColorGrade}
+                            </span>
+                            <span className="font-mono text-xs text-zinc-300 tabular-nums">
+                              {netto} kg
+                            </span>
+                            <span className="font-mono text-xs text-zinc-400 tabular-nums inline-flex items-center gap-1">
+                              <Lock className="w-2.5 h-2.5 text-zinc-500 shrink-0" />
+                              {formatRupiah(ser.factoryTargetPricePerKg)}/kg
+                            </span>
+                            <span className="font-mono font-bold text-xs text-white tabular-nums">
+                              Nota {formatRupiah(notaRp)}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5 shrink-0 sm:pl-3 sm:border-l sm:border-zinc-800/80">
+                            {onUpdateSerialStatus && (
+                              <>
+                                <span className="hidden lg:inline text-[10px] font-bold uppercase text-zinc-500 mr-1">
+                                  Aksi:
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={isStatusLocked}
+                                  onClick={() =>
+                                    handleLockedDecision(
+                                      ser.id,
+                                      status,
+                                      'ACCEPTED_CAIR',
+                                      roll
+                                    )
+                                  }
+                                  className={`h-8 px-3 rounded-lg text-xs font-extrabold inline-flex items-center gap-1 transition-colors border ${
+                                    isStatusLocked
+                                      ? status === 'ACCEPTED_CAIR'
+                                        ? 'bg-[#0e1015] text-amber-300/85 border-amber-500/60 cursor-not-allowed'
+                                        : 'bg-black text-zinc-600 border-zinc-800/70 opacity-45 cursor-not-allowed'
+                                      : status === 'ACCEPTED_CAIR'
+                                        ? 'bg-[#0e1015] text-amber-300 border-amber-500/85 cursor-pointer'
+                                        : 'bg-black hover:bg-amber-500/10 text-zinc-200 hover:text-amber-300 border-zinc-700 hover:border-amber-500/70 cursor-pointer'
+                                  }`}
+                                >
+                                  {isStatusLocked && status === 'ACCEPTED_CAIR' ? (
+                                    <Lock className="w-3 h-3 shrink-0" />
+                                  ) : (
+                                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                  )}
+                                  <span>Diterima</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={isStatusLocked}
+                                  onClick={() =>
+                                    handleLockedDecision(
+                                      ser.id,
+                                      status,
+                                      'REJECTED_STOCK',
+                                      roll
+                                    )
+                                  }
+                                  className={`h-8 px-3 rounded-lg text-xs font-extrabold inline-flex items-center gap-1 transition-colors border ${
+                                    isStatusLocked
+                                      ? status === 'REJECTED_STOCK'
+                                        ? 'bg-red-950/70 text-red-200 border-red-500/70 cursor-not-allowed'
+                                        : 'bg-black text-zinc-600 border-zinc-800/70 opacity-45 cursor-not-allowed'
+                                      : status === 'REJECTED_STOCK'
+                                        ? 'bg-red-600 text-white border-red-400 cursor-pointer'
+                                        : 'bg-black hover:bg-red-950/50 text-red-300 border-zinc-700 hover:border-red-500/70 cursor-pointer'
+                                  }`}
+                                >
+                                  {isStatusLocked && status === 'REJECTED_STOCK' ? (
+                                    <Lock className="w-3 h-3 shrink-0" />
+                                  ) : (
+                                    <XCircle className="w-3.5 h-3.5 shrink-0" />
+                                  )}
+                                  <span>Reject</span>
+                                </button>
+
+                                {status !== 'PENDING' && isStatusLocked && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUnlockSerialStatus(ser.id)}
+                                    aria-label={`Buka kunci status Seri ${ser.serialNumber}`}
+                                    className="h-8 px-2.5 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 text-amber-300 border border-amber-500/60 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                                  >
+                                    <Unlock className="w-3 h-3 shrink-0" />
+                                    <span>Buka Kunci</span>
+                                  </button>
+                                )}
+
+                                {status !== 'PENDING' && !isStatusLocked && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      title="Kembalikan Seri ke Menunggu"
+                                      aria-label={`Kembalikan Seri ${ser.serialNumber} ke Menunggu`}
+                                      onClick={() =>
+                                        handleLockedDecision(ser.id, status, 'PENDING', roll)
+                                      }
+                                      className="h-8 px-2.5 rounded-lg bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-700 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <RotateCcw className="w-3 h-3 shrink-0" />
+                                      <span>Reset</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title="Kunci kembali status seri"
+                                      aria-label={`Kunci status Seri ${ser.serialNumber}`}
+                                      onClick={() => handleRelockSerialStatus(ser.id)}
+                                      className="h-8 w-8 rounded-lg bg-black hover:bg-zinc-900 text-zinc-400 hover:text-amber-300 border border-zinc-800 inline-flex items-center justify-center cursor-pointer"
+                                    >
+                                      <Lock className="w-3 h-3" />
+                                    </button>
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
@@ -811,11 +1321,11 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
 
                 {/* Card Footer: Open Full-Screen + Delete + Send/Return Button */}
                 <div className="flex items-center justify-between gap-2 pt-1">
-                  <span className="text-xs font-bold text-zinc-300 group-hover:text-white inline-flex items-center gap-1">
-                    <Maximize2 className="w-3.5 h-3.5 text-amber-400" /> Buka Gulungan
+                  <span className="text-xs font-bold text-zinc-300 group-hover:text-white inline-flex items-center gap-1 whitespace-nowrap shrink-0">
+                    <Maximize2 className="w-3.5 h-3.5 text-amber-400 shrink-0" /> Buka Gulungan
                   </span>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     {onDeleteRoll && (
                       <button
                         type="button"
@@ -840,7 +1350,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                           e.stopPropagation();
                           onSendRollToFactory(roll.id, !roll.isSentToFactory);
                         }}
-                        className={`min-h-9 px-3 py-1.5 rounded-xl font-black text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all ${
+                        className={`min-h-9 px-3 py-1.5 rounded-xl font-black text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all whitespace-nowrap shrink-0 ${
                           roll.isSentToFactory
                             ? 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-700'
                             : 'btn-amber-outline shadow-[0_0_15px_rgba(245,158,11,0.2)]'
@@ -1334,49 +1844,18 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    {onDeleteRoll && (
+                    {onSendRollToFactory && !activeRoll.isSentToFactory && (
                       <button
                         type="button"
-                        aria-label={`Hapus Gulungan ${activeRoll.rollNumber}`}
                         onClick={() => {
-                          onDeleteRoll(activeRoll.id);
+                          onSendRollToFactory(activeRoll.id, true);
                           setActiveRollId(null);
                         }}
-                        className="min-h-11 px-3.5 py-2.5 rounded-xl bg-zinc-950 hover:bg-red-950/70 text-red-400 border border-red-500/50 hover:border-red-500 font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0"
+                        className="w-full sm:w-auto min-h-11 px-4 py-2.5 rounded-xl bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/85 text-amber-300 font-black text-xs sm:text-sm inline-flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
                       >
-                        <Trash2 className="w-4 h-4 shrink-0" />
-                        <span>Hapus Gulungan</span>
+                        <Send className="w-4 h-4 stroke-[2.3]" />
+                        <span>Kirim Gulungan ke Pabrik →</span>
                       </button>
-                    )}
-
-                    {onSendRollToFactory && (
-                      <div>
-                        {!activeRoll.isSentToFactory ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onSendRollToFactory(activeRoll.id, true);
-                              setActiveRollId(null);
-                            }}
-                            className="w-full sm:w-auto min-h-11 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs sm:text-sm inline-flex items-center justify-center gap-2 transition-all cursor-pointer shadow-[0_0_20px_rgba(245,158,11,0.3)] shrink-0"
-                          >
-                            <Send className="w-4 h-4 stroke-[2.5]" />
-                            <span>Kirim Gulungan ke Pabrik →</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onSendRollToFactory(activeRoll.id, false);
-                              setActiveRollId(null);
-                            }}
-                            className="w-full sm:w-auto min-h-11 px-4 py-2.5 rounded-xl bg-zinc-950 hover:bg-zinc-900 text-zinc-200 hover:text-white border border-zinc-700 font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                            <span>← Kembalikan ke Gudang</span>
-                          </button>
-                        )}
-                      </div>
                     )}
                   </div>
                 </div>
@@ -1554,12 +2033,35 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                         </span>
                       </div>
 
-                      {allSerialsInRoll.length > 1 &&
-                        onUpdateSerialStatus &&
-                        allSerialsInRoll.some(
-                          (s) => (s.factoryStatus || 'PENDING') === 'PENDING'
-                        ) && (
-                          <div className="flex items-center gap-1.5 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setIsPricingLocked((prev) => !prev)}
+                          aria-pressed={!isPricingLocked}
+                          className={`h-8 px-3 rounded-lg text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors border ${
+                            isPricingLocked
+                              ? 'bg-[#0d0f14] hover:bg-zinc-900 border-zinc-700 hover:border-amber-500/70 text-zinc-200'
+                              : 'bg-[#101218] hover:bg-amber-500/15 border-amber-500/80 text-amber-300'
+                          }`}
+                        >
+                          {isPricingLocked ? (
+                            <>
+                              <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                              <span>Grade &amp; Harga Terkunci — Buka Edit</span>
+                            </>
+                          ) : (
+                            <>
+                              <Unlock className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                              <span>Edit Terbuka — Kunci Kembali</span>
+                            </>
+                          )}
+                        </button>
+
+                        {allSerialsInRoll.length > 1 &&
+                          onUpdateSerialStatus &&
+                          allSerialsInRoll.some(
+                            (s) => (s.factoryStatus || 'PENDING') === 'PENDING'
+                          ) && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1569,13 +2071,13 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                                   }
                                 });
                               }}
-                              className="h-8 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/60 text-amber-300 text-[11px] font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                              className="h-8 px-2.5 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/70 text-amber-300 text-[11px] font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                               <span>Terima Semua Pending</span>
                             </button>
-                          </div>
-                        )}
+                          )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -1695,7 +2197,8 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                             isMissing: serialMissing.missingAttributes,
                             missingLabel: 'Belum Diisi',
                           },
-                          ...(onUpdateSerialStatus
+                          ...(onUpdateSerialStatus &&
+                          !isSerialDecisionLocked(status, unlockedStatusIds, ser.id)
                             ? [
                                 {
                                   id: 'accept_serial',
@@ -1794,11 +2297,11 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                             return;
                           }
                           if (optId === 'accept_serial' && onUpdateSerialStatus) {
-                            onUpdateSerialStatus(ser.id, 'ACCEPTED_CAIR', activeRoll);
+                            handleLockedDecision(ser.id, status, 'ACCEPTED_CAIR', activeRoll);
                             return;
                           }
                           if (optId === 'reject_serial' && onUpdateSerialStatus) {
-                            onUpdateSerialStatus(ser.id, 'REJECTED_STOCK', activeRoll);
+                            handleLockedDecision(ser.id, status, 'REJECTED_STOCK', activeRoll);
                           }
                         };
 
@@ -1836,6 +2339,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
 
                                 <div className="flex items-center gap-1.5">
                                   <select
+                                    disabled={isPricingLocked}
                                     value={ser.compositeColorGrade}
                                     onChange={(e) =>
                                       onRepriceSerial(ser.id, {
@@ -1843,7 +2347,11 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                                       })
                                     }
                                     aria-label={`Ubah Grade Seri ${ser.serialNumber}`}
-                                    className="h-7 px-1.5 rounded bg-black border border-zinc-700 hover:border-amber-500/70 text-zinc-100 font-bold text-[11px] cursor-pointer focus:outline-hidden"
+                                    className={`h-7 px-1.5 rounded bg-black border font-bold text-[11px] focus:outline-hidden ${
+                                      isPricingLocked
+                                        ? 'border-zinc-800 text-zinc-400 cursor-not-allowed opacity-75'
+                                        : 'border-amber-500/70 text-amber-300 cursor-pointer'
+                                    }`}
                                   >
                                     {(Object.keys(GRADE_LABELS) as TobaccoGrade[]).map((g) => (
                                       <option key={g} value={g}>
@@ -1995,13 +2503,16 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                                 </div>
                               </div>
 
-                              {/* Editable Factory Price per KG with Enter-to-Advance to Next Seri */}
+                              {/* Editable Factory Price per KG (Locked by Default) */}
                               <div data-no-card-hold="true">
                                 <div className="flex items-center justify-between gap-1 mb-1">
-                                  <label className="block text-[10px] text-zinc-200 font-bold uppercase">
-                                    Harga Pabrik / KG (Rp)
+                                  <label className="inline-flex items-center gap-1 text-[10px] text-zinc-200 font-bold uppercase">
+                                    {isPricingLocked && (
+                                      <Lock className="w-2.5 h-2.5 text-zinc-500 shrink-0" />
+                                    )}
+                                    <span>Harga Pabrik / KG (Rp)</span>
                                   </label>
-                                  {nextSer && (
+                                  {nextSer && !isPricingLocked && (
                                     <span className="text-[9px] text-zinc-500">
                                       Enter → Seri {nextSer.serialNumber}
                                     </span>
@@ -2011,6 +2522,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                                   ref={(el) => {
                                     serialPriceInputRefs.current[ser.id] = el;
                                   }}
+                                  disabled={isPricingLocked}
                                   emptyWhenZero
                                   enterKeyHint={nextSer ? 'next' : 'done'}
                                   value={ser.factoryTargetPricePerKg}
@@ -2031,9 +2543,11 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                                   }}
                                   placeholder="Harga menyusul (0)"
                                   className={`w-full h-8 px-2.5 bg-black rounded-lg text-right font-mono font-bold text-xs focus:outline-hidden ${
-                                    serialMissing.missingFactoryPrice
-                                      ? 'border border-dashed border-amber-500/70 focus:border-amber-400 text-amber-300'
-                                      : 'border border-zinc-800 focus:border-amber-400 text-zinc-200'
+                                    isPricingLocked
+                                      ? 'border border-zinc-800/80 text-zinc-400 cursor-not-allowed opacity-75'
+                                      : serialMissing.missingFactoryPrice
+                                        ? 'border border-dashed border-amber-500/70 focus:border-amber-400 text-amber-300'
+                                        : 'border border-amber-500/60 focus:border-amber-400 text-amber-300'
                                   }`}
                                 />
                               </div>
@@ -2054,55 +2568,118 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                                 </div>
                               </div>
 
-                              {/* Unified Diterima/Accepted vs Reject + Cair/Belum Cair Action Buttons */}
-                              {onUpdateSerialStatus && (
-                                <div className="pt-1.5 border-t border-zinc-900 space-y-1.5">
-                                  <div className="grid grid-cols-2 gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        onUpdateSerialStatus(ser.id, 'ACCEPTED_CAIR', activeRoll)
-                                      }
-                                      className={`min-h-8 px-2 py-1.5 rounded-lg text-[11px] font-extrabold inline-flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                                        status === 'ACCEPTED_CAIR'
-                                          ? 'bg-amber-500 text-black border border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
-                                          : 'bg-black hover:bg-zinc-900 text-white border border-zinc-700 hover:border-amber-500/70'
-                                      }`}
-                                    >
-                                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                                      <span>Diterima</span>
-                                    </button>
+                              {/* Unified Lockable Diterima vs Reject + Unlock Controls */}
+                              {onUpdateSerialStatus &&
+                                (() => {
+                                  const isCardStatusLocked = isSerialDecisionLocked(
+                                    status,
+                                    unlockedStatusIds,
+                                    ser.id
+                                  );
+                                  return (
+                                    <div className="pt-1.5 border-t border-zinc-900 space-y-1.5">
+                                      <div className="grid grid-cols-2 gap-1.5">
+                                        <button
+                                          type="button"
+                                          disabled={isCardStatusLocked}
+                                          onClick={() =>
+                                            handleLockedDecision(
+                                              ser.id,
+                                              status,
+                                              'ACCEPTED_CAIR',
+                                              activeRoll
+                                            )
+                                          }
+                                          className={`min-h-8 px-2 py-1.5 rounded-lg text-[11px] font-extrabold inline-flex items-center justify-center gap-1 transition-all ${
+                                            isCardStatusLocked
+                                              ? status === 'ACCEPTED_CAIR'
+                                                ? 'bg-[#0e1015] text-amber-300/85 border border-amber-500/60 cursor-not-allowed'
+                                                : 'bg-black text-zinc-600 border border-zinc-800/70 opacity-45 cursor-not-allowed'
+                                              : status === 'ACCEPTED_CAIR'
+                                                ? 'bg-[#0e1015] text-amber-300 border border-amber-500/85 cursor-pointer'
+                                                : 'bg-black hover:bg-zinc-900 text-white border border-zinc-700 hover:border-amber-500/70 cursor-pointer'
+                                          }`}
+                                        >
+                                          {isCardStatusLocked && status === 'ACCEPTED_CAIR' ? (
+                                            <Lock className="w-3 h-3 shrink-0" />
+                                          ) : (
+                                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                          )}
+                                          <span>Diterima</span>
+                                        </button>
 
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        onUpdateSerialStatus(ser.id, 'REJECTED_STOCK', activeRoll)
-                                      }
-                                      className={`min-h-8 px-2 py-1.5 rounded-lg text-[11px] font-extrabold inline-flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                                        status === 'REJECTED_STOCK'
-                                          ? 'bg-red-600 text-white border border-red-400'
-                                          : 'bg-black hover:bg-zinc-900 text-red-300 border border-zinc-700 hover:border-red-500/70'
-                                      }`}
-                                    >
-                                      <XCircle className="w-3.5 h-3.5 shrink-0" />
-                                      <span>Reject</span>
-                                    </button>
-                                  </div>
+                                        <button
+                                          type="button"
+                                          disabled={isCardStatusLocked}
+                                          onClick={() =>
+                                            handleLockedDecision(
+                                              ser.id,
+                                              status,
+                                              'REJECTED_STOCK',
+                                              activeRoll
+                                            )
+                                          }
+                                          className={`min-h-8 px-2 py-1.5 rounded-lg text-[11px] font-extrabold inline-flex items-center justify-center gap-1 transition-all ${
+                                            isCardStatusLocked
+                                              ? status === 'REJECTED_STOCK'
+                                                ? 'bg-red-950/70 text-red-200 border border-red-500/70 cursor-not-allowed'
+                                                : 'bg-black text-zinc-600 border border-zinc-800/70 opacity-45 cursor-not-allowed'
+                                              : status === 'REJECTED_STOCK'
+                                                ? 'bg-red-600 text-white border border-red-400 cursor-pointer'
+                                                : 'bg-black hover:bg-zinc-900 text-red-300 border border-zinc-700 hover:border-red-500/70 cursor-pointer'
+                                          }`}
+                                        >
+                                          {isCardStatusLocked && status === 'REJECTED_STOCK' ? (
+                                            <Lock className="w-3 h-3 shrink-0" />
+                                          ) : (
+                                            <XCircle className="w-3.5 h-3.5 shrink-0" />
+                                          )}
+                                          <span>Reject</span>
+                                        </button>
+                                      </div>
 
-                                  {status !== 'PENDING' && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        onUpdateSerialStatus(ser.id, 'PENDING', activeRoll)
-                                      }
-                                      className="w-full min-h-7 py-1 rounded-lg bg-black hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 text-[10px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
-                                    >
-                                      <RotateCcw className="w-3 h-3" />
-                                      <span>Kembalikan ke Menunggu Pabrik</span>
-                                    </button>
-                                  )}
-                                </div>
-                              )}
+                                      {status !== 'PENDING' && isCardStatusLocked && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUnlockSerialStatus(ser.id)}
+                                          className="w-full min-h-7 py-1 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 text-amber-300 border border-amber-500/60 text-[10px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                                        >
+                                          <Unlock className="w-3 h-3 shrink-0" />
+                                          <span>Buka Kunci Status (Jika Salah Pencet)</span>
+                                        </button>
+                                      )}
+
+                                      {status !== 'PENDING' && !isCardStatusLocked && (
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleLockedDecision(
+                                                ser.id,
+                                                status,
+                                                'PENDING',
+                                                activeRoll
+                                              )
+                                            }
+                                            className="flex-1 min-h-7 py-1 rounded-lg bg-black hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-700 text-[10px] font-bold inline-flex items-center justify-center gap-1 cursor-pointer"
+                                          >
+                                            <RotateCcw className="w-3 h-3 shrink-0" />
+                                            <span>Kembalikan ke Menunggu</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRelockSerialStatus(ser.id)}
+                                            aria-label={`Kunci kembali Seri ${ser.serialNumber}`}
+                                            className="min-h-7 px-2.5 py-1 rounded-lg bg-black hover:bg-zinc-900 text-zinc-400 hover:text-amber-300 border border-zinc-800 text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                                          >
+                                            <Lock className="w-3 h-3 shrink-0" />
+                                            <span>Kunci</span>
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                             </div>
                           </div>
                         );
@@ -2114,42 +2691,67 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                 {/* TAB 2: Tabel Nota Sheet Section */}
                 {activeRollTab === 'NOTA' && (
                   <div className="space-y-4 pt-1">
-                    <div className="flex flex-wrap items-center gap-2 p-2 rounded-xl bg-black border border-zinc-800">
-                      <span className="text-[11px] font-bold text-zinc-400 px-2">
-                        Pilih Tampilan Nota:
-                      </span>
-                      {(
-                        [
-                          {
-                            id: 'personal',
-                            label: 'Nota Arsip Personal (Profit)',
-                          },
-                          {
-                            id: 'factory',
-                            label: 'Nota Setoran Pabrik',
-                          },
-                          {
-                            id: 'both',
-                            label: 'Tampilkan Berdampingan',
-                          },
-                        ] as const
-                      ).map((btn) => {
-                        const active = sheetViewMode === btn.id;
-                        return (
-                          <button
-                            key={btn.id}
-                            type="button"
-                            onClick={() => setSheetViewMode(btn.id)}
-                            className={`min-h-8 px-3 py-1.5 rounded-lg text-xs font-extrabold cursor-pointer transition-colors ${
-                              active
-                                ? 'bg-black text-amber-400 border border-zinc-700'
-                                : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
-                            }`}
-                          >
-                            {btn.label}
-                          </button>
-                        );
-                      })}
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-xl bg-black border border-zinc-800">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-bold text-zinc-400 px-2">
+                          Pilih Tampilan Nota:
+                        </span>
+                        {(
+                          [
+                            {
+                              id: 'personal',
+                              label: 'Nota Arsip Personal (Profit)',
+                            },
+                            {
+                              id: 'factory',
+                              label: 'Nota Setoran Pabrik',
+                            },
+                            {
+                              id: 'both',
+                              label: 'Tampilkan Berdampingan',
+                            },
+                          ] as const
+                        ).map((btn) => {
+                          const active = sheetViewMode === btn.id;
+                          return (
+                            <button
+                              key={btn.id}
+                              type="button"
+                              onClick={() => setSheetViewMode(btn.id)}
+                              className={`min-h-8 px-3 py-1.5 rounded-lg text-xs font-extrabold cursor-pointer transition-colors ${
+                                active
+                                  ? 'bg-[#0e1015] text-amber-300 border border-amber-500/75'
+                                  : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+                              }`}
+                            >
+                              {btn.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsPricingLocked((prev) => !prev)}
+                        aria-pressed={!isPricingLocked}
+                        className={`min-h-8 px-3 py-1.5 rounded-lg text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer transition-colors border ${
+                          isPricingLocked
+                            ? 'bg-[#0d0f14] hover:bg-zinc-900 border-zinc-700 text-zinc-200'
+                            : 'bg-[#101218] border-amber-500/80 text-amber-300'
+                        }`}
+                      >
+                        {isPricingLocked ? (
+                          <>
+                            <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span>Grade &amp; Harga Terkunci — Buka Edit</span>
+                          </>
+                        ) : (
+                          <>
+                            <Unlock className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                            <span>Edit Terbuka — Kunci Kembali</span>
+                          </>
+                        )}
+                      </button>
                     </div>
 
                     {sheetViewMode === 'personal' &&
@@ -2218,6 +2820,52 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                     }}
                     isEmbedded={true}
                   />
+                )}
+
+                {/* Bottom-Most Danger Zone (Dangerous actions kept strictly at the bottom of the screen) */}
+                {(onDeleteRoll || (onSendRollToFactory && activeRoll.isSentToFactory)) && (
+                  <div className="mt-6 pt-4 border-t border-red-900/40 bg-red-950/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-black text-red-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        <span>Zona Berbahaya</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400">
+                        Tindakan di bawah mengubah status pengiriman gulungan atau menghapus data arsip.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {onSendRollToFactory && activeRoll.isSentToFactory && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onSendRollToFactory(activeRoll.id, false);
+                            setActiveRollId(null);
+                          }}
+                          className="min-h-10 px-3.5 py-2 rounded-xl bg-zinc-950 hover:bg-zinc-900 text-zinc-200 hover:text-white border border-zinc-700 font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>← Kembalikan ke Gudang</span>
+                        </button>
+                      )}
+
+                      {onDeleteRoll && (
+                        <button
+                          type="button"
+                          aria-label={`Hapus Gulungan ${activeRoll.rollNumber}`}
+                          onClick={() => {
+                            onDeleteRoll(activeRoll.id);
+                            setActiveRollId(null);
+                          }}
+                          className="min-h-10 px-3.5 py-2 rounded-xl bg-zinc-950 hover:bg-red-950/80 text-red-400 border border-red-500/50 hover:border-red-500 font-bold text-xs inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                          <span>Hapus Gulungan</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             );

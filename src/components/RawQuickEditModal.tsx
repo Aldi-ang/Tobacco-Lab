@@ -7,6 +7,7 @@ import {
   Sparkles,
   UserCheck,
   AlertCircle,
+  AlertTriangle,
   ArrowRight,
 } from 'lucide-react';
 import { PackagingMaster, RawTobacco, TobaccoGrade } from '../types/tobacco';
@@ -21,6 +22,12 @@ import {
   getNextFocusFieldId,
   getRawTobaccoMissingFlags,
 } from '../utils/tobaccoCompleteness';
+import { getSmartPriceGuard, getSmartWeightGuard } from '../utils/smartInputGuard';
+import {
+  loadGraderRegistryState,
+  registerGraderName,
+  saveGraderRegistryState,
+} from '../utils/graderRegistryEngine';
 import { NumericInput } from './NumericInput';
 import { RatingSegmentSlider } from './RatingSegmentSlider';
 
@@ -68,6 +75,10 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
 
   // Local editable values
   const [sellerName, setSellerName] = useState('');
+  const [graderName, setGraderName] = useState('');
+  const [registeredGraders, setRegisteredGraders] = useState<string[]>(() =>
+    loadGraderRegistryState().registeredGraders
+  );
   const [name, setName] = useState('');
   const [origin, setOrigin] = useState('');
   const [packagingType, setPackagingType] = useState('');
@@ -84,6 +95,8 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
   const [sugarRating, setSugarRating] = useState(0);
   const [aromaRating, setAromaRating] = useState(0);
   const [characterNotes, setCharacterNotes] = useState('');
+  const [confirmDiscardChanges, setConfirmDiscardChanges] = useState(false);
+  const initialSigRef = useRef('');
 
   // Input refs for Enter-to-Advance
   const sellerRef = useRef<HTMLInputElement>(null);
@@ -97,30 +110,69 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
 
   useEffect(() => {
     if (!tobacco) return;
-    setSection(initialSection);
-    setSellerName(tobacco.sellerName || tobacco.taraFormula?.sellerName || '');
-    setName(tobacco.name || '');
-    setOrigin(tobacco.origin === 'Belum Diisi' ? '' : tobacco.origin || '');
-    setPackagingType(
+    setRegisteredGraders(loadGraderRegistryState().registeredGraders);
+    const initSeller = tobacco.sellerName || tobacco.taraFormula?.sellerName || '';
+    const initGrader = tobacco.graderName || '';
+    const initName = tobacco.name || '';
+    const initOrigin = tobacco.origin === 'Belum Diisi' ? '' : tobacco.origin || '';
+    const initPkg =
       tobacco.taraFormula?.packagingType === 'Belum Dipilih'
         ? ''
-        : tobacco.taraFormula?.packagingType || ''
-    );
-    setPackagingMassKg(
-      tobacco.packagingMassKg ?? tobacco.taraFormula?.packagingMassKg ?? 0
-    );
-    setFlatKgTara(tobacco.taraFormula?.flatKg ?? 0);
-    setPercentTara(tobacco.taraFormula?.percent ?? 0);
-    setGrossWeightKg(tobacco.grossWeightKg || 0);
-    setPricePerKgPurchase(tobacco.pricePerKgPurchase || 0);
-    setColorGrade(tobacco.colorGrade || 'D');
-    setPowerRating(clampRating5(tobacco.powerRating || 0));
-    setImpactRating(clampRating5(tobacco.impactRating || 0));
-    setBitterRating(clampRating5(tobacco.bitterRating || 0));
-    setBurnRating(clampRating5(tobacco.burnRating || 0));
-    setSugarRating(clampRating5(tobacco.sugarRating || 0));
-    setAromaRating(clampRating5(tobacco.aromaRating || 0));
-    setCharacterNotes(tobacco.characterNotes || '');
+        : tobacco.taraFormula?.packagingType || '';
+    const initMass = tobacco.packagingMassKg ?? tobacco.taraFormula?.packagingMassKg ?? 0;
+    const initFlat = tobacco.taraFormula?.flatKg ?? 0;
+    const initPct = tobacco.taraFormula?.percent ?? 0;
+    const initGross = tobacco.grossWeightKg || 0;
+    const initPrice = tobacco.pricePerKgPurchase || 0;
+    const initGrade = tobacco.colorGrade || 'D';
+    const initPwr = clampRating5(tobacco.powerRating || 0);
+    const initImp = clampRating5(tobacco.impactRating || 0);
+    const initBit = clampRating5(tobacco.bitterRating || 0);
+    const initBrn = clampRating5(tobacco.burnRating || 0);
+    const initSgr = clampRating5(tobacco.sugarRating || 0);
+    const initArm = clampRating5(tobacco.aromaRating || 0);
+    const initNotes = tobacco.characterNotes || '';
+
+    setSection(initialSection);
+    setSellerName(initSeller);
+    setGraderName(initGrader);
+    setName(initName);
+    setOrigin(initOrigin);
+    setPackagingType(initPkg);
+    setPackagingMassKg(initMass);
+    setFlatKgTara(initFlat);
+    setPercentTara(initPct);
+    setGrossWeightKg(initGross);
+    setPricePerKgPurchase(initPrice);
+    setColorGrade(initGrade);
+    setPowerRating(initPwr);
+    setImpactRating(initImp);
+    setBitterRating(initBit);
+    setBurnRating(initBrn);
+    setSugarRating(initSgr);
+    setAromaRating(initArm);
+    setCharacterNotes(initNotes);
+    setConfirmDiscardChanges(false);
+    initialSigRef.current = JSON.stringify({
+      initSeller,
+      initGrader,
+      initName,
+      initOrigin,
+      initPkg,
+      initMass,
+      initFlat,
+      initPct,
+      initGross,
+      initPrice,
+      initGrade,
+      initPwr,
+      initImp,
+      initBit,
+      initBrn,
+      initSgr,
+      initArm,
+      initNotes,
+    });
   }, [tobacco, initialSection]);
 
   // Auto-focus primary input whenever modal or section opens
@@ -141,21 +193,66 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
     return () => window.clearTimeout(t);
   }, [tobacco, section]);
 
+  const currentSig = JSON.stringify({
+    initSeller: sellerName,
+    initGrader: graderName,
+    initName: name,
+    initOrigin: origin,
+    initPkg: packagingType,
+    initMass: packagingMassKg,
+    initFlat: flatKgTara,
+    initPct: percentTara,
+    initGross: grossWeightKg,
+    initPrice: pricePerKgPurchase,
+    initGrade: colorGrade,
+    initPwr: powerRating,
+    initImp: impactRating,
+    initBit: bitterRating,
+    initBrn: burnRating,
+    initSgr: sugarRating,
+    initArm: aromaRating,
+    initNotes: characterNotes,
+  });
+  const hasUnsavedChanges =
+    Boolean(tobacco) &&
+    Boolean(initialSigRef.current) &&
+    currentSig !== initialSigRef.current;
+
+  const attemptSafeClose = () => {
+    if (hasUnsavedChanges && !confirmDiscardChanges) {
+      setConfirmDiscardChanges(true);
+      return;
+    }
+    setConfirmDiscardChanges(false);
+    onClose();
+  };
+
   useEffect(() => {
     if (!tobacco) return;
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (hasUnsavedChanges && !confirmDiscardChanges) {
+          setConfirmDiscardChanges(true);
+        } else {
+          setConfirmDiscardChanges(false);
+          onClose();
+        }
+      }
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [tobacco, onClose]);
+  }, [tobacco, hasUnsavedChanges, confirmDiscardChanges, onClose]);
 
   if (!tobacco) return null;
+
+  const priceGuard = getSmartPriceGuard(pricePerKgPurchase);
+  const weightGuard = getSmartWeightGuard(grossWeightKg);
 
   const previewUpdated = applyQuickPatchToRawTobacco(
     tobacco,
     {
       sellerName,
+      graderName,
       name,
       origin,
       packagingType: packagingType || 'Belum Dipilih',
@@ -190,6 +287,10 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
 
   const handleSaveAndClose = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (graderName.trim()) {
+      const { nextState } = registerGraderName(loadGraderRegistryState(), graderName.trim());
+      saveGraderRegistryState(nextState);
+    }
     onSave(previewUpdated);
     onClose();
   };
@@ -252,7 +353,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
   return (
     <div
       className="fixed inset-0 z-[90] overflow-y-auto bg-black/85 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4"
-      onClick={onClose}
+      onClick={attemptSafeClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -281,13 +382,42 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={attemptSafeClose}
             aria-label="Tutup Edit Cepat"
             className="h-8 w-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white inline-flex items-center justify-center cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Unsaved Changes Guard Banner */}
+        {confirmDiscardChanges && (
+          <div className="px-4 py-2.5 bg-amber-500/15 border-b border-amber-500/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 text-amber-200 font-bold">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Perubahan belum disimpan. Tutup tanpa simpan?</span>
+            </div>
+            <div className="flex items-center gap-1.5 ml-auto">
+              <button
+                type="button"
+                onClick={() => setConfirmDiscardChanges(false)}
+                className="h-7 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 font-bold text-[11px] cursor-pointer"
+              >
+                Lanjut Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmDiscardChanges(false);
+                  onClose();
+                }}
+                className="h-7 px-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-black text-[11px] cursor-pointer"
+              >
+                Buang &amp; Tutup
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Section Tabs with Unfilled Dot Marks */}
         <div className="px-3 py-2 bg-zinc-950 border-b border-zinc-800 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
@@ -300,7 +430,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                 onClick={() => setSection(tab.id)}
                 className={`relative px-2.5 py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 border transition-colors cursor-pointer ${
                   active
-                    ? 'bg-amber-500 text-black border-amber-400 font-black'
+                    ? 'bg-[#0e1015] text-amber-300 border-amber-500/85 font-black'
                     : tab.isMissing
                       ? 'bg-black text-amber-300 border-amber-500/50 hover:border-amber-400'
                       : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-700'
@@ -311,9 +441,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                 {tab.isMissing && (
                   <span
                     title="Belum diisi"
-                    className={`w-2 h-2 rounded-full shrink-0 ${
-                      active ? 'bg-black' : 'bg-amber-400 animate-pulse'
-                    }`}
+                    className="w-2 h-2 rounded-full shrink-0 bg-amber-400 animate-pulse"
                   />
                 )}
               </button>
@@ -379,6 +507,36 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                   />
                 </div>
               </div>
+
+              {weightGuard && (
+                <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/50 text-[11px] text-amber-200 flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-semibold">{weightGuard.title}</span>
+                  {weightGuard.actionLabel && weightGuard.suggestedValue !== undefined && (
+                    <button
+                      type="button"
+                      onClick={() => setGrossWeightKg(weightGuard.suggestedValue!)}
+                      className="px-2.5 py-1 rounded-lg bg-[#0e1015] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-black text-[11px] cursor-pointer"
+                    >
+                      {weightGuard.actionLabel}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {priceGuard && (
+                <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/60 text-[11px] text-amber-200 flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-semibold">{priceGuard.title}</span>
+                  {priceGuard.actionLabel && priceGuard.suggestedValue !== undefined && (
+                    <button
+                      type="button"
+                      onClick={() => setPricePerKgPurchase(priceGuard.suggestedValue!)}
+                      className="px-2.5 py-1 rounded-lg bg-[#0e1015] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-black text-[11px] cursor-pointer"
+                    >
+                      {priceGuard.actionLabel}
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
@@ -463,6 +621,20 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                   placeholder="Contoh: 85000"
                   className="w-full h-12 px-3.5 bg-black border-2 border-amber-500/80 focus:border-amber-400 rounded-xl font-mono font-black text-lg text-white placeholder-zinc-500 focus:outline-hidden"
                 />
+                {priceGuard && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/60 text-[11px] text-amber-200 flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-semibold">{priceGuard.title}</span>
+                    {priceGuard.actionLabel && priceGuard.suggestedValue !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() => setPricePerKgPurchase(priceGuard.suggestedValue!)}
+                        className="px-2.5 py-1 rounded-lg bg-[#0e1015] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-black text-[11px] cursor-pointer"
+                      >
+                        {priceGuard.actionLabel}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5">
@@ -473,7 +645,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                     onClick={() => setPricePerKgPurchase(preset)}
                     className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold border cursor-pointer transition-colors ${
                       pricePerKgPurchase === preset
-                        ? 'bg-amber-500 text-black border-amber-400'
+                        ? 'bg-[#0e1015] text-amber-300 border-amber-500/80'
                         : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
                     }`}
                   >
@@ -520,7 +692,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                         onClick={() => setColorGrade(gr)}
                         className={`h-8 rounded-lg border text-xs transition-all cursor-pointer ${
                           active
-                            ? 'bg-amber-500 text-black border-amber-400 font-black'
+                            ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
                             : 'bg-black border-zinc-800 text-zinc-200 hover:border-zinc-600 font-bold'
                         }`}
                       >
@@ -676,6 +848,43 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                   </select>
                 </div>
               </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-200 mb-1">
+                  Nama Grader (Opsional)
+                </label>
+                <input
+                  type="text"
+                  list="quick-edit-graders-datalist"
+                  value={graderName}
+                  onChange={(e) => setGraderName(e.target.value)}
+                  placeholder="Nama grader yang memeriksa..."
+                  className="w-full h-10 px-3 bg-black border border-zinc-700 focus:border-amber-400 rounded-xl text-xs font-bold text-white"
+                />
+                <datalist id="quick-edit-graders-datalist">
+                  {registeredGraders.map((g) => (
+                    <option key={g} value={g} />
+                  ))}
+                </datalist>
+                {registeredGraders.length > 0 && (
+                  <div className="flex items-center gap-1 flex-wrap mt-1.5">
+                    {registeredGraders.map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setGraderName(g)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
+                          graderName === g
+                            ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                            : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -696,7 +905,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
             <div className="flex items-center gap-2 ml-auto">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={attemptSafeClose}
                 className="h-9 px-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 font-bold text-xs cursor-pointer"
               >
                 Batal

@@ -298,7 +298,7 @@ export function detectPendingActionFromText(params: {
         burnRating: 4.5,
         sugarRating: 4.0,
         aromaRating: 4.0,
-        characterNotes: 'Diinput melalui perintah Nolan AI',
+        characterNotes: 'Diinput melalui perintah Nolan',
       },
     };
   }

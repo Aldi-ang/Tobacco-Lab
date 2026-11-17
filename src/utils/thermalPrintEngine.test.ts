@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  A4_PRINT_PAGE_METRICS,
   arrangeDuplexBackSlots,
   buildDynamicPrintPageCss,
   computeCode39TotalUnits,
@@ -15,11 +16,15 @@ test('Thermal paper profiles & dynamic @page CSS select 58mm, 80mm, or A4 accura
   assert.equal(THERMAL_PROFILES.THERMAL_58.widthDots, 384);
   assert.equal(THERMAL_PROFILES.THERMAL_80.widthDots, 576);
   assert.equal(isThermalPaperFormat('THERMAL_58'), true);
-  assert.equal(isThermalPaperFormat('A4_4'), false);
+  assert.equal(isThermalPaperFormat('A4_6'), false);
 
   assert.match(buildDynamicPrintPageCss('THERMAL_58'), /58mm auto/);
   assert.match(buildDynamicPrintPageCss('THERMAL_80'), /80mm auto/);
-  assert.match(buildDynamicPrintPageCss('A4_4'), /A4 portrait/);
+  assert.match(buildDynamicPrintPageCss('A4_6'), /A4 portrait; margin: 8mm/);
+  assert.ok(
+    A4_PRINT_PAGE_METRICS.pageHeightMm + A4_PRINT_PAGE_METRICS.marginMm * 2 <= 282,
+    'Printable page height plus margins must leave buffer inside 297mm A4 sheet'
+  );
 });
 
 test('Code 39 barcode encoder & prefix extraction produce valid scannable bar sequences', () => {
@@ -52,6 +57,10 @@ test('arrangeDuplexBackSlots mirrors A4 2-column grids accurately for LONG_EDGE 
     { lot: 'LOT-1', rotate180: true },
     { lot: 'LOT-2', rotate180: true },
   ]);
+
+  const sparseReprintLong = arrangeDuplexBackSlots([null, 'MTL005', null, null, null, null], 6, 'LONG_EDGE');
+  assert.equal(sparseReprintLong[0].lot, 'MTL005');
+  assert.equal(sparseReprintLong[1].lot, null);
 });
 
 test('encodeMonochromePixelsToEscPos builds valid GS v 0 raster command with threshold & cut', () => {

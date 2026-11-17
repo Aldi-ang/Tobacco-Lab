@@ -2329,6 +2329,9 @@ Aturan Saat Ini: ${JSON.stringify(currentMemory?.learnedRules || [])}`,
       const tobaccoNamesList = Array.isArray(masterContext.tobaccoNames)
         ? masterContext.tobaccoNames.slice(0, 80).join(', ')
         : '';
+      const gradersList = Array.isArray(masterContext.graders)
+        ? masterContext.graders.slice(0, 50).join(', ')
+        : '';
       const existingLotsList = Array.isArray(masterContext.existingLotNumbers)
         ? masterContext.existingLotNumbers.slice(0, 120).join(', ')
         : '';
@@ -2353,11 +2356,14 @@ ATURAN PEMBACAAN KETAT:
    - Cocokkan tulisan tangan Penjual dengan daftar penjual gudang ini jika mirip ejaannya: [${sellersList || 'bebas'}].
    - Cocokkan tulisan tangan Daerah Asal dengan daftar daerah ini jika mirip/disingkat (contoh Mtl -> Muntilan, Tmg -> Temanggung, Wds -> Windusari): [${originsList || 'Muntilan, Temanggung, Windusari, Boyolali, Madura, Pamekasan, Bojonegoro, Jember'}].
    - Referensi nama tembakau yang biasa masuk: [${tobaccoNamesList || 'bebas'}].
-6. Tahap 2 (Timbangan & Harga):
+6. Tanggal & Nama Grader:
+   - purchaseDate: baca tanggal di kotak "TANGGAL (TGL / BLN / THN)" atau baris "Tgl:" (misal "15 / 11 / 2026" -> "2026-11-15", atau tulis tangan tgl/bln saja seperti "15/11" jika tahun sudah tercetak). Jika tgl/bln masih kosong atau tidak terlihat, isi "".
+   - graderName: baca nama grader tercetak atau tulisan tangan di kotak "NAMA GRADER" atau "Grd:". Cocokkan dengan daftar grader gudang ini jika mirip: [${gradersList || 'bebas'}]. Jika kosong, isi "".
+7. Tahap 2 (Timbangan & Harga):
    - grossWeightKg: angka Bruto (kg). Isi 0 jika masih kosong / belum ditimbang.
    - pricePerKgPurchase: harga per kg dalam Rupiah penuh. Konversi singkatan gudang seperti "85k", "85rb", "85.000" menjadi 85000. Isi 0 jika masih kosong.
-7. Keraguan (uncertainFields & confidenceScore):
-   - Jika ada kotak/tulisan yang buram, miring, dua angka tercoret ragu, atau kurang jelas, WAJIB masukkan nama field-nya ke array uncertainFields (pilih dari: lotNumber, name, origin, sellerName, colorGrade, packagingType, grossWeightKg, pricePerKgPurchase, powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating) dan turunkan confidenceScore (10-100).
+8. Keraguan (uncertainFields & confidenceScore):
+   - Jika ada kotak/tulisan yang buram, miring, dua angka tercoret ragu, atau kurang jelas, WAJIB masukkan nama field-nya ke array uncertainFields (pilih dari: lotNumber, purchaseDate, graderName, name, origin, sellerName, colorGrade, packagingType, grossWeightKg, pricePerKgPurchase, powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating) dan turunkan confidenceScore (10-100).
    - Jika foto terlalu gelap/buram atau bukan foto Kartu Grade maupun Barcode, isi cards = [], detectedCount = 0, dan jelaskan di imageQualityWarning.`;
 
       const result = await generateWith24x7Fallback({
@@ -2394,6 +2400,8 @@ ATURAN PEMBACAAN KETAT:
                   properties: {
                     cardIndex: { type: Type.INTEGER },
                     lotNumber: { type: Type.STRING },
+                    purchaseDate: { type: Type.STRING },
+                    graderName: { type: Type.STRING },
                     name: { type: Type.STRING },
                     origin: { type: Type.STRING },
                     sellerName: { type: Type.STRING },

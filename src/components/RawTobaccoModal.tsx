@@ -12,6 +12,10 @@ import {
   ArrowRight,
   Clock,
   RotateCw,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
 } from 'lucide-react';
 import { RawTobacco, TobaccoGrade, PackagingMaster, AgentFeeItem } from '../types/tobacco';
 import {
@@ -21,6 +25,7 @@ import {
   formatTaraFormula,
   clampRating5,
 } from '../utils/tobaccoMath';
+import { getSmartPriceGuard, getSmartWeightGuard } from '../utils/smartInputGuard';
 import { NumericInput } from './NumericInput';
 import { RatingSegmentSlider } from './RatingSegmentSlider';
 import {
@@ -67,6 +72,7 @@ type RawLockableFieldKey =
   | 'name'
   | 'origin'
   | 'sellerName'
+  | 'graderName'
   | 'lotNumber'
   | 'purchaseDate'
   | 'packagingType'
@@ -89,6 +95,7 @@ const ALL_RAW_FIELD_KEYS: RawLockableFieldKey[] = [
   'name',
   'origin',
   'sellerName',
+  'graderName',
   'lotNumber',
   'purchaseDate',
   'packagingType',
@@ -109,6 +116,11 @@ const ALL_RAW_FIELD_KEYS: RawLockableFieldKey[] = [
 ];
 
 import { getNextFocusFieldId } from '../utils/tobaccoCompleteness';
+import {
+  loadGraderRegistryState,
+  registerGraderName,
+  saveGraderRegistryState,
+} from '../utils/graderRegistryEngine';
 
 type RawModalSectionTab = 'quick' | 'advanced' | 'all';
 
@@ -167,8 +179,12 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
   const [name, setName] = useState('');
   const [origin, setOrigin] = useState('');
   const [sellerName, setSellerName] = useState('');
+  const [graderName, setGraderName] = useState('');
   const [lotNumber, setLotNumber] = useState('');
   const [purchaseDate, setPurchaseDate] = useState('');
+  const [registeredGraders, setRegisteredGraders] = useState<string[]>(() =>
+    loadGraderRegistryState().registeredGraders
+  );
 
   const [grossWeightKg, setGrossWeightKg] = useState<number>(0);
   const [packagingMassKg, setPackagingMassKg] = useState<number>(0);
@@ -201,6 +217,12 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
   const [storedAgentNames, setStoredAgentNames] = useState<string[]>(() =>
     loadStringListFromStorage(REMEMBERED_AGENT_NAMES_KEY)
   );
+
+  // Express QoL UI toggles: hide 20+ lock icons by default & collapse Grade/Atribut unless needed
+  const [showLockControls, setShowLockControls] = useState<boolean>(false);
+  const [showGradeSection, setShowGradeSection] = useState<boolean>(false);
+  const [confirmDiscardChanges, setConfirmDiscardChanges] = useState<boolean>(false);
+  const initialSignatureRef = useRef<string>('');
 
   // Lock state: UNLOCKED by default (`lockedMap[key] = false`), user can lock/unlock any field or all at once
   const [lockedMap, setLockedMap] = useState<Partial<Record<RawLockableFieldKey, boolean>>>({});
@@ -259,12 +281,15 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
     setStoredTobaccoNames(loadStringListFromStorage(REMEMBERED_TOBACCO_NAMES_KEY));
     setStoredSellerNames(loadStringListFromStorage(REMEMBERED_SELLER_NAMES_KEY));
     setStoredAgentNames(loadStringListFromStorage(REMEMBERED_AGENT_NAMES_KEY));
+    const graderReg = loadGraderRegistryState();
+    setRegisteredGraders(graderReg.registeredGraders);
     setActiveSection('quick');
 
     if (editingTobacco) {
       setName(editingTobacco.name || '');
       setOrigin(editingTobacco.origin || '');
       setSellerName(editingTobacco.sellerName || editingTobacco.taraFormula.sellerName || '');
+      setGraderName(editingTobacco.graderName || '');
       setLotNumber(editingTobacco.lotNumber || '');
       setPurchaseDate(editingTobacco.purchaseDate || '');
       setGrossWeightKg(editingTobacco.grossWeightKg || 0);
@@ -304,10 +329,40 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
         });
       }
       setLockedMap(restoredLocks);
+      setShowLockControls(Object.keys(restoredLocks).length > 0);
+      setShowGradeSection(
+        (editingTobacco.powerRating || 0) > 0 ||
+          (editingTobacco.impactRating || 0) > 0 ||
+          (editingTobacco.aromaRating || 0) > 0
+      );
+      setConfirmDiscardChanges(false);
+      initialSignatureRef.current = JSON.stringify({
+        name: editingTobacco.name || '',
+        origin: editingTobacco.origin || '',
+        sellerName: editingTobacco.sellerName || editingTobacco.taraFormula.sellerName || '',
+        graderName: editingTobacco.graderName || '',
+        lotNumber: editingTobacco.lotNumber || '',
+        purchaseDate: editingTobacco.purchaseDate || '',
+        grossWeightKg: editingTobacco.grossWeightKg || 0,
+        packagingMassKg: editingTobacco.packagingMassKg ?? editingTobacco.taraFormula.packagingMassKg ?? 0,
+        pricePerKgPurchase: editingTobacco.pricePerKgPurchase || 0,
+        percentTara: editingTobacco.taraFormula.percent || 0,
+        flatKgTara: editingTobacco.taraFormula.flatKg || 0,
+        packagingType: editingTobacco.taraFormula.packagingType || '',
+        powerRating: clampRating5(editingTobacco.powerRating || 0),
+        impactRating: clampRating5(editingTobacco.impactRating || 0),
+        bitterRating: clampRating5(editingTobacco.bitterRating || 0),
+        burnRating: clampRating5(editingTobacco.burnRating ?? 0),
+        sugarRating: clampRating5(editingTobacco.sugarRating ?? 0),
+        aromaRating: clampRating5(editingTobacco.aromaRating ?? 0),
+        colorGrade: editingTobacco.colorGrade || 'D',
+        characterNotes: editingTobacco.characterNotes || '',
+      });
     } else {
       setName('');
       setOrigin('');
       setSellerName('');
+      setGraderName(graderReg.lastSelectedGrader || '');
       setLotNumber('');
       setPurchaseDate('');
       setGrossWeightKg(0);
@@ -328,6 +383,31 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setColorGrade('D');
       setCharacterNotes('');
       setLockedMap({});
+      setShowLockControls(false);
+      setShowGradeSection(false);
+      setConfirmDiscardChanges(false);
+      initialSignatureRef.current = JSON.stringify({
+        name: '',
+        origin: '',
+        sellerName: '',
+        graderName: graderReg.lastSelectedGrader || '',
+        lotNumber: '',
+        purchaseDate: '',
+        grossWeightKg: 0,
+        packagingMassKg: 0,
+        pricePerKgPurchase: 0,
+        percentTara: 0,
+        flatKgTara: 0,
+        packagingType: '',
+        powerRating: 0,
+        impactRating: 0,
+        bitterRating: 0,
+        burnRating: 0,
+        sugarRating: 0,
+        aromaRating: 0,
+        colorGrade: 'D',
+        characterNotes: '',
+      });
     }
 
     if (isOpen) {
@@ -338,6 +418,57 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       }, 60);
     }
   }, [editingTobacco, isOpen]);
+
+  const currentFormSignature = JSON.stringify({
+    name,
+    origin,
+    sellerName,
+    graderName,
+    lotNumber,
+    purchaseDate,
+    grossWeightKg,
+    packagingMassKg,
+    pricePerKgPurchase,
+    percentTara,
+    flatKgTara,
+    packagingType,
+    powerRating,
+    impactRating,
+    bitterRating,
+    burnRating,
+    sugarRating,
+    aromaRating,
+    colorGrade,
+    characterNotes,
+  });
+  const hasUnsavedChanges =
+    Boolean(initialSignatureRef.current) &&
+    currentFormSignature !== initialSignatureRef.current;
+
+  const attemptSafeClose = () => {
+    if (hasUnsavedChanges && !confirmDiscardChanges) {
+      setConfirmDiscardChanges(true);
+      return;
+    }
+    setConfirmDiscardChanges(false);
+    onClose();
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (hasUnsavedChanges && !confirmDiscardChanges) {
+          setConfirmDiscardChanges(true);
+        } else {
+          setConfirmDiscardChanges(false);
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [isOpen, hasUnsavedChanges, confirmDiscardChanges, onClose]);
 
   if (!isOpen) return null;
 
@@ -398,6 +529,8 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
         return !origin.trim();
       case 'sellerName':
         return !sellerName.trim();
+      case 'graderName':
+        return !graderName.trim();
       case 'lotNumber':
         return !lotNumber.trim();
       case 'purchaseDate':
@@ -476,25 +609,27 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
           {icon}
           <span className="truncate">{labelText}</span>
         </label>
-        <button
-          type="button"
-          onClick={() => toggleLock(key)}
-          aria-label={locked ? `Buka kunci ${labelText}` : `Kunci ${labelText}`}
-          className={`group relative h-5 w-5 shrink-0 rounded border inline-flex items-center justify-center cursor-pointer transition-colors ${
-            locked
-              ? 'bg-amber-500/15 text-amber-300 border-amber-500/60'
-              : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border-zinc-800'
-          }`}
-        >
-          {locked ? (
-            <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
-          ) : (
-            <Unlock className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
-          )}
-          <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-7 right-0 z-50 px-2 py-0.5 rounded bg-black border border-zinc-700 text-white font-mono text-[9px] font-bold whitespace-nowrap shadow-xl">
-            {locked ? 'Terkunci (Klik Buka)' : 'Terbuka (Klik Kunci)'}
-          </span>
-        </button>
+        {(showLockControls || locked) && (
+          <button
+            type="button"
+            onClick={() => toggleLock(key)}
+            aria-label={locked ? `Buka kunci ${labelText}` : `Kunci ${labelText}`}
+            className={`group relative h-5 w-5 shrink-0 rounded border inline-flex items-center justify-center cursor-pointer transition-colors ${
+              locked
+                ? 'bg-amber-500/15 text-amber-300 border-amber-500/60'
+                : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white border-zinc-800'
+            }`}
+          >
+            {locked ? (
+              <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+            ) : (
+              <Unlock className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
+            )}
+            <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-7 right-0 z-50 px-2 py-0.5 rounded bg-black border border-zinc-700 text-white font-mono text-[9px] font-bold whitespace-nowrap shadow-xl">
+              {locked ? 'Terkunci (Klik Buka)' : 'Terbuka (Klik Kunci)'}
+            </span>
+          </button>
+        )}
       </div>
     );
   };
@@ -637,6 +772,14 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setStoredAgentNames(currentAgentList);
     }
 
+    const finalGrader = graderName.trim();
+    if (finalGrader) {
+      const currentReg = loadGraderRegistryState();
+      const { nextState } = registerGraderName(currentReg, finalGrader);
+      saveGraderRegistryState(nextState);
+      setRegisteredGraders(nextState.registeredGraders);
+    }
+
     const activeLockedFields = ALL_RAW_FIELD_KEYS.filter((k) => !!lockedMap[k]);
     const rawFormula = formatTaraFormula(percentTara, flatKgTara);
     const todayStr = new Date().toISOString().split('T')[0];
@@ -646,6 +789,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       name: finalName,
       origin: origin.trim() || 'Belum Diisi',
       sellerName: finalSeller,
+      graderName: finalGrader || undefined,
       lotNumber:
         lotNumber.trim() ||
         (editingTobacco?.lotNumber ? editingTobacco.lotNumber : `LOT-BAHAN-${Math.floor(100 + Math.random() * 900)}`),
@@ -726,10 +870,42 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
   const shadowSellerPlaceholder = rememberedSellerNames[0] || 'Nama penjual / pengepul...';
   const shadowAgentPlaceholder = rememberedAgentNames[0] || 'Nama agen...';
 
+  const handleCopyLastPurchase = () => {
+    const latest = existingTobaccos[0];
+    if (!latest) return;
+    if (!isLocked('sellerName')) setSellerName(latest.sellerName || latest.taraFormula?.sellerName || '');
+    if (!isLocked('name')) setName(latest.name || '');
+    if (!isLocked('origin')) setOrigin(latest.origin === 'Belum Diisi' ? '' : latest.origin || '');
+    if (!isLocked('packagingType')) {
+      const pkg = latest.taraFormula?.packagingType || '';
+      setPackagingType(pkg === 'Belum Dipilih' ? '' : pkg);
+      setPackagingMassKg(latest.packagingMassKg ?? latest.taraFormula?.packagingMassKg ?? 0);
+      setFlatKgTara(latest.taraFormula?.flatKg ?? 0);
+      setPercentTara(latest.taraFormula?.percent ?? 0);
+    }
+    if (!isLocked('pricePerKgPurchase') && latest.pricePerKgPurchase > 0) {
+      setPricePerKgPurchase(latest.pricePerKgPurchase);
+    }
+    setGrossWeightKg(0);
+    window.setTimeout(() => {
+      grossInputRef.current?.focus();
+      grossInputRef.current?.select();
+    }, 50);
+  };
+
+  const priceGuard = getSmartPriceGuard(pricePerKgPurchase);
+  const weightGuard = getSmartWeightGuard(grossWeightKg);
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4">
-      <div className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden">
-        {/* Compact Modal Header with Kunci Semua & Buka Semua */}
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/85 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4"
+      onClick={attemptSafeClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-zinc-950 border border-zinc-700 rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl text-white overflow-hidden"
+      >
+        {/* Clean Express Header */}
         <div className="px-4 py-3 border-b border-zinc-800 bg-black flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="p-1.5 rounded-lg bg-zinc-950 text-amber-400 border border-zinc-700 shrink-0">
@@ -737,7 +913,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
             </div>
             <div className="min-w-0">
               <h2 className="text-xs sm:text-sm font-black text-white truncate">
-                {editingTobacco ? 'Edit Data Tembakau Mentah' : 'Tambah Tembakau Mentah'}
+                {editingTobacco ? 'Edit Data Tembakau Mentah' : 'Input Stok Baru (Mode Cepat)'}
               </h2>
               <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-400">
                 <span>
@@ -746,7 +922,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 {emptyCount > 0 && (
                   <>
                     <span>·</span>
-                    <span className="text-amber-300">Kosong: {emptyCount}</span>
+                    <span className="text-amber-300">Opsional/Menyusul: {emptyCount}</span>
                   </>
                 )}
               </div>
@@ -754,31 +930,54 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {!editingTobacco && existingTobaccos.length > 0 && (
+              <button
+                type="button"
+                onClick={handleCopyLastPurchase}
+                className="h-8 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/50 text-[11px] font-extrabold inline-flex items-center gap-1.5 cursor-pointer"
+                title={`Salin penjual, jenis, daerah, kemasan & harga dari "${existingTobaccos[0]?.name || 'stok terakhir'}"`}
+              >
+                <Copy className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Salin Data Terakhir</span>
+                <span className="sm:hidden">Salin</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleLockAllFields}
-              aria-label="Kunci semua kolom"
-              className="group relative h-8 w-8 shrink-0 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/50 inline-flex items-center justify-center cursor-pointer"
+              onClick={() => setShowLockControls((v) => !v)}
+              aria-label="Tampilkan atau sembunyikan ikon kunci kolom"
+              className={`h-8 px-2.5 rounded-lg border text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer ${
+                showLockControls
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/60'
+                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border-zinc-700'
+              }`}
             >
-              <Lock className="w-3.5 h-3.5 shrink-0" />
-              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-amber-500/60 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
-                Kunci Semua Kolom
-              </span>
+              <Lock className="w-3 h-3 shrink-0" />
+              <span className="hidden md:inline">Kunci Kolom</span>
             </button>
+            {showLockControls && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleLockAllFields}
+                  aria-label="Kunci semua kolom"
+                  className="h-8 px-2 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/50 text-[10px] font-bold cursor-pointer"
+                >
+                  Kunci Semua
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUnlockAllFields}
+                  aria-label="Buka semua kolom"
+                  className="h-8 px-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-[10px] font-bold cursor-pointer"
+                >
+                  Buka Semua
+                </button>
+              </>
+            )}
             <button
               type="button"
-              onClick={handleUnlockAllFields}
-              aria-label="Buka semua kolom"
-              className="group relative h-8 w-8 shrink-0 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 inline-flex items-center justify-center cursor-pointer"
-            >
-              <Unlock className="w-3.5 h-3.5 shrink-0" />
-              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
-                Buka Semua Kolom
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
+              onClick={attemptSafeClose}
               className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors cursor-pointer"
               aria-label="Tutup modal"
             >
@@ -787,30 +986,59 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
           </div>
         </div>
 
-        {/* Clean Mode Switcher: 1. Grading & Input Cepat (Default unified view) | 2. Lanjutan (Lot/Fee/Tarra/Kunci) */}
+        {/* Unsaved Changes Guard Banner */}
+        {confirmDiscardChanges && (
+          <div className="px-4 py-2.5 bg-amber-500/15 border-b border-amber-500/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 text-amber-200 font-bold">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Perubahan belum disimpan. Yakin tutup tanpa menyimpan?</span>
+            </div>
+            <div className="flex items-center gap-1.5 ml-auto">
+              <button
+                type="button"
+                onClick={() => setConfirmDiscardChanges(false)}
+                className="h-7 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 font-bold text-[11px] cursor-pointer"
+              >
+                Lanjut Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmDiscardChanges(false);
+                  onClose();
+                }}
+                className="h-7 px-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-black text-[11px] cursor-pointer"
+              >
+                Buang &amp; Tutup
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Clean Mode Switcher: 1. Input Cepat | 2. Detail Lanjutan */}
         <div className="px-4 py-2 bg-zinc-950 border-b border-zinc-800/90 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-1 bg-black p-1 rounded-xl border border-zinc-800">
             <button
               type="button"
               onClick={() => setActiveSection('quick')}
-              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+              className={`px-3 py-1 rounded-lg text-[11px] border transition-colors cursor-pointer ${
                 activeSection === 'quick'
-                  ? 'bg-amber-500 text-black font-black'
-                  : 'text-zinc-300 hover:text-white'
+                  ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80 font-black'
+                  : 'border-transparent text-zinc-300 hover:text-white font-bold'
               }`}
             >
-              1. Grading &amp; Input Cepat ({colorGrade})
+              1. Input Cepat (4 Kotak + Timbang)
             </button>
             <button
               type="button"
               onClick={() => setActiveSection('advanced')}
-              className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+              className={`px-3 py-1 rounded-lg text-[11px] border transition-colors cursor-pointer ${
                 activeSection === 'advanced'
-                  ? 'bg-amber-500 text-black font-black'
-                  : 'text-zinc-300 hover:text-white'
+                  ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80 font-black'
+                  : 'border-transparent text-zinc-300 hover:text-white font-bold'
               }`}
             >
-              2. Detail Lanjutan (Lot, Fee &amp; Tarra)
+              2. Lot, Fee &amp; Tarra Manual
             </button>
             <button
               type="button"
@@ -875,7 +1103,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                             onClick={() => setSellerName(item)}
                             className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer max-w-[120px] truncate ${
                               sellerName === item
-                                ? 'bg-amber-500 text-black border-amber-400'
+                                ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
                                 : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
                             }`}
                           >
@@ -914,7 +1142,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                             onClick={() => setName(item)}
                             className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer max-w-[130px] truncate ${
                               name === item
-                                ? 'bg-amber-500 text-black border-amber-400'
+                                ? 'bg-[#0e1015] text-amber-300 border-amber-500/80'
                                 : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
                             }`}
                           >
@@ -957,7 +1185,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                             onClick={() => setOrigin(orig)}
                             className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer ${
                               origin === orig
-                                ? 'bg-amber-500 text-black border-amber-400'
+                                ? 'bg-[#0e1015] text-amber-300 border-amber-500/80'
                                 : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
                             }`}
                           >
@@ -989,97 +1217,12 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 </div>
               </div>
 
-              {/* Step B: Simultaneous Grade + 6 Karakter Grading on SAME Screen */}
-              <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-3">
-                <div>
-                  <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
-                    <span className="text-[11px] font-bold text-zinc-200">
-                      5. Grade &amp; Atribut Grading Lapangan
-                    </span>
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {QUICK_CHARACTER_PRESETS.map((preset) => (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => {
-                            if (!isLocked('powerRating')) setPowerRating(preset.values.power);
-                            if (!isLocked('impactRating')) setImpactRating(preset.values.impact);
-                            if (!isLocked('bitterRating')) setBitterRating(preset.values.bitter);
-                            if (!isLocked('burnRating')) setBurnRating(preset.values.burn);
-                            if (!isLocked('sugarRating')) setSugarRating(preset.values.sugar);
-                            if (!isLocked('aromaRating')) setAromaRating(preset.values.aroma);
-                          }}
-                          className="px-2 py-0.5 rounded bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-amber-500/60 text-[10px] font-bold text-amber-300 cursor-pointer"
-                        >
-                          Preset: {preset.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
-                    {TOBACCO_GRADE_ORDER.map((grade) => {
-                      const isSelected = colorGrade === grade;
-                      return (
-                        <button
-                          key={grade}
-                          type="button"
-                          disabled={isLocked('colorGrade')}
-                          onClick={() => {
-                            if (!isLocked('colorGrade')) setColorGrade(grade);
-                          }}
-                          className={`h-8 rounded-lg border text-center transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-0.5 ${
-                            isSelected
-                              ? 'bg-amber-500 text-black border-amber-400 font-black'
-                              : 'bg-zinc-950 border-zinc-800 text-white hover:border-zinc-700 font-bold'
-                          }`}
-                        >
-                          <span className="text-xs">{grade}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 6 Sensory Sliders */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {(
-                    [
-                      { key: 'powerRating' as RawLockableFieldKey, label: 'Power', value: powerRating, onChange: setPowerRating },
-                      { key: 'impactRating' as RawLockableFieldKey, label: 'Impact', value: impactRating, onChange: setImpactRating },
-                      { key: 'bitterRating' as RawLockableFieldKey, label: 'Bitter', value: bitterRating, onChange: setBitterRating },
-                      { key: 'burnRating' as RawLockableFieldKey, label: 'Burn', value: burnRating, onChange: setBurnRating },
-                      { key: 'sugarRating' as RawLockableFieldKey, label: 'Sugar', value: sugarRating, onChange: setSugarRating },
-                      { key: 'aromaRating' as RawLockableFieldKey, label: 'Aroma', value: aromaRating, onChange: setAromaRating },
-                    ] as const
-                  ).map((param) => (
-                    <RatingSegmentSlider
-                      key={param.key}
-                      label={param.label}
-                      value={param.value}
-                      onChange={param.onChange}
-                      disabled={isLocked(param.key)}
-                    />
-                  ))}
-                </div>
-
-                <div>
-                  <input
-                    type="text"
-                    disabled={isLocked('characterNotes')}
-                    value={characterNotes}
-                    onChange={(e) => setCharacterNotes(e.target.value)}
-                    placeholder="Catatan pegangan / gagang / warna (opsional)..."
-                    className={getTextboxClass('characterNotes')}
-                  />
-                </div>
-              </div>
-
-              {/* Step C: Timbangan & Harga (Opsional / Menyusul) */}
+              {/* Step B: Timbangan & Harga (Right below the 4 boxes + Smart Typo Guard!) */}
               <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2.5">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-[11px] font-bold text-white inline-flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-amber-400" />
-                    6. Timbangan &amp; Harga (Kosongkan / 0 Jika Menyusul)
+                    5. Timbangan &amp; Harga (Kosongkan / 0 Jika Menyusul)
                   </span>
                   <span className="text-[10px] font-mono text-amber-300">
                     {grossWeightKg <= 0 && pricePerKgPurchase <= 0
@@ -1092,7 +1235,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-end">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-start">
                   <div className="flex flex-col">
                     {renderFieldLabel('Bruto Timbangan (KG)', 'grossWeightKg')}
                     <div className="relative">
@@ -1111,6 +1254,20 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                         kg
                       </span>
                     </div>
+                    {weightGuard && (
+                      <div className="mt-1.5 p-2 rounded-lg bg-amber-500/15 border border-amber-500/50 text-[10px] text-amber-200 space-y-1">
+                        <div className="font-semibold leading-snug">{weightGuard.title}</div>
+                        {weightGuard.actionLabel && weightGuard.suggestedValue !== undefined && !isLocked('grossWeightKg') && (
+                          <button
+                            type="button"
+                            onClick={() => setGrossWeightKg(weightGuard.suggestedValue!)}
+                            className="px-2 py-0.5 rounded bg-[#0e1015] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-black text-[10px] cursor-pointer"
+                          >
+                            {weightGuard.actionLabel}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col">
@@ -1126,13 +1283,144 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                       placeholder="Menyusul (0)"
                       className={getTextboxClass('pricePerKgPurchase', 'font-mono font-bold')}
                     />
+                    {priceGuard && (
+                      <div className="mt-1.5 p-2 rounded-lg bg-amber-500/15 border border-amber-500/60 text-[10px] text-amber-200 space-y-1">
+                        <div className="font-semibold leading-snug">{priceGuard.title}</div>
+                        {priceGuard.actionLabel && priceGuard.suggestedValue !== undefined && !isLocked('pricePerKgPurchase') && (
+                          <button
+                            type="button"
+                            onClick={() => setPricePerKgPurchase(priceGuard.suggestedValue!)}
+                            className="px-2 py-0.5 rounded bg-[#0e1015] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-black text-[10px] cursor-pointer"
+                          >
+                            {priceGuard.actionLabel}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="h-9 px-3 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-between font-mono text-xs">
-                    <span className="text-[10px] text-zinc-400">Netto Nota:</span>
-                    <b className="text-amber-400 text-xs">{calculation.netWeightKg} kg</b>
+                  <div className="flex flex-col justify-end">
+                    <span className="text-[11px] font-bold text-zinc-400 mb-1 hidden sm:block">
+                      Ringkasan Netto
+                    </span>
+                    <div className="h-9 px-3 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-between font-mono text-xs">
+                      <span className="text-[10px] text-zinc-400">Netto Nota:</span>
+                      <b className="text-amber-400 text-xs">{calculation.netWeightKg} kg</b>
+                    </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Step C: Collapsible Grade & 6 Atribut (Clean Express Form by Default) */}
+              <div className="bg-black rounded-xl border border-zinc-800 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowGradeSection((v) => !v)}
+                  className="w-full px-3.5 py-2.5 flex items-center justify-between gap-2 text-left hover:bg-zinc-950 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="text-[11px] font-bold text-zinc-200 truncate">
+                      6. Grade &amp; 6 Atribut Rasa (Opsional / Bisa Menyusul)
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] font-mono font-bold text-amber-300 shrink-0">
+                      Grade {colorGrade}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-bold text-amber-400 inline-flex items-center gap-1 shrink-0">
+                    <span>{showGradeSection ? 'Tutup' : 'Isi Sekarang'}</span>
+                    {showGradeSection ? (
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    )}
+                  </span>
+                </button>
+
+                {showGradeSection && (
+                  <div className="p-3.5 pt-2 border-t border-zinc-800/80 space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
+                        <span className="text-[11px] font-bold text-zinc-200">
+                          Pilih Grade &amp; Preset Karakter
+                        </span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {QUICK_CHARACTER_PRESETS.map((preset) => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => {
+                                if (!isLocked('powerRating')) setPowerRating(preset.values.power);
+                                if (!isLocked('impactRating')) setImpactRating(preset.values.impact);
+                                if (!isLocked('bitterRating')) setBitterRating(preset.values.bitter);
+                                if (!isLocked('burnRating')) setBurnRating(preset.values.burn);
+                                if (!isLocked('sugarRating')) setSugarRating(preset.values.sugar);
+                                if (!isLocked('aromaRating')) setAromaRating(preset.values.aroma);
+                              }}
+                              className="px-2 py-0.5 rounded bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-amber-500/60 text-[10px] font-bold text-amber-300 cursor-pointer"
+                            >
+                              Preset: {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
+                        {TOBACCO_GRADE_ORDER.map((grade) => {
+                          const isSelected = colorGrade === grade;
+                          return (
+                            <button
+                              key={grade}
+                              type="button"
+                              disabled={isLocked('colorGrade')}
+                              onClick={() => {
+                                if (!isLocked('colorGrade')) setColorGrade(grade);
+                              }}
+                              className={`h-8 rounded-lg border text-center transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-0.5 ${
+                                isSelected
+                                  ? 'bg-[#0e1015] text-amber-300 border-amber-500/85 font-black'
+                                  : 'bg-zinc-950 border-zinc-800 text-white hover:border-zinc-700 font-bold'
+                              }`}
+                            >
+                              <span className="text-xs">{grade}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {(
+                        [
+                          { key: 'powerRating' as RawLockableFieldKey, label: 'Power', value: powerRating, onChange: setPowerRating },
+                          { key: 'impactRating' as RawLockableFieldKey, label: 'Impact', value: impactRating, onChange: setImpactRating },
+                          { key: 'bitterRating' as RawLockableFieldKey, label: 'Bitter', value: bitterRating, onChange: setBitterRating },
+                          { key: 'burnRating' as RawLockableFieldKey, label: 'Burn', value: burnRating, onChange: setBurnRating },
+                          { key: 'sugarRating' as RawLockableFieldKey, label: 'Sugar', value: sugarRating, onChange: setSugarRating },
+                          { key: 'aromaRating' as RawLockableFieldKey, label: 'Aroma', value: aromaRating, onChange: setAromaRating },
+                        ] as const
+                      ).map((param) => (
+                        <RatingSegmentSlider
+                          key={param.key}
+                          label={param.label}
+                          value={param.value}
+                          onChange={param.onChange}
+                          disabled={isLocked(param.key)}
+                        />
+                      ))}
+                    </div>
+
+                    <div>
+                      <input
+                        type="text"
+                        disabled={isLocked('characterNotes')}
+                        value={characterNotes}
+                        onChange={(e) => setCharacterNotes(e.target.value)}
+                        placeholder="Catatan pegangan / gagang / warna (opsional)..."
+                        className={getTextboxClass('characterNotes')}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1141,7 +1429,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
           {(activeSection === 'advanced' || activeSection === 'all') && (
             <div className="space-y-3.5">
               <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <div className="flex flex-col">
                     {renderFieldLabel('Nomor Seri / Lot Beli', 'lotNumber')}
                     <input
@@ -1153,6 +1441,42 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                       placeholder="LOT-BAHAN-001"
                       className={getTextboxClass('lotNumber', 'font-mono font-bold')}
                     />
+                  </div>
+
+                  <div className="flex flex-col">
+                    {renderFieldLabel('Nama Grader (Opsional)', 'graderName')}
+                    <input
+                      type="text"
+                      list="registered-graders-datalist"
+                      disabled={isLocked('graderName')}
+                      value={graderName}
+                      onChange={(e) => setGraderName(e.target.value)}
+                      placeholder="Grader pemeriksa..."
+                      className={getTextboxClass('graderName')}
+                    />
+                    <datalist id="registered-graders-datalist">
+                      {registeredGraders.map((g) => (
+                        <option key={g} value={g} />
+                      ))}
+                    </datalist>
+                    {!isLocked('graderName') && registeredGraders.length > 0 && (
+                      <div className="flex items-center gap-1 flex-wrap mt-1">
+                        {registeredGraders.slice(0, 4).map((g) => (
+                          <button
+                            key={g}
+                            type="button"
+                            onClick={() => setGraderName(g)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-colors cursor-pointer max-w-[110px] truncate ${
+                              graderName === g
+                                ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                                : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                            }`}
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col">
@@ -1252,7 +1576,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                         type="button"
                         onClick={() => handleAddAgentFeeRow('')}
                         aria-label="Tambah Orang / Fee Perantara"
-                        className="h-6 w-6 shrink-0 rounded bg-amber-500 hover:bg-amber-400 text-black font-black inline-flex items-center justify-center cursor-pointer"
+                        className="h-6 w-6 shrink-0 rounded bg-[#0e1015] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-black inline-flex items-center justify-center cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
                       </button>
@@ -1387,11 +1711,11 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
             </div>
           )}
 
-          {/* Compact Footer with Save & Repeat Same Seller */}
+          {/* Compact Footer with Safe Close, Save & Repeat Same Seller */}
           <div className="pt-3 border-t border-zinc-800 flex items-center justify-between flex-wrap gap-2">
             <button
               type="button"
-              onClick={onClose}
+              onClick={attemptSafeClose}
               className="h-9 px-3.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 text-xs font-bold transition-colors cursor-pointer"
             >
               Batal

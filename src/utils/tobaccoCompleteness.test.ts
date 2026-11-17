@@ -125,11 +125,12 @@ test('applyQuickPatchToRawTobacco recalculates netto, modal, stock, and profit a
 
   const afterPrice = applyQuickPatchToRawTobacco(
     afterWeight,
-    { pricePerKgPurchase: 80000 },
+    { pricePerKgPurchase: 80000, graderName: 'Pak Joko' },
     SAMPLE_PACKAGING
   );
   assert.equal(afterPrice.totalModalAsal, 4000000);
   assert.equal(afterPrice.realCostPerNetKg, 80000);
+  assert.equal(afterPrice.graderName, 'Pak Joko');
   assert.equal(getRawTobaccoMissingFlags(afterPrice).isIncomplete, false);
 });
 

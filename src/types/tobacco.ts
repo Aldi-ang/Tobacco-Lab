@@ -58,6 +58,7 @@ export interface RawTobacco {
   name: string; // e.g. "Tembakau Temanggung Srintil"
   origin: string; // e.g. "Temanggung", "Madura", "Boyolali", "Muntilan"
   sellerName?: string; // Penjual / Pengepul asal (bisa punya tara khusus)
+  graderName?: string; // Nama petugas Grader yang menilai tembakau ini
   lotNumber: string; // e.g. "SERI-BELI-01"
   purchaseDate: string;
 

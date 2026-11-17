@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeftRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeftRight, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import { formatRating5 } from '../utils/tobaccoMath';
 
 export interface CharacterParamBadge {
@@ -178,28 +178,38 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
         </AnimatePresence>
       </div>
 
-      <div className="grid grid-cols-4 gap-1 pt-1 border-t border-zinc-900/90">
-        {items.map((it, idx) => {
-          const isActive = idx === safeIndex;
-          const tabText =
-            it.shortTab ||
-            (idx === 0 ? 'Rasa' : idx === 1 ? 'Berat' : idx === 2 ? 'Modal' : 'Info');
-          return (
-            <button
-              key={it.id}
-              type="button"
-              onClick={(e) => handleSelectMetric(e, idx)}
-              className={`py-0.5 px-1 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-tight transition-all cursor-pointer truncate ${
-                isActive
-                  ? 'bg-black text-amber-400 border border-amber-500/80'
-                  : 'bg-zinc-950/90 text-zinc-400 hover:text-white border border-zinc-800/70'
-              }`}
-            >
-              {tabText}
-            </button>
-          );
-        })}
-      </div>
+      {items.length > 1 && (
+        <div
+          className={`grid ${
+            items.length === 2
+              ? 'grid-cols-2'
+              : items.length === 3
+                ? 'grid-cols-3'
+                : 'grid-cols-4'
+          } gap-1 pt-1 border-t border-zinc-900/90`}
+        >
+          {items.map((it, idx) => {
+            const isActive = idx === safeIndex;
+            const tabText =
+              it.shortTab ||
+              (idx === 0 ? 'Rasa' : idx === 1 ? 'Berat' : idx === 2 ? 'Modal' : 'Info');
+            return (
+              <button
+                key={it.id}
+                type="button"
+                onClick={(e) => handleSelectMetric(e, idx)}
+                className={`py-0.5 px-1 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-tight transition-all cursor-pointer truncate ${
+                  isActive
+                    ? 'bg-black text-amber-400 border border-amber-500/80'
+                    : 'bg-zinc-950/90 text-zinc-400 hover:text-white border border-zinc-800/70'
+                }`}
+              >
+                {tabText}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -207,6 +217,7 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
 export interface AutoSlideValueSlide {
   id: string;
   tabLabel: string;
+  mobileLabel?: string;
   title: string;
   mainValue: string;
   subLabel: string;
@@ -219,15 +230,20 @@ export interface AutoSlideValueSlide {
 interface AutoSlideValueTickerProps {
   slides: AutoSlideValueSlide[];
   intervalMs?: number;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }
 
 export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
   slides,
   intervalMs = 3800,
+  collapsible = false,
+  defaultExpanded = true,
 }) => {
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [isPaused, setIsPaused] = useState(false);
+  const [expanded, setExpanded] = useState(collapsible ? defaultExpanded : true);
 
   useEffect(() => {
     if (slides.length <= 1 || isPaused) return;
@@ -265,17 +281,36 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
     <div
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      className="requiem-card p-3 sm:p-3.5 rounded-xl border border-zinc-700/90 bg-black/95 space-y-2.5 select-none shadow-[0_4px_0_0_#18181b,0_10px_20px_rgba(0,0,0,0.85)]"
+      className={`requiem-card rounded-xl border border-zinc-700/90 bg-black/95 select-none shadow-[0_4px_0_0_#18181b,0_10px_20px_rgba(0,0,0,0.85)] ${
+        expanded ? 'p-3 sm:p-3.5 space-y-2.5' : 'px-3 py-2'
+      }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
+        <div
+          onClick={() => (expanded ? current.onOpenCalc?.() : setExpanded(true))}
+          className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
+        >
           <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-          <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-zinc-200 truncate">
-            {current.title}
-          </span>
+          {expanded ? (
+            <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-zinc-200 truncate">
+              {current.title}
+            </span>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
+              <span className="text-[11px] font-black uppercase tracking-wide text-zinc-300 whitespace-nowrap">
+                {current.mobileLabel || current.tabLabel}:
+              </span>
+              <span className={`font-mono font-black text-sm sm:text-base whitespace-nowrap ${mainValueColor}`}>
+                {current.mainValue}
+              </span>
+              <span className="hidden md:inline-block text-[11px] font-mono text-zinc-400 truncate">
+                • {current.subLabel}: <b className="text-zinc-200">{current.subValue}</b>
+              </span>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {current.onOpenCalc && (
             <button
               type="button"
@@ -301,7 +336,7 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
           >
             <ChevronLeft className="w-3.5 h-3.5" />
             <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
-               Metrik Sebelumnya
+              Metrik Sebelumnya
             </span>
           </button>
 
@@ -320,71 +355,92 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
               Metrik Berikutnya
             </span>
           </button>
+
+          {collapsible && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded((v) => !v);
+              }}
+              aria-expanded={expanded}
+              aria-label={expanded ? 'Tutup rincian ringkasan gudang' : 'Lihat rincian ringkasan gudang'}
+              className="h-7 px-2 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 text-amber-300 border border-amber-500/60 text-[10px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <span>{expanded ? 'Tutup' : 'Rincian'}</span>
+              {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+          )}
         </div>
       </div>
 
-      <div
-        onClick={() => current.onOpenCalc?.()}
-        className="relative overflow-hidden bg-zinc-950/95 border border-zinc-800 hover:border-zinc-600 rounded-xl px-3.5 py-2.5 cursor-pointer transition-colors"
-      >
-        <AnimatePresence mode="wait" custom={direction}>
-          <motion.div
-            key={current.id}
-            custom={direction}
-            initial={{ opacity: 0, x: direction * 24 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: direction * -24 }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5"
+      {expanded && (
+        <>
+          <div
+            onClick={() => current.onOpenCalc?.()}
+            className="relative overflow-hidden bg-zinc-950/95 border border-zinc-800 hover:border-zinc-600 rounded-xl px-3.5 py-2.5 cursor-pointer transition-colors"
           >
-            <div className="flex items-baseline gap-2.5 flex-wrap">
-              <span
-                className={`font-mono font-black text-xl sm:text-2xl tracking-tight ${mainValueColor}`}
+            <AnimatePresence mode="wait" custom={direction}>
+              <motion.div
+                key={current.id}
+                custom={direction}
+                initial={{ opacity: 0, x: direction * 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: direction * -24 }}
+                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5"
               >
-                {current.mainValue}
-              </span>
-              {current.formulaHint && (
-                <span className="text-[10px] sm:text-[11px] font-mono text-zinc-400">
-                  ({current.formulaHint})
-                </span>
-              )}
-            </div>
+                <div className="flex items-baseline gap-2.5 flex-wrap">
+                  <span
+                    className={`font-mono font-black text-xl sm:text-2xl tracking-tight ${mainValueColor}`}
+                  >
+                    {current.mainValue}
+                  </span>
+                  {current.formulaHint && (
+                    <span className="text-[10px] sm:text-[11px] font-mono text-zinc-400">
+                      ({current.formulaHint})
+                    </span>
+                  )}
+                </div>
 
-            <div className="inline-flex items-center gap-1.5 bg-black px-2.5 py-1 rounded-lg border border-zinc-800 self-start sm:self-auto">
-              <span className="text-[11px] font-mono text-zinc-400">{current.subLabel}:</span>
-              <b className="text-xs sm:text-sm font-mono font-black text-white">
-                {current.subValue}
-              </b>
-            </div>
-          </motion.div>
-        </AnimatePresence>
-      </div>
+                <div className="inline-flex items-center gap-1.5 bg-black px-2.5 py-1 rounded-lg border border-zinc-800 self-start sm:self-auto">
+                  <span className="text-[11px] font-mono text-zinc-400">{current.subLabel}:</span>
+                  <b className="text-xs sm:text-sm font-mono font-black text-white">
+                    {current.subValue}
+                  </b>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
 
-      <div className="grid grid-cols-3 gap-1.5">
-        {slides.map((s, idx) => {
-          const isActive = idx === safeIndex;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => {
-                setDirection(idx >= safeIndex ? 1 : -1);
-                setIndex(idx);
-              }}
-              className={`group relative py-1 px-2 rounded-lg text-[10px] sm:text-[11px] font-black uppercase tracking-tight transition-colors cursor-pointer truncate ${
-                isActive
-                  ? 'bg-black text-amber-400 border border-amber-500/80 shadow-xs'
-                  : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
-              }`}
-            >
-              <span className="truncate block">{s.tabLabel}</span>
-              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden sm:block absolute -top-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
-                {s.title}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {slides.map((s, idx) => {
+              const isActive = idx === safeIndex;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setDirection(idx >= safeIndex ? 1 : -1);
+                    setIndex(idx);
+                  }}
+                  className={`group relative py-1 px-1.5 sm:px-2 rounded-lg text-[10px] sm:text-[11px] font-black uppercase tracking-tight transition-colors cursor-pointer truncate ${
+                    isActive
+                      ? 'bg-black text-amber-400 border border-amber-500/80 shadow-xs'
+                      : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+                  }`}
+                >
+                  <span className="sm:hidden truncate block">{s.mobileLabel || s.tabLabel}</span>
+                  <span className="hidden sm:block truncate">{s.tabLabel}</span>
+                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 hidden sm:block absolute -top-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                    {s.title}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 };

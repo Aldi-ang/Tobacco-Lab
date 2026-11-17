@@ -6,9 +6,12 @@ export const PRINT_PREFIX_REGISTRY_STORAGE_KEY = 'tobacco_lab_print_prefix_regis
 export interface PrefixRegistryState {
   registeredPrefixes: string[];
   lastSelectedPrefix: string; // '' means Daily Auto (LOT-YYMMDD-)
+  dismissedPrefixes?: string[]; // Prefixes explicitly deleted by user so discovery won't re-add them automatically
+  minStartSeqByPrefix?: Record<string, number>; // Optional per-prefix starting number override (skip number)
 }
 
 const AUTO_DAILY_PREFIX_RE = /^LOT-\d{6}-?$/;
+const AUTO_DAILY_SEQ_KEY = '__AUTO_DAILY__';
 
 export function isAutoDailyPrefix(prefix: string): boolean {
   return !prefix || AUTO_DAILY_PREFIX_RE.test(prefix.trim().toUpperCase());
@@ -24,6 +27,54 @@ export function normalizePrefixInput(raw?: string): string {
     .toUpperCase()
     .replace(/\s+/g, '')
     .replace(/[^A-Z0-9-]/g, '');
+}
+
+function getPrefixSequenceKey(prefix?: string): string {
+  const norm = normalizePrefixInput(prefix);
+  if (!norm || isAutoDailyPrefix(norm)) return AUTO_DAILY_SEQ_KEY;
+  return norm;
+}
+
+function normalizeMinStartSeqMap(raw?: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, number> = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    const cleanKey = key === AUTO_DAILY_SEQ_KEY ? AUTO_DAILY_SEQ_KEY : getPrefixSequenceKey(key);
+    const num = Math.floor(Number(val));
+    if (Number.isFinite(num) && num >= 2) {
+      out[cleanKey] = num;
+    }
+  }
+  return out;
+}
+
+export function getPrefixStartSequence(
+  state: PrefixRegistryState,
+  prefix?: string
+): number | null {
+  const map = normalizeMinStartSeqMap(state.minStartSeqByPrefix);
+  const val = map[getPrefixSequenceKey(prefix)];
+  return typeof val === 'number' && val >= 2 ? val : null;
+}
+
+export function setPrefixStartSequence(
+  state: PrefixRegistryState,
+  prefix: string,
+  startSeq: number | null | undefined
+): PrefixRegistryState {
+  const nextMap = normalizeMinStartSeqMap(state.minStartSeqByPrefix);
+  const key = getPrefixSequenceKey(prefix);
+  const parsed = startSeq == null ? NaN : Math.floor(Number(startSeq));
+  if (Number.isFinite(parsed) && parsed >= 2) {
+    nextMap[key] = parsed;
+  } else {
+    delete nextMap[key];
+  }
+  return {
+    ...state,
+    dismissedPrefixes: normalizeDismissedList(state.dismissedPrefixes),
+    minStartSeqByPrefix: nextMap,
+  };
 }
 
 /**
@@ -63,47 +114,83 @@ export function discoverCustomPrefixesFromHistory(
   return Array.from(seen);
 }
 
+function normalizeDismissedList(list?: string[]): string[] {
+  if (!Array.isArray(list)) return [];
+  return Array.from(
+    new Set(
+      list
+        .map((p) => normalizePrefixInput(p))
+        .filter((p) => p && !isAutoDailyPrefix(p))
+    )
+  );
+}
+
 export function mergeRegistryWithDiscoveredPrefixes(
   state: PrefixRegistryState,
   rawTobaccos: RawTobacco[],
   issuedPrintedLots: string[] = []
 ): PrefixRegistryState {
-  const discovered = discoverCustomPrefixesFromHistory(rawTobaccos, issuedPrintedLots);
-  const merged = Array.from(
-    new Set([
-      ...state.registeredPrefixes.map((p) => normalizePrefixInput(p)).filter((p) => p && !isAutoDailyPrefix(p)),
-      ...discovered,
-    ])
-  );
+  const dismissedList = normalizeDismissedList(state.dismissedPrefixes);
+  const dismissedSet = new Set(dismissedList);
+  const minStartSeqByPrefix = normalizeMinStartSeqMap(state.minStartSeqByPrefix);
+  const discovered = discoverCustomPrefixesFromHistory(
+    rawTobaccos,
+    issuedPrintedLots
+  ).filter((p) => !dismissedSet.has(p));
+
+  const registeredClean = state.registeredPrefixes
+    .map((p) => normalizePrefixInput(p))
+    .filter((p) => p && !isAutoDailyPrefix(p) && !dismissedSet.has(p));
+
+  const merged = Array.from(new Set([...registeredClean, ...discovered]));
   const active = normalizePrefixInput(state.lastSelectedPrefix);
-  const resolvedActive = active && !isAutoDailyPrefix(active) ? active : '';
+  const resolvedActive =
+    active && !isAutoDailyPrefix(active) && !dismissedSet.has(active) ? active : '';
   return {
     registeredPrefixes: merged,
     lastSelectedPrefix: resolvedActive,
+    dismissedPrefixes: dismissedList,
+    minStartSeqByPrefix,
   };
 }
 
 export function registerNewPrefix(
   state: PrefixRegistryState,
-  rawPrefix: string
+  rawPrefix: string,
+  initialStartSeq?: number | null
 ): { nextState: PrefixRegistryState; normalizedPrefix: string } {
   const normalized = normalizePrefixInput(rawPrefix);
+  const dismissedList = normalizeDismissedList(state.dismissedPrefixes);
+  const nextMap = normalizeMinStartSeqMap(state.minStartSeqByPrefix);
+
   if (!normalized || isAutoDailyPrefix(normalized)) {
+    const baseState: PrefixRegistryState = {
+      ...state,
+      lastSelectedPrefix: '',
+      dismissedPrefixes: dismissedList,
+      minStartSeqByPrefix: nextMap,
+    };
     return {
-      nextState: {
-        ...state,
-        lastSelectedPrefix: '',
-      },
+      nextState:
+        initialStartSeq !== undefined
+          ? setPrefixStartSequence(baseState, '', initialStartSeq)
+          : baseState,
       normalizedPrefix: '',
     };
   }
 
   const withoutDup = state.registeredPrefixes.filter((p) => p !== normalized);
+  const baseState: PrefixRegistryState = {
+    registeredPrefixes: [normalized, ...withoutDup],
+    lastSelectedPrefix: normalized,
+    dismissedPrefixes: dismissedList.filter((p) => p !== normalized),
+    minStartSeqByPrefix: nextMap,
+  };
   return {
-    nextState: {
-      registeredPrefixes: [normalized, ...withoutDup],
-      lastSelectedPrefix: normalized,
-    },
+    nextState:
+      initialStartSeq !== undefined
+        ? setPrefixStartSequence(baseState, normalized, initialStartSeq)
+        : baseState,
     normalizedPrefix: normalized,
   };
 }
@@ -113,10 +200,14 @@ export function selectActivePrefix(
   rawPrefix: string
 ): PrefixRegistryState {
   const normalized = normalizePrefixInput(rawPrefix);
+  const dismissedList = normalizeDismissedList(state.dismissedPrefixes);
+  const minStartSeqByPrefix = normalizeMinStartSeqMap(state.minStartSeqByPrefix);
   if (!normalized || isAutoDailyPrefix(normalized)) {
     return {
       ...state,
       lastSelectedPrefix: '',
+      dismissedPrefixes: dismissedList,
+      minStartSeqByPrefix,
     };
   }
   const hasAlready = state.registeredPrefixes.includes(normalized);
@@ -125,6 +216,8 @@ export function selectActivePrefix(
       ? state.registeredPrefixes
       : [normalized, ...state.registeredPrefixes],
     lastSelectedPrefix: normalized,
+    dismissedPrefixes: dismissedList.filter((p) => p !== normalized),
+    minStartSeqByPrefix,
   };
 }
 
@@ -133,12 +226,21 @@ export function removeRegisteredPrefix(
   targetPrefix: string
 ): PrefixRegistryState {
   const normalized = normalizePrefixInput(targetPrefix);
-  const filtered = state.registeredPrefixes.filter((p) => p !== normalized);
-  const nextActive =
-    state.lastSelectedPrefix === normalized ? '' : state.lastSelectedPrefix;
+  const filtered = state.registeredPrefixes
+    .map((p) => normalizePrefixInput(p))
+    .filter((p) => p && p !== normalized);
+  const currentActive = normalizePrefixInput(state.lastSelectedPrefix);
+  const nextActive = currentActive === normalized ? '' : currentActive;
+  const dismissedList = normalizeDismissedList([
+    ...(state.dismissedPrefixes || []),
+    ...(normalized ? [normalized] : []),
+  ]);
+  const minStartSeqByPrefix = normalizeMinStartSeqMap(state.minStartSeqByPrefix);
   return {
     registeredPrefixes: filtered,
     lastSelectedPrefix: nextActive,
+    dismissedPrefixes: dismissedList,
+    minStartSeqByPrefix,
   };
 }
 
@@ -147,12 +249,16 @@ export function recordPrintedBatchToPrefixRegistry(
   printedLots: string[],
   activePrefixInput: string
 ): PrefixRegistryState {
+  const dismissedList = normalizeDismissedList(state.dismissedPrefixes);
+  const minStartSeqByPrefix = normalizeMinStartSeqMap(state.minStartSeqByPrefix);
   const activeNorm = normalizePrefixInput(activePrefixInput);
   if (activeNorm && !isAutoDailyPrefix(activeNorm)) {
     const withoutDup = state.registeredPrefixes.filter((p) => p !== activeNorm);
     return {
       registeredPrefixes: [activeNorm, ...withoutDup],
       lastSelectedPrefix: activeNorm,
+      dismissedPrefixes: dismissedList.filter((p) => p !== activeNorm),
+      minStartSeqByPrefix,
     };
   }
 
@@ -164,6 +270,8 @@ export function recordPrintedBatchToPrefixRegistry(
     return {
       registeredPrefixes: [fromLot, ...withoutDup],
       lastSelectedPrefix: fromLot,
+      dismissedPrefixes: dismissedList.filter((p) => p !== fromLot),
+      minStartSeqByPrefix,
     };
   }
 
@@ -171,6 +279,8 @@ export function recordPrintedBatchToPrefixRegistry(
   return {
     ...state,
     lastSelectedPrefix: '',
+    dismissedPrefixes: dismissedList,
+    minStartSeqByPrefix,
   };
 }
 
@@ -178,21 +288,37 @@ export function loadPrefixRegistryState(): PrefixRegistryState {
   try {
     const raw = localStorage.getItem(PRINT_PREFIX_REGISTRY_STORAGE_KEY);
     if (!raw) {
-      return { registeredPrefixes: [], lastSelectedPrefix: '' };
+      return {
+        registeredPrefixes: [],
+        lastSelectedPrefix: '',
+        dismissedPrefixes: [],
+        minStartSeqByPrefix: {},
+      };
     }
     const parsed = JSON.parse(raw) as Partial<PrefixRegistryState>;
+    const dismissed = normalizeDismissedList(parsed.dismissedPrefixes);
+    const dismissedSet = new Set(dismissed);
+    const minStartSeqByPrefix = normalizeMinStartSeqMap(parsed.minStartSeqByPrefix);
     const list = Array.isArray(parsed.registeredPrefixes)
       ? parsed.registeredPrefixes
           .map((p) => normalizePrefixInput(String(p || '')))
-          .filter((p) => p && !isAutoDailyPrefix(p))
+          .filter((p) => p && !isAutoDailyPrefix(p) && !dismissedSet.has(p))
       : [];
     const last = normalizePrefixInput(String(parsed.lastSelectedPrefix || ''));
     return {
       registeredPrefixes: Array.from(new Set(list)),
-      lastSelectedPrefix: last && !isAutoDailyPrefix(last) ? last : '',
+      lastSelectedPrefix:
+        last && !isAutoDailyPrefix(last) && !dismissedSet.has(last) ? last : '',
+      dismissedPrefixes: dismissed,
+      minStartSeqByPrefix,
     };
   } catch {
-    return { registeredPrefixes: [], lastSelectedPrefix: '' };
+    return {
+      registeredPrefixes: [],
+      lastSelectedPrefix: '',
+      dismissedPrefixes: [],
+      minStartSeqByPrefix: {},
+    };
   }
 }
 

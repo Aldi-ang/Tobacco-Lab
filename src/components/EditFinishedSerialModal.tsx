@@ -498,10 +498,10 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
               <button
                 type="button"
                 onClick={() => setActiveTab('main')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border ${
                   activeTab === 'main'
-                    ? 'bg-amber-500 text-black font-black'
-                    : 'text-zinc-300 hover:text-white'
+                    ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
+                    : 'bg-transparent border-transparent text-zinc-300 hover:text-white'
                 }`}
               >
                 1. Harga &amp; Status
@@ -509,10 +509,10 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
               <button
                 type="button"
                 onClick={() => setActiveTab('weights')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border ${
                   activeTab === 'weights'
-                    ? 'bg-amber-500 text-black font-black'
-                    : 'text-zinc-300 hover:text-white'
+                    ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
+                    : 'bg-transparent border-transparent text-zinc-300 hover:text-white'
                 }`}
               >
                 2. Timbangan ({billableNetKg} kg)
@@ -520,10 +520,10 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
               <button
                 type="button"
                 onClick={() => setActiveTab('character')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer border ${
                   activeTab === 'character'
-                    ? 'bg-amber-500 text-black font-black'
-                    : 'text-zinc-300 hover:text-white'
+                    ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
+                    : 'bg-transparent border-transparent text-zinc-300 hover:text-white'
                 }`}
               >
                 3. Karakter (/5)

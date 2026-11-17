@@ -1,4 +1,4 @@
-export type PrintPaperFormat = 'A4_4' | 'A4_6' | 'THERMAL_58' | 'THERMAL_80';
+export type PrintPaperFormat = 'A4_6' | 'THERMAL_58' | 'THERMAL_80';
 export type DuplexMode = 'OFF' | 'LONG_EDGE' | 'SHORT_EDGE';
 
 export interface ThermalProfileSpec {
@@ -30,6 +30,12 @@ export function isThermalPaperFormat(format: PrintPaperFormat): format is 'THERM
   return format === 'THERMAL_58' || format === 'THERMAL_80';
 }
 
+export const A4_PRINT_PAGE_METRICS = {
+  pageHeightMm: 262, // Bounded safely within 297mm A4 even when mobile/desktop browser print adds headers/footers
+  marginMm: 8,
+  gridGapMm: 3.5,
+} as const;
+
 /**
  * Generates @page CSS rules dynamically for A4 vs Thermal Roll (58mm / 80mm)
  * so system printer drivers (USB/Wi-Fi/AirPrint) cut & scale accurately.
@@ -41,7 +47,7 @@ export function buildDynamicPrintPageCss(format: PrintPaperFormat): string {
   if (format === 'THERMAL_80') {
     return `@page { size: 80mm auto; margin: 3mm 4mm; }`;
   }
-  return `@page { size: A4 portrait; margin: 7mm; }`;
+  return `@page { size: A4 portrait; margin: ${A4_PRINT_PAGE_METRICS.marginMm}mm; }`;
 }
 
 /**
@@ -157,7 +163,7 @@ export function computeCode39TotalUnits(runs: BarcodeModuleRun[]): number {
  * - SHORT_EDGE (tumble 2-sided A4): reverses row order and rotates each slot 180deg.
  */
 export function arrangeDuplexBackSlots(
-  pageLots: string[],
+  pageLots: (string | null)[],
   cardsPerPage: 4 | 6,
   flipMode: 'LONG_EDGE' | 'SHORT_EDGE'
 ): { lot: string | null; rotate180: boolean }[] {
@@ -298,8 +304,23 @@ export function renderThermalCardToCanvas(params: {
   widthDots: number;
   includeBackBarcode?: boolean;
   customPrefix?: string;
+  graderName?: string;
+  printYear?: number;
 }): HTMLCanvasElement {
-  const { lotNumber, packagingChoices, widthDots, includeBackBarcode = false, customPrefix } = params;
+  const {
+    lotNumber,
+    packagingChoices,
+    widthDots,
+    includeBackBarcode = false,
+    customPrefix,
+    graderName,
+    printYear,
+  } = params;
+  const yearLabel =
+    Number.isFinite(printYear) && Number(printYear) >= 2020 && Number(printYear) <= 2099
+      ? Math.round(Number(printYear))
+      : new Date().getFullYear();
+  const cleanGrader = String(graderName || '').trim().slice(0, 22);
   const isNarrow = widthDots <= 400;
   const frontHeightDots = isNarrow ? 760 : 880;
   const barcodeSectionH = includeBackBarcode ? (isNarrow ? 195 : 225) : 0;
@@ -327,7 +348,11 @@ export function renderThermalCardToCanvas(params: {
   ctx.font = `900 ${isNarrow ? 20 : 26}px monospace`;
   ctx.fillText(lotNumber, pad, pad + 44);
   ctx.font = `bold ${isNarrow ? 11 : 13}px sans-serif`;
-  ctx.fillText('Tgl: ___/___/20__  Grader: ________', pad, pad + 64);
+  ctx.fillText(
+    `Tgl: ___/___/${yearLabel}  Grader: ${cleanGrader || '________'}`,
+    pad,
+    pad + 64
+  );
 
   // Matrix SVG on top-right
   const cells = computeLotMatrixCells(lotNumber);
@@ -412,7 +437,8 @@ export function renderThermalCardToCanvas(params: {
     const ry = y + 24 + rIdx * rowStep;
     ctx.font = `bold ${isNarrow ? 11 : 13}px sans-serif`;
     ctx.fillText(attr, pad + 8, ry + 15);
-    const startX = widthDots - pad - 8 - 5 * (sqSize + 5);
+    const labelColumnW = isNarrow ? 74 : 92;
+    const startX = pad + 8 + labelColumnW;
     for (let d = 1; d <= 5; d++) {
       const bx = startX + (d - 1) * (sqSize + 5);
       ctx.strokeRect(bx, ry, sqSize, sqSize);

@@ -295,7 +295,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
               <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-md bg-amber-500 text-black font-black text-[11px] flex items-center justify-center">
+                    <span className="w-5 h-5 rounded-md bg-[#0d0f14] border border-amber-500/80 text-amber-300 font-black text-[11px] flex items-center justify-center">
                       1
                     </span>
                     <h3 className="text-xs font-black uppercase tracking-wider text-white">
@@ -306,10 +306,10 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setStockMode('ALL')}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-extrabold cursor-pointer transition-colors ${
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-extrabold border cursor-pointer transition-colors ${
                         stockMode === 'ALL'
-                          ? 'bg-amber-500 text-black'
-                          : 'text-zinc-400 hover:text-white'
+                          ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                          : 'text-zinc-400 border-transparent hover:text-white'
                       }`}
                     >
                       Semua Stok ({availableTobaccos.length})
@@ -317,10 +317,10 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setStockMode('SELECTED')}
-                      className={`px-2.5 py-1 rounded-md text-[11px] font-extrabold cursor-pointer transition-colors ${
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-extrabold border cursor-pointer transition-colors ${
                         stockMode === 'SELECTED'
-                          ? 'bg-amber-500 text-black'
-                          : 'text-zinc-400 hover:text-white'
+                          ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                          : 'text-zinc-400 border-transparent hover:text-white'
                       }`}
                     >
                       Pilih Manual ({selectedTobaccoIds.length})
@@ -385,7 +385,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
               <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-md bg-amber-500 text-black font-black text-[11px] flex items-center justify-center">
+                    <span className="w-5 h-5 rounded-md bg-[#0d0f14] border border-amber-500/80 text-amber-300 font-black text-[11px] flex items-center justify-center">
                       2
                     </span>
                     <div>
@@ -424,7 +424,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                         onClick={() => handleSelectTargetGrade(g, strictCrossGradeOnly)}
                         className={`h-7 min-w-8 px-2 rounded-lg text-[11px] font-mono font-black border cursor-pointer transition-all ${
                           active
-                            ? 'bg-amber-500 text-black border-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.35)]'
+                            ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
                             : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-600'
                         }`}
                       >
@@ -473,7 +473,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
               <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-md bg-amber-500 text-black font-black text-[11px] flex items-center justify-center">
+                    <span className="w-5 h-5 rounded-md bg-[#0d0f14] border border-amber-500/80 text-amber-300 font-black text-[11px] flex items-center justify-center">
                       3
                     </span>
                     <div>
@@ -487,7 +487,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                       <button
                         type="button"
                         onClick={handleSnapOutOfBoundsToStock}
-                        className="h-6 px-2 rounded-md bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-black inline-flex items-center gap-1 cursor-pointer"
+                        className="h-6 px-2 rounded-md bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 text-[10px] font-black inline-flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         <Wand2 className="w-3 h-3" />
                         <span>Pasang ke Batas Stok ({outOfBoundsCount})</span>
@@ -737,7 +737,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
               {/* SETTING 4: DAERAH ASAL & TARGET HARGA MODAL (HPP/KG) */}
               <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl p-3 space-y-2.5">
                 <div className="flex items-center gap-2">
-                  <span className="w-5 h-5 rounded-md bg-amber-500 text-black font-black text-[11px] flex items-center justify-center">
+                  <span className="w-5 h-5 rounded-md bg-[#0d0f14] border border-amber-500/80 text-amber-300 font-black text-[11px] flex items-center justify-center">
                     4
                   </span>
                   <h3 className="text-xs font-black uppercase tracking-wider text-white">
@@ -756,7 +756,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                     onClick={() => setAllowedOrigins([])}
                     className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border cursor-pointer transition-colors ${
                       allowedOrigins.length === 0
-                        ? 'bg-amber-500 text-black border-amber-300'
+                        ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
                         : 'bg-black text-zinc-400 border-zinc-800 hover:text-white'
                     }`}
                   >
@@ -928,7 +928,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                     <button
                       type="button"
                       onClick={handleSnapOutOfBoundsToStock}
-                      className="h-7 px-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-[10px] font-black shrink-0 cursor-pointer shadow-sm"
+                      className="h-7 px-2.5 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 text-[10px] font-black shrink-0 cursor-pointer transition-colors"
                     >
                       Ikuti Stok
                     </button>
@@ -1077,7 +1077,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                       );
                       onClose();
                     }}
-                    className="w-full h-10 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs uppercase tracking-wider inline-flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_25px_rgba(245,158,11,0.3)] disabled:opacity-40"
+                    className="w-full h-10 rounded-xl bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 font-black text-xs uppercase tracking-wider inline-flex items-center justify-center gap-2 cursor-pointer transition-colors disabled:opacity-40"
                   >
                     <Scale className="w-4 h-4 stroke-[2.5]" />
                     <span>

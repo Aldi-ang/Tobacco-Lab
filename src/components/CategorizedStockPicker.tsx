@@ -122,10 +122,10 @@ export const CategorizedStockPicker: React.FC<CategorizedStockPickerProps> = ({
           <button
             type="button"
             onClick={() => setGroupingMode('ORIGIN_GRADE')}
-            className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors ${
+            className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors border ${
               groupingMode === 'ORIGIN_GRADE'
-                ? 'bg-amber-500 text-black'
-                : 'bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800'
+                ? 'bg-[#0e1015] text-amber-300 border-amber-500/80'
+                : 'bg-zinc-900 text-zinc-300 hover:text-white border-zinc-800'
             }`}
           >
             <MapPin className="w-3 h-3" />
@@ -134,10 +134,10 @@ export const CategorizedStockPicker: React.FC<CategorizedStockPickerProps> = ({
           <button
             type="button"
             onClick={() => setGroupingMode('GRADE_ORIGIN')}
-            className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors ${
+            className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors border ${
               groupingMode === 'GRADE_ORIGIN'
-                ? 'bg-amber-500 text-black'
-                : 'bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800'
+                ? 'bg-[#0e1015] text-amber-300 border-amber-500/80'
+                : 'bg-zinc-900 text-zinc-300 hover:text-white border-zinc-800'
             }`}
           >
             <Layers className="w-3 h-3" />
@@ -146,10 +146,10 @@ export const CategorizedStockPicker: React.FC<CategorizedStockPickerProps> = ({
           <button
             type="button"
             onClick={() => setGroupingMode('SELLER')}
-            className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors ${
+            className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors border ${
               groupingMode === 'SELLER'
-                ? 'bg-amber-500 text-black'
-                : 'bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800'
+                ? 'bg-[#0e1015] text-amber-300 border-amber-500/80'
+                : 'bg-zinc-900 text-zinc-300 hover:text-white border-zinc-800'
             }`}
           >
             <UserCheck className="w-3 h-3" />
@@ -158,10 +158,10 @@ export const CategorizedStockPicker: React.FC<CategorizedStockPickerProps> = ({
           <button
             type="button"
             onClick={() => setGroupingMode('FLAT')}
-            className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors ${
+            className={`h-7 px-2.5 rounded-lg text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors border ${
               groupingMode === 'FLAT'
-                ? 'bg-amber-500 text-black'
-                : 'bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800'
+                ? 'bg-[#0e1015] text-amber-300 border-amber-500/80'
+                : 'bg-zinc-900 text-zinc-300 hover:text-white border-zinc-800'
             }`}
           >
             <List className="w-3 h-3" />
@@ -288,9 +288,9 @@ export const CategorizedStockPicker: React.FC<CategorizedStockPickerProps> = ({
                         aria-label={`Pilih kategori ${group.title}`}
                         className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
                           isAllGroupChecked
-                            ? 'bg-amber-500 border-amber-400 text-black'
+                            ? 'bg-[#0e1015] border-amber-500 text-amber-300'
                             : isPartialGroupChecked
-                            ? 'bg-amber-500/30 border-amber-400 text-amber-300'
+                            ? 'bg-amber-500/20 border-amber-400 text-amber-300'
                             : 'bg-zinc-950 border-zinc-700 text-transparent hover:border-zinc-500'
                         }`}
                       >
@@ -482,10 +482,10 @@ export const CategorizedStockPicker: React.FC<CategorizedStockPickerProps> = ({
                               </span>
                               {mode === 'ADD_TO_BLEND' && (
                                 <span
-                                  className={`px-2 py-0.5 rounded text-[10px] font-extrabold inline-flex items-center gap-0.5 ${
+                                  className={`px-2 py-0.5 rounded text-[10px] font-extrabold inline-flex items-center gap-0.5 border ${
                                     isAlreadyInBlend
-                                      ? 'bg-emerald-500/20 text-emerald-300'
-                                      : 'bg-amber-500 text-black'
+                                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                      : 'bg-[#0d0f14] border-amber-500/75 text-amber-300'
                                   }`}
                                 >
                                   {isAlreadyInBlend ? (
