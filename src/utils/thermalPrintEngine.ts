@@ -54,9 +54,9 @@ export function buildDynamicPrintPageCss(format: PrintPaperFormat): string {
  * Extracts clean Prefix Code from a Lot number (e.g. "LOT-261115-001" -> "LOT-261115").
  */
 export function extractLotPrefixCode(lotNumber: string, customPrefix?: string): string {
-  const explicit = String(customPrefix || '').trim().toUpperCase().replace(/-+$/, '');
-  if (explicit) return explicit;
   const trimmed = String(lotNumber || '').trim().toUpperCase();
+  const explicit = String(customPrefix || '').trim().toUpperCase().replace(/-+$/, '');
+  if (explicit && trimmed.startsWith(explicit)) return explicit;
   const hyphenMatch = trimmed.match(/^([A-Z0-9-]+?)-\d+$/);
   if (hyphenMatch && hyphenMatch[1]) return hyphenMatch[1];
   const compactMatch = trimmed.match(/^([A-Z0-9-]*?[A-Z])(\d{2,})$/);

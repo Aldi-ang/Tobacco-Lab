@@ -24,6 +24,7 @@ import { BackupRestoreModal, TobaccoBackupPayload } from './components/BackupRes
 import { NolanAgentModal } from './components/NolanAgentModal';
 import { SettingsView } from './components/SettingsView';
 import { GradeCardScannerModal } from './components/GradeCardScannerModal';
+import { GradeCardPrintPanel } from './components/GradeCardPrintPanel';
 import {
   ReviewedScannedGradeCard,
   materializeRawTobaccoFromReview,
@@ -254,7 +255,7 @@ export default function App() {
   const [isNolanModalOpen, setIsNolanModalOpen] = useState<boolean>(false);
   const [nolanInitialPrompt, setNolanInitialPrompt] = useState<string | null>(null);
   const [isGradeScannerModalOpen, setIsGradeScannerModalOpen] = useState<boolean>(false);
-  const [gradeScannerInitialTab, setGradeScannerInitialTab] = useState<'scan' | 'print'>('scan');
+  const [isPrintPanelOpen, setIsPrintPanelOpen] = useState<boolean>(false);
 
   // Confirm Deletion & Undo Deletion State
   const [pendingDeletion, setPendingDeletion] = useState<{
@@ -1726,8 +1727,13 @@ export default function App() {
           }}
           onOpenNolanAgent={() => setIsNolanModalOpen(true)}
           onOpenGradeScanner={(tab) => {
-            setGradeScannerInitialTab(tab);
-            setIsGradeScannerModalOpen(true);
+            if (tab === 'print') {
+              setIsGradeScannerModalOpen(false);
+              setIsPrintPanelOpen(true);
+            } else {
+              setIsPrintPanelOpen(false);
+              setIsGradeScannerModalOpen(true);
+            }
           }}
         />
 
@@ -2036,12 +2042,27 @@ export default function App() {
 
       <GradeCardScannerModal
         isOpen={isGradeScannerModalOpen}
-        initialTab={gradeScannerInitialTab}
         onClose={() => setIsGradeScannerModalOpen(false)}
+        onOpenPrintPanel={() => {
+          setIsGradeScannerModalOpen(false);
+          setIsPrintPanelOpen(true);
+        }}
         rawTobaccos={rawTobaccos}
         packagingList={packagingList}
         onCommitReviewedCards={handleSaveScannedCardsBatch}
         onShowToast={showToast}
+      />
+
+      <GradeCardPrintPanel
+        isOpen={isPrintPanelOpen}
+        onClose={() => setIsPrintPanelOpen(false)}
+        rawTobaccos={rawTobaccos}
+        packagingList={packagingList}
+        onShowToast={showToast}
+        onSwitchToScanner={() => {
+          setIsPrintPanelOpen(false);
+          setIsGradeScannerModalOpen(true);
+        }}
       />
 
       <RollDetailModal
