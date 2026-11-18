@@ -376,3 +376,118 @@ export function buildReprintSlotPlan(params: {
     pageCount,
   };
 }
+
+function normalizeSingleSlotCode(raw?: string): string {
+  return String(raw || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/[^A-Z0-9-]/g, '');
+}
+
+/**
+ * Direct per-slot A4 planner where Slots 1..6 map 1-to-1 to the 6 positions on a single A4 sheet:
+ * - Each slot holds its own distinct (or empty) lot number (e.g. Slot 1 = MTL008, Slot 2 = YH41, Slot 4 = BM1).
+ * - SLOT_TERPILIH prints all filled slots combined onto that 1 A4 sheet while leaving empty slots blank white.
+ * - GABUNG_BARU preserves every filled slot in its exact position and fills empty slots with fresh sequential lots.
+ */
+export function buildSlotAssignedReprintPlan(params: {
+  slotCodes: string[];
+  mode: ReprintMode;
+  generatedFreshLots: string[];
+  requestedCount: number;
+  paperFormat: PrintPaperFormat;
+}): ReprintSlotPlan {
+  const fixedSlots: string[] = Array.from({ length: 6 }, (_, idx) =>
+    normalizeSingleSlotCode(params.slotCodes?.[idx])
+  );
+  const uniqueAssignedLots = Array.from(new Set(fixedSlots.filter(Boolean)));
+  const freshPool = normalizeLotList(params.generatedFreshLots).filter(
+    (lot) => !uniqueAssignedLots.includes(lot)
+  );
+  const isThermal = isThermalPaperFormat(params.paperFormat);
+
+  if (uniqueAssignedLots.length === 0) {
+    if (params.mode === 'SLOT_TERPILIH') {
+      return {
+        slots: isThermal ? [] : [null, null, null, null, null, null],
+        reprintedLots: [],
+        freshLotsToLock: [],
+        blankUnusedSlots: !isThermal,
+        pageCount: isThermal ? 0 : 1,
+      };
+    }
+    const activeFresh = freshPool.slice(0, params.requestedCount);
+    return {
+      slots: activeFresh,
+      reprintedLots: [],
+      freshLotsToLock: activeFresh,
+      blankUnusedSlots: false,
+      pageCount: isThermal ? activeFresh.length : Math.max(1, Math.ceil(activeFresh.length / 6)),
+    };
+  }
+
+  if (isThermal) {
+    if (params.mode === 'SLOT_TERPILIH') {
+      return {
+        slots: uniqueAssignedLots,
+        reprintedLots: uniqueAssignedLots,
+        freshLotsToLock: [],
+        blankUnusedSlots: false,
+        pageCount: uniqueAssignedLots.length,
+      };
+    }
+    const targetTotal = Math.max(uniqueAssignedLots.length, params.requestedCount);
+    const freshUsed = freshPool.slice(0, Math.max(0, targetTotal - uniqueAssignedLots.length));
+    const slots = [...uniqueAssignedLots, ...freshUsed];
+    return {
+      slots,
+      reprintedLots: uniqueAssignedLots,
+      freshLotsToLock: freshUsed,
+      blankUnusedSlots: false,
+      pageCount: slots.length,
+    };
+  }
+
+  if (params.mode === 'SLOT_TERPILIH') {
+    return {
+      slots: fixedSlots.map((code) => code || null),
+      reprintedLots: uniqueAssignedLots,
+      freshLotsToLock: [],
+      blankUnusedSlots: true,
+      pageCount: 1,
+    };
+  }
+
+  // GABUNG_BARU on A4: preserve filled slot positions on sheet #1 and pack fresh lots into remaining slots
+  const snappedTarget = snapPrintCountForFormat(params.requestedCount, 'A4_6');
+  const slots: (string | null)[] = new Array(snappedTarget).fill(null);
+  const freshUsed: string[] = [];
+  let freshCursor = 0;
+
+  for (let i = 0; i < 6; i++) {
+    if (fixedSlots[i]) {
+      slots[i] = fixedSlots[i];
+    } else if (freshCursor < freshPool.length) {
+      const lot = freshPool[freshCursor++];
+      slots[i] = lot;
+      freshUsed.push(lot);
+    }
+  }
+  for (let i = 6; i < snappedTarget; i++) {
+    if (freshCursor < freshPool.length) {
+      const lot = freshPool[freshCursor++];
+      slots[i] = lot;
+      freshUsed.push(lot);
+    }
+  }
+
+  return {
+    slots,
+    reprintedLots: uniqueAssignedLots,
+    freshLotsToLock: freshUsed,
+    blankUnusedSlots: false,
+    pageCount: Math.max(1, Math.ceil(slots.length / 6)),
+  };
+}
+

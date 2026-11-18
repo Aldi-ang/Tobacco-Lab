@@ -237,12 +237,12 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
     return (
       <motion.div
         key={batch.id}
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        whileHover={{ y: -3 }}
-        transition={{ duration: 0.18, delay: Math.min(idx * 0.02, 0.15) }}
+        whileHover={{ y: -2 }}
+        transition={{ duration: 0.16, delay: Math.min(idx * 0.015, 0.12), ease: [0.23, 1, 0.32, 1] }}
         onClick={() => setActiveSerial(batch)}
-        className="text-left group relative requiem-card border-2 border-zinc-700/90 hover:border-amber-500/80 rounded-2xl p-3.5 sm:p-4 shadow-[0_7px_0_0_#18181b,0_14px_26px_rgba(0,0,0,0.9)] hover:shadow-[0_8px_0_0_#f59e0b,0_16px_30px_rgba(245,158,11,0.18)] transition-all duration-200 cursor-pointer flex flex-col justify-between min-h-[304px] sm:min-h-[318px]"
+        className="text-left group relative requiem-card border border-zinc-800/90 hover:border-amber-500/70 rounded-2xl p-3.5 sm:p-4 transition-[border-color,box-shadow,transform] duration-200 cursor-pointer flex flex-col justify-between min-h-[304px] sm:min-h-[318px]"
       >
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-1">

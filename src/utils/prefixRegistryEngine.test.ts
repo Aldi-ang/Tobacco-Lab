@@ -114,7 +114,7 @@ test('mergeRegistryWithDiscoveredPrefixes discovers prefixes from warehouse stoc
 
   const afterDelete = removeRegisteredPrefix(merged, 'MTL');
   assert.deepEqual(afterDelete.registeredPrefixes, ['TMG', 'BOJ-']);
-  assert.equal(afterDelete.lastSelectedPrefix, '');
+  assert.equal(afterDelete.lastSelectedPrefix, 'TMG');
 
   // Even when re-merging with issuedPrintedLots or stocks containing MTL, dismissed prefix stays deleted
   const remergedAfterDelete = mergeRegistryWithDiscoveredPrefixes(
@@ -123,9 +123,9 @@ test('mergeRegistryWithDiscoveredPrefixes discovers prefixes from warehouse stoc
     ['MTL001', 'TMG001']
   );
   assert.deepEqual(remergedAfterDelete.registeredPrefixes, ['TMG', 'BOJ-']);
-  assert.equal(remergedAfterDelete.lastSelectedPrefix, '');
+  assert.equal(remergedAfterDelete.lastSelectedPrefix, 'TMG');
 
-  // Deleting TMG too stays deleted across merges
+  // Deleting TMG too stays deleted across merges and falls back to remaining BOJ-
   const deleteTmg = removeRegisteredPrefix(remergedAfterDelete, 'TMG');
   const remergedAfterTmg = mergeRegistryWithDiscoveredPrefixes(
     deleteTmg,
@@ -133,6 +133,12 @@ test('mergeRegistryWithDiscoveredPrefixes discovers prefixes from warehouse stoc
     ['MTL001', 'TMG001']
   );
   assert.deepEqual(remergedAfterTmg.registeredPrefixes, ['BOJ-']);
+  assert.equal(remergedAfterTmg.lastSelectedPrefix, 'BOJ-');
+
+  // Deleting the final remaining prefix leaves active prefix empty (no Harian default)
+  const deleteAll = removeRegisteredPrefix(remergedAfterTmg, 'BOJ-');
+  assert.deepEqual(deleteAll.registeredPrefixes, []);
+  assert.equal(deleteAll.lastSelectedPrefix, '');
 
   // User can explicitly re-register MTL later with custom skip number (e.g. 19) to resume paper numbering
   const { nextState: readded } = registerNewPrefix(remergedAfterTmg, 'MTL', 19);

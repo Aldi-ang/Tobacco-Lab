@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { Cloud, ShieldCheck, Smartphone, HardDrive, AlertCircle, Loader2 } from 'lucide-react';
 import { signInWithGoogle } from '../firebase';
+import { ALUCARD_EASE } from './AlucardMotion';
 
 interface CloudLoginScreenProps {
   onContinueOffline: () => void;
@@ -25,16 +27,23 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
   };
 
   return (
-    <div className="min-h-screen bg-[#020203] text-white flex flex-col items-center justify-center p-4 safe-fullscreen-modal relative overflow-hidden">
-      <div className="w-full max-w-md requiem-card border border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-[0_24px_60px_rgba(0,0,0,0.95)] space-y-5 relative z-10">
+    <div className="min-h-screen bg-[#040406] text-white flex flex-col items-center justify-center p-4 safe-fullscreen-modal relative overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.28, ease: ALUCARD_EASE }}
+        className="w-full max-w-md requiem-card border border-zinc-800/90 rounded-2xl p-5 sm:p-6 space-y-5 relative z-10"
+      >
         <div className="flex flex-col items-center text-center space-y-3">
-          <img
-            src="/awd-logo.png"
-            alt="Tobacco Lab Logo"
-            className="w-20 h-20 rounded-2xl bg-black object-contain p-1.5 border border-zinc-700"
-          />
+          <div className="relative p-1 rounded-2xl border border-zinc-800 bg-[#07080b]">
+            <img
+              src="/awd-logo.png"
+              alt="Tobacco Lab Logo"
+              className="w-18 h-18 rounded-xl bg-black object-contain p-1.5"
+            />
+          </div>
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black border border-zinc-800 text-zinc-300 text-[10px] font-mono font-black uppercase tracking-widest mb-1.5">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#0a0b0f] border border-zinc-800 text-zinc-300 text-[10px] font-mono font-bold uppercase tracking-widest mb-1.5">
               <Cloud className="w-3 h-3 text-amber-400" /> Cloud Database Sync
             </div>
             <h1 className="font-requiem font-black text-2xl sm:text-3xl tracking-wider text-white">
@@ -46,15 +55,15 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
           </div>
         </div>
 
-        <div className="bg-black/90 border border-zinc-800 rounded-xl p-3.5 space-y-2 text-xs">
-          <div className="flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-white shrink-0 mt-0.5" />
+        <div className="bg-[#06070a] border border-zinc-800/90 rounded-xl divide-y divide-zinc-800/80 text-xs">
+          <div className="p-3.5 flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <p className="text-zinc-300 leading-relaxed">
-              <b className="text-white">Akses Data dengan Login Google:</b> Seluruh data stok bahan, nomor seri jadi, arsip gulungan, dan status barang tersimpan aman di Cloud dan hanya dapat diakses oleh akun Google Anda.
+              <b className="text-white">Akses Data dengan Login Google:</b> Seluruh data stok bahan, nomor seri jadi, arsip gulungan, dan status barang tersimpan terenkripsi di Cloud dan hanya dapat diakses oleh akun Google Anda.
             </p>
           </div>
-          <div className="flex items-start gap-2.5">
-            <Smartphone className="w-4 h-4 text-white shrink-0 mt-0.5" />
+          <div className="p-3.5 flex items-start gap-2.5">
+            <Smartphone className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <p className="text-zinc-300 leading-relaxed">
               <b className="text-white">Sinkronisasi Real-Time Semua Perangkat:</b> Buka dengan akun Google yang sama di <b>iPhone, Samsung, maupun PC</b> untuk melihat dan mengubah data yang sama secara otomatis.
             </p>
@@ -62,8 +71,8 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
         </div>
 
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-black border border-zinc-700 text-zinc-200 text-xs flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="p-3 rounded-xl bg-[#140709] border border-red-500/60 text-red-200 text-xs flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
         )}
@@ -73,7 +82,7 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
             type="button"
             disabled={isSigningIn}
             onClick={handleGoogleLogin}
-            className="btn-amber-outline w-full h-11 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60"
+            className="alucard-edge-btn w-full h-11 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-60"
           >
             {isSigningIn ? (
               <>
@@ -82,7 +91,7 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
               </>
             ) : (
               <>
-                <Cloud className="w-4 h-4 stroke-[2.4] text-amber-400" />
+                <Cloud className="w-4 h-4 stroke-[2.2] text-amber-400" />
                 <span>Masuk dengan Google (Sinkronisasi Cloud)</span>
               </>
             )}
@@ -91,13 +100,13 @@ export const CloudLoginScreen: React.FC<CloudLoginScreenProps> = ({ onContinueOf
           <button
             type="button"
             onClick={onContinueOffline}
-            className="w-full h-9 px-3 rounded-xl bg-black hover:bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-700 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+            className="alucard-edge-btn-quiet w-full h-9 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <HardDrive className="w-3.5 h-3.5 text-zinc-500" />
+            <HardDrive className="w-3.5 h-3.5 text-zinc-400" />
             <span>Lanjutkan Mode Lokal / Offline Sementara</span>
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

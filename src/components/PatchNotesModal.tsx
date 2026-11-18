@@ -11,7 +11,9 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 
-export const CURRENT_APP_VERSION = 'v4.2.0';
+import { ALUCARD_EASE } from './AlucardMotion';
+
+export const CURRENT_APP_VERSION = 'v4.3.0';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -30,11 +32,46 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v4.3.0',
+    date: '17 November 2026',
+    codename:
+      'Alucard RE9 Ark Lab Redesign & Motion, Stasiun Cetak & Audit 100 Nomor Custom Printing, Kunci Keputusan Riwayat & Patch Notes',
+    isLatest: true,
+    highlights:
+      'Perombakan visual & animasi menyeluruh menggunakan standar desain /alucard (Edge Buttons tanpa solid fill kuning, Marked Tabs dengan garis emas ramping, OdometerNumber bergulir, dan Toast centang SVG self-drawing), Stasiun Cetak Kartu Grade baru lengkap dengan mode tukar Seri Baru ⇄ Custom Printing, Slot 1–6 di dalam Audit 100 Nomor, serta penguncian keputusan Diterima/Reject dan pengelompokan folder Selesai per gulungan.',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Desain & Motion Alucard RE9 Ark Lab + Penggantian Nama ke "Patch Notes"',
+        description:
+          'Menerapkan kanvas gelap terkalibrasi (#040406), kartu single-elevation dengan hairline border presisi, Edge Buttons (aksen border & wash tipis 11%, skala 0.97 saat ditekan), Marked Tabs dengan indikator garis emas bergeser, angka stok Odometer bergulir (tabular-nums), toast animasi centang SVG, serta mengubah nama menu "Catatan Versi" menjadi "Patch Notes".',
+      },
+      {
+        type: 'feature',
+        title: 'Stasiun Cetak Kartu Grade, Tukar Mode "Seri Baru ⇄ Custom Printing" & Slot 1–6',
+        description:
+          'Memisahkan proses cetak ke panel kerja khusus yang ringkas, menghapus prefix bawaan agar bersih dari awal, menonjolkan tombol tukar mode "Seri Baru ⇄ Custom Printing", menyematkan pilihan cepat Slot 1–6 tepat di dalam layar penuh "Audit 100 Nomor", dan memperbaiki tampilan live preview kertas.',
+      },
+      {
+        type: 'feature',
+        title: 'Panel Audit 100 Nomor Read-Only, Riwayat Prefix Persisten & Peringatan Nomor Merah',
+        description:
+          'Menambahkan panel penuh 100 nomor (2 kotak: Kode Lot + status centang hijau/cetak kuning/kosong) dengan tombol ganti prefix Prev/Next. Riwayat nomor tetap tersimpan utuh walau prefix dihapus lalu dibuat ulang, dan nomor yang sudah tercetak/stok ditandai warna merah disertai konfirmasi alasan saat cetak ulang.',
+      },
+      {
+        type: 'feature',
+        title: 'Kunci Keputusan Diterima/Reject, Tab "Update / Selesai" & Folder Arsip Gulungan Ringkas',
+        description:
+          'Setiap pilihan Diterima atau Reject otomatis terkunci agar aman dari salah tekan (dilengkapi tombol "Buka Kunci"), merapikan angka penghitung sebaris pada tab "Update" dan "Selesai", serta mengelompokkan riwayat selesai ke dalam folder per tanggal/pabrik berisi kartu gulungan ringkas siap klik.',
+      },
+    ],
+  },
+  {
     version: 'v4.2.0',
     date: '11 November 2026',
     codename:
       'Simulator Kosong (Clean Default) & Penyederhanaan Status Barang Pabrik Hanya Diterima (Accepted) vs Reject',
-    isLatest: true,
+    isLatest: false,
     highlights:
       'Mengubah nama tombol "Simulator Tarra" menjadi "Simulator" serta mengosongkannya secara default saat dibuka (0 bahan awal), dan menyederhanakan status barang kiriman pabrik menjadi murni keputusan pabrik: Menunggu Pabrik, Diterima / Accepted, dan Reject (tanpa status Cair / Belum Cair).',
     changes: [
@@ -1048,28 +1085,28 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
         onClick={onClose}
       >
         <motion.div
-          initial={{ scale: 0.95, y: 14 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 14 }}
-          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, scale: 0.96, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 10 }}
+          transition={{ duration: 0.22, ease: ALUCARD_EASE }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-[0_24px_60px_rgba(0,0,0,0.95)] text-white overflow-hidden"
+          className="bg-[#090a0e] border border-zinc-800/90 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-[0_24px_60px_rgba(0,0,0,0.92)] text-white overflow-hidden"
         >
           {/* Modal Header */}
-          <div className="px-4 sm:px-6 py-4 border-b border-zinc-800 bg-black flex items-center justify-between gap-3">
+          <div className="px-4 sm:px-6 py-4 border-b border-zinc-800/80 bg-[#07080b] flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-black border border-zinc-700 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-[#0d0f14] border border-amber-500/60 flex items-center justify-center shrink-0">
                 <Sparkles className="w-5 h-5 text-amber-400" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-sm sm:text-lg font-black text-white truncate">
-                    Patch Notes & Riwayat Update
+                    Patch Notes &amp; Riwayat Update
                   </h2>
-                  <span className="px-2 py-0.5 rounded-md bg-black text-amber-400 border border-amber-500/70 font-mono font-black text-xs">
+                  <span className="px-2 py-0.5 rounded-md bg-[#0d0f14] text-amber-300 border border-amber-500/70 font-mono tabular-nums font-black text-xs">
                     {CURRENT_APP_VERSION}
                   </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-900 text-zinc-200 border border-zinc-700 text-[10px] font-bold">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-900/90 text-zinc-200 border border-zinc-700/80 text-[10px] font-bold">
                     <CheckCircle2 className="w-3 h-3 text-amber-400" /> Auto-Update Aktif
                   </span>
                 </div>
@@ -1082,7 +1119,7 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 cursor-pointer shrink-0"
+              className="alucard-edge-btn-quiet p-1.5 rounded-lg cursor-pointer shrink-0"
               aria-label="Tutup Patch Notes"
             >
               <X className="w-5 h-5" />
@@ -1090,7 +1127,7 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
           </div>
 
           {/* Filter Bar & Auto-Update Info Banner */}
-          <div className="px-4 sm:px-6 py-3 bg-zinc-950 border-b border-zinc-800/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="px-4 sm:px-6 py-3 bg-[#090a0e] border-b border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="flex items-center gap-1.5">
               {[
                 { id: 'ALL' as const, label: 'Semua Perubahan' },
@@ -1103,13 +1140,16 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
                     key={tab.id}
                     type="button"
                     onClick={() => setFilterType(tab.id)}
-                    className={`h-8 px-3 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                    className={`relative h-8 px-3 rounded-lg text-xs font-extrabold transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.97] cursor-pointer border ${
                       active
-                        ? 'bg-black text-amber-400 border border-amber-500/80'
-                        : 'bg-black/60 text-zinc-400 hover:text-white border border-zinc-800'
+                        ? 'bg-[#12141c] text-amber-300 border-amber-500/70'
+                        : 'bg-[#07080b] text-zinc-400 hover:text-white border-zinc-800'
                     }`}
                   >
                     {tab.label}
+                    {active && (
+                      <span className="absolute bottom-0 left-2.5 right-2.5 h-[2px] rounded-full bg-amber-400" />
+                    )}
                   </button>
                 );
               })}

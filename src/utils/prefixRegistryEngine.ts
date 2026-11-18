@@ -145,7 +145,9 @@ export function mergeRegistryWithDiscoveredPrefixes(
   const merged = Array.from(new Set([...registeredClean, ...discovered]));
   const active = normalizePrefixInput(state.lastSelectedPrefix);
   const resolvedActive =
-    active && !isAutoDailyPrefix(active) && !dismissedSet.has(active) ? active : '';
+    active && !isAutoDailyPrefix(active) && !dismissedSet.has(active)
+      ? active
+      : merged[0] || '';
   return {
     registeredPrefixes: merged,
     lastSelectedPrefix: resolvedActive,
@@ -230,7 +232,10 @@ export function removeRegisteredPrefix(
     .map((p) => normalizePrefixInput(p))
     .filter((p) => p && p !== normalized);
   const currentActive = normalizePrefixInput(state.lastSelectedPrefix);
-  const nextActive = currentActive === normalized ? '' : currentActive;
+  const nextActive =
+    currentActive === normalized || !filtered.includes(currentActive)
+      ? filtered[0] || ''
+      : currentActive;
   const dismissedList = normalizeDismissedList([
     ...(state.dismissedPrefixes || []),
     ...(normalized ? [normalized] : []),
@@ -304,11 +309,14 @@ export function loadPrefixRegistryState(): PrefixRegistryState {
           .map((p) => normalizePrefixInput(String(p || '')))
           .filter((p) => p && !isAutoDailyPrefix(p) && !dismissedSet.has(p))
       : [];
+    const dedupedList = Array.from(new Set(list));
     const last = normalizePrefixInput(String(parsed.lastSelectedPrefix || ''));
     return {
-      registeredPrefixes: Array.from(new Set(list)),
+      registeredPrefixes: dedupedList,
       lastSelectedPrefix:
-        last && !isAutoDailyPrefix(last) && !dismissedSet.has(last) ? last : '',
+        last && !isAutoDailyPrefix(last) && !dismissedSet.has(last)
+          ? last
+          : dedupedList[0] || '',
       dismissedPrefixes: dismissed,
       minStartSeqByPrefix,
     };

@@ -205,7 +205,7 @@ export function detectNavigationIntent(rawText: string): {
     return { target: 'restore', label: 'Restore Data' };
   }
   if (q.includes('patch') || q.includes('versi') || q.includes('update')) {
-    return { target: 'patch_notes', label: 'Catatan Versi (Patch Notes)' };
+    return { target: 'patch_notes', label: 'Patch Notes' };
   }
   if (q.includes('stok') || q.includes('gudang') || q.includes('inventori') || q.includes('bahan mentah')) {
     return { target: 'inventory', label: 'Stok Gudang Mentah' };

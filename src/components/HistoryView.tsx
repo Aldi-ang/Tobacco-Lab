@@ -552,20 +552,20 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       {/* 1. UNIFIED WORKSPACE TOOLBAR (SEGMENT SWITCH + SEARCH + FACTORY + CHART TOGGLE + SHEETS CTA) */}
       <div className="bg-[#09090c] border border-zinc-800 rounded-2xl p-3.5 sm:p-4 space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
-          {/* Clean Segmented Switch (3 Dedicated Panels) */}
+          {/* Marked Tabs Mode Switch (3 Dedicated Panels) */}
           <div
             role="tablist"
             aria-label="Mode Tampilan Riwayat"
-            className="inline-grid grid-cols-3 p-1 rounded-xl bg-black border border-zinc-800/90 gap-1 w-full lg:w-auto"
+            className="inline-grid grid-cols-3 p-1 rounded-xl bg-[#040507] border border-zinc-800/90 gap-1 w-full lg:w-auto"
           >
             <button
               type="button"
               role="tab"
               aria-selected={activeSegment === 'nota-history'}
               onClick={() => setActiveSegment('nota-history')}
-              className={`h-9 px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap border ${
+              className={`relative h-9 px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.97] cursor-pointer whitespace-nowrap border ${
                 activeSegment === 'nota-history'
-                  ? 'bg-[#101218] text-amber-300 border-amber-500/80 font-extrabold'
+                  ? 'bg-[#12141c] text-amber-300 border-amber-500/65 font-extrabold'
                   : 'bg-transparent text-zinc-400 hover:text-white border-transparent'
               }`}
             >
@@ -574,12 +574,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               <span
                 className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md font-mono font-black text-xs tabular-nums leading-none border ${
                   activeSegment === 'nota-history'
-                    ? 'bg-amber-500/20 text-amber-200 border-amber-500/50'
+                    ? 'bg-amber-500/15 text-amber-200 border-amber-500/45'
                     : 'bg-zinc-900 text-zinc-300 border-zinc-700/80'
                 }`}
               >
                 {kpiRolls.length}
               </span>
+              {activeSegment === 'nota-history' && (
+                <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-amber-400" />
+              )}
             </button>
 
             <button
@@ -587,9 +590,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               role="tab"
               aria-selected={activeSegment === 'seri-status'}
               onClick={() => setActiveSegment('seri-status')}
-              className={`h-9 px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap border ${
+              className={`relative h-9 px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.97] cursor-pointer whitespace-nowrap border ${
                 activeSegment === 'seri-status'
-                  ? 'bg-[#101218] text-amber-300 border-amber-500/80 font-extrabold'
+                  ? 'bg-[#12141c] text-amber-300 border-amber-500/65 font-extrabold'
                   : 'bg-transparent text-zinc-400 hover:text-white border-transparent'
               }`}
             >
@@ -598,12 +601,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               <span
                 className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md font-mono font-black text-xs tabular-nums leading-none border ${
                   activeSegment === 'seri-status'
-                    ? 'bg-amber-500/20 text-amber-200 border-amber-500/50'
+                    ? 'bg-amber-500/15 text-amber-200 border-amber-500/45'
                     : 'bg-zinc-900 text-zinc-300 border-zinc-700/80'
                 }`}
               >
                 {kpiBatches.length}
               </span>
+              {activeSegment === 'seri-status' && (
+                <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-amber-400" />
+              )}
             </button>
 
             <button
@@ -611,9 +617,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               role="tab"
               aria-selected={activeSegment === 'factory-comparison'}
               onClick={() => setActiveSegment('factory-comparison')}
-              className={`h-9 px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap border ${
+              className={`relative h-9 px-3 rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.97] cursor-pointer whitespace-nowrap border ${
                 activeSegment === 'factory-comparison'
-                  ? 'bg-[#101218] text-amber-300 border-amber-500/80 font-extrabold'
+                  ? 'bg-[#12141c] text-amber-300 border-amber-500/65 font-extrabold'
                   : 'bg-transparent text-zinc-400 hover:text-white border-transparent'
               }`}
             >
@@ -623,12 +629,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               <span
                 className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md font-mono font-black text-xs tabular-nums leading-none border ${
                   activeSegment === 'factory-comparison'
-                    ? 'bg-amber-500/20 text-amber-200 border-amber-500/50'
+                    ? 'bg-amber-500/15 text-amber-200 border-amber-500/45'
                     : 'bg-zinc-900 text-zinc-300 border-zinc-700/80'
                 }`}
               >
                 {factoryComparisonRows.length}
               </span>
+              {activeSegment === 'factory-comparison' && (
+                <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-amber-400" />
+              )}
             </button>
           </div>
 
@@ -675,7 +684,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             <button
               type="button"
               onClick={onOpenGoogleSheetsModal}
-              className="h-9 px-3.5 rounded-xl bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-extrabold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0"
+              className="alucard-edge-btn h-9 px-3.5 rounded-xl font-extrabold text-xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
               <span>Google Sheets</span>

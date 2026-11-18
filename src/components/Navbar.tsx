@@ -28,6 +28,11 @@ import {
 } from 'lucide-react';
 import { PWAInstallButton, OfflineIndicator } from './PWAInstallButton';
 import { CURRENT_APP_VERSION } from './PatchNotesModal';
+import {
+  OdometerNumber,
+  MorphingIcon,
+  ALUCARD_SPRING_SNAPPY,
+} from './AlucardMotion';
 
 export type ActiveTab =
   | 'inventory'
@@ -218,16 +223,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                     type="button"
                     onClick={onForceCloudSync}
                     aria-label="Sinkronisasi Cloud"
-                    className="group relative h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-lg bg-black text-white border border-zinc-800 cursor-pointer"
+                    className="group relative h-7 w-7 shrink-0 inline-flex items-center justify-center rounded-lg bg-[#0a0b0f] hover:bg-[#111319] text-white border border-zinc-800 cursor-pointer active:scale-[0.97] transition-transform duration-150"
                   >
-                    {cloudSyncStatus === 'syncing' ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
-                    ) : cloudSyncStatus === 'error' ? (
-                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                    ) : (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    )}
-                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                    <MorphingIcon iconKey={cloudSyncStatus}>
+                      {cloudSyncStatus === 'syncing' ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400 shrink-0" />
+                      ) : cloudSyncStatus === 'error' ? (
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      )}
+                    </MorphingIcon>
+                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded bg-[#090a0e] border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                       Cloud Sync ({userEmail.split('@')[0]})
                     </span>
                   </button>
@@ -236,24 +243,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                     type="button"
                     onClick={onGoogleLogin}
                     aria-label="Masuk Cloud Google"
-                    className="group relative inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 cursor-pointer"
+                    className="group relative inline-flex items-center justify-center h-7 w-7 shrink-0 rounded-lg bg-[#0a0b0f] hover:bg-[#111319] text-white border border-zinc-800 cursor-pointer active:scale-[0.97] transition-transform duration-150"
                   >
                     <Cloud className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded bg-[#090a0e] border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                       Login Cloud Google
                     </span>
                   </button>
                 )}
 
                 <div
-                  className="group relative bg-zinc-950/90 h-7 px-2 rounded-lg border border-zinc-800 flex items-center gap-1 shrink-0"
+                  className="group relative bg-[#0a0b0f] h-7 px-2 rounded-lg border border-zinc-800 flex items-center gap-1 shrink-0"
                 >
                   <Warehouse className="w-3 h-3 text-zinc-400 shrink-0" />
-                  <div className="font-extrabold text-white font-mono text-[10px] whitespace-nowrap">
-                    {totalNetStockKg.toLocaleString('id-ID', { maximumFractionDigits: 1 })}{' '}
+                  <div className="font-extrabold text-white font-mono tabular-nums text-[10px] whitespace-nowrap">
+                    <OdometerNumber
+                      value={totalNetStockKg.toLocaleString('id-ID', { maximumFractionDigits: 1 })}
+                    />{' '}
                     <span className="text-zinc-400">kg</span>
                   </div>
-                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                  <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 right-0 z-50 px-2 py-1 rounded bg-[#090a0e] border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                     Total Sisa Stok Mentah
                   </span>
                 </div>
@@ -263,14 +272,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Right Controls: Streamlined Operational Controls Only */}
             <div className="flex flex-wrap items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto sm:ml-auto text-xs">
               <div
-                className="group relative hidden sm:flex bg-zinc-950/90 h-8 sm:h-9 px-2.5 rounded-lg border border-zinc-800 items-center gap-1.5 shrink-0"
+                className="group relative hidden sm:flex bg-[#0a0b0f] h-8 sm:h-9 px-2.5 rounded-lg border border-zinc-800/90 items-center gap-1.5 shrink-0"
               >
-                <Warehouse className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-                <div className="font-extrabold text-white font-mono text-xs whitespace-nowrap">
-                  {totalNetStockKg.toLocaleString('id-ID', { maximumFractionDigits: 1 })}{' '}
-                  <span className="text-zinc-400">kg</span>
+                <Warehouse className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <div className="font-extrabold text-white font-mono tabular-nums text-xs whitespace-nowrap">
+                  <OdometerNumber
+                    value={totalNetStockKg.toLocaleString('id-ID', { maximumFractionDigits: 1 })}
+                  />{' '}
+                  <span className="text-zinc-400 font-semibold">kg</span>
                 </div>
-                <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-[#090a0e] border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                   Total Sisa Stok Bersih Tembakau Mentah
                 </span>
               </div>
@@ -281,16 +292,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                     type="button"
                     onClick={onForceCloudSync}
                     aria-label="Sinkronisasi Cloud"
-                    className="group relative hidden sm:inline-flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
+                    className="group relative hidden sm:inline-flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg alucard-edge-btn-quiet cursor-pointer"
                   >
-                    {cloudSyncStatus === 'syncing' ? (
-                      <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
-                    ) : cloudSyncStatus === 'error' ? (
-                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                    ) : (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    )}
-                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                    <MorphingIcon iconKey={cloudSyncStatus}>
+                      {cloudSyncStatus === 'syncing' ? (
+                        <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
+                      ) : cloudSyncStatus === 'error' ? (
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      )}
+                    </MorphingIcon>
+                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-[#090a0e] border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                       Cloud Aktif ({userEmail}) — Klik Segarkan
                     </span>
                   </button>
@@ -299,10 +312,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     type="button"
                     onClick={onGoogleLogin}
                     aria-label="Login Cloud Google"
-                    className="group relative hidden sm:inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
+                    className="group relative hidden sm:inline-flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-lg alucard-edge-btn-quiet cursor-pointer"
                   >
                     <Cloud className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+                    <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-8 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-[#090a0e] border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                       Login Cloud Google
                     </span>
                   </button>
@@ -312,98 +325,103 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 {onOpenGradeScanner && (
                   <>
-                    <motion.button
+                    <button
                       type="button"
-                      whileTap={{ scale: 0.96 }}
                       onClick={() => onOpenGradeScanner('scan')}
                       aria-label="Scan Kartu Grade"
-                      className="group relative inline-flex items-center justify-center h-8 px-1.5 sm:h-9 sm:px-3 gap-1 sm:gap-1.5 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 text-amber-300 border border-amber-500/80 transition-colors cursor-pointer shrink-0 font-extrabold text-[10px] sm:text-xs whitespace-nowrap"
+                      className="alucard-edge-btn inline-flex items-center justify-center h-8 px-2 sm:h-9 sm:px-3 gap-1 sm:gap-1.5 rounded-lg cursor-pointer shrink-0 font-extrabold text-[10px] sm:text-xs"
                     >
                       <Camera className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
                       <span>Scan Kartu</span>
-                    </motion.button>
-                    <motion.button
+                    </button>
+                    <button
                       type="button"
-                      whileTap={{ scale: 0.96 }}
                       onClick={() => onOpenGradeScanner('print')}
                       aria-label="Cetak Kartu Grade (A4 6/Hal)"
-                      className="group relative inline-flex items-center justify-center h-8 px-1.5 sm:h-9 sm:px-3 gap-1 sm:gap-1.5 rounded-lg bg-black hover:bg-zinc-900 text-zinc-100 border border-zinc-700 hover:border-amber-500/70 transition-colors cursor-pointer shrink-0 font-bold text-[10px] sm:text-xs whitespace-nowrap"
+                      className="alucard-edge-btn-quiet inline-flex items-center justify-center h-8 px-2 sm:h-9 sm:px-3 gap-1 sm:gap-1.5 rounded-lg cursor-pointer shrink-0 font-bold text-[10px] sm:text-xs"
                     >
                       <Printer className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
                       <span>Cetak Kartu</span>
-                    </motion.button>
+                    </button>
                   </>
                 )}
 
                 {onOpenNolanAgent && (
-                  <motion.button
+                  <button
                     type="button"
-                    whileTap={{ scale: 0.96 }}
                     onClick={onOpenNolanAgent}
                     aria-label="Buka Nolan"
-                    className="group relative inline-flex items-center justify-center h-8 px-1.5 sm:h-9 sm:px-3 gap-1 sm:gap-1.5 rounded-lg bg-[#042f2e] hover:bg-[#064e3b] text-emerald-300 border border-emerald-500/70 hover:border-emerald-400 transition-colors cursor-pointer shrink-0 font-extrabold text-[10px] sm:text-xs whitespace-nowrap"
+                    className="alucard-edge-btn-quiet inline-flex items-center justify-center h-8 px-2 sm:h-9 sm:px-3 gap-1 sm:gap-1.5 rounded-lg cursor-pointer shrink-0 font-extrabold text-[10px] sm:text-xs border-zinc-700/90 hover:border-amber-500/65"
                   >
-                    <Bot className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
+                    <Bot className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />
                     <span>Nolan</span>
-                  </motion.button>
+                  </button>
                 )}
 
                 {onOpenSimulator && (
-                  <motion.button
+                  <button
                     type="button"
-                    whileTap={{ scale: 0.96 }}
                     onClick={onOpenSimulator}
                     aria-label="Simulator"
-                    className={`group relative inline-flex items-center justify-center h-8 w-7 sm:w-auto sm:h-9 sm:px-3 gap-1.5 rounded-lg transition-colors cursor-pointer shrink-0 border font-bold text-xs whitespace-nowrap ${
+                    className={`inline-flex items-center justify-center h-8 w-8 sm:w-auto sm:h-9 sm:px-3 gap-1.5 rounded-lg cursor-pointer shrink-0 font-bold text-xs whitespace-nowrap ${
                       isSimulatorOpen
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500'
-                        : 'bg-black hover:bg-zinc-900 text-white border-zinc-800 hover:border-amber-500/70'
+                        ? 'alucard-edge-btn text-amber-300 bg-amber-500/10'
+                        : 'alucard-edge-btn-quiet'
                     }`}
                   >
                     <Calculator className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     <span className="hidden sm:inline">Simulator</span>
-                  </motion.button>
+                  </button>
                 )}
 
-                <motion.button
+                <button
                   type="button"
-                  whileTap={{ scale: 0.96 }}
                   onClick={onOpenPatchNotes}
-                  aria-label={`Catatan Versi ${CURRENT_APP_VERSION}`}
-                  className="group relative inline-flex items-center justify-center h-8 w-7 sm:w-auto sm:h-9 sm:px-3 gap-1.5 rounded-lg bg-black hover:bg-zinc-900 text-zinc-200 hover:text-white border border-zinc-800 hover:border-amber-500/60 transition-colors cursor-pointer shrink-0 font-bold text-xs whitespace-nowrap"
+                  aria-label={`Patch Notes ${CURRENT_APP_VERSION}`}
+                  className={`relative inline-flex items-center justify-center h-8 w-8 sm:w-auto sm:h-9 sm:px-3 gap-1.5 rounded-lg cursor-pointer shrink-0 font-bold text-xs whitespace-nowrap ${
+                    hasUnreadPatch ? 'alucard-edge-btn text-amber-200' : 'alucard-edge-btn-quiet'
+                  }`}
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span className="hidden sm:inline">Catatan Versi</span>
+                  <span className="hidden sm:inline">Patch Notes</span>
                   {hasUnreadPatch && (
                     <span
-                      className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0 sm:static absolute top-1 right-1"
+                      className="text-[9px] font-mono font-black text-amber-400 hidden sm:inline border-l border-amber-500/35 pl-1.5"
+                      aria-hidden="true"
+                    >
+                      BARU
+                    </span>
+                  )}
+                  {hasUnreadPatch && (
+                    <span
+                      className="sm:hidden absolute top-1 right-1 w-1.5 h-1.5 rounded-xs bg-amber-400"
                       aria-hidden="true"
                     />
                   )}
-                </motion.button>
+                </button>
               </div>
             </div>
           </div>
 
           <nav
-            className="hidden md:block pt-2 pb-2.5 border-t border-zinc-800/90"
+            className="hidden md:block pt-1.5 pb-2 border-t border-zinc-800/80"
             aria-label="Tabs Navigasi Desktop"
           >
-            <div className="w-full flex items-center justify-between gap-1.5 lg:gap-2 p-1.5 rounded-xl bg-zinc-950/95 border border-zinc-800/90">
+            <div className="w-full flex items-center justify-between gap-1.5 lg:gap-2 p-1 rounded-xl bg-[#07080b] border border-zinc-800/90">
               <button
                 type="button"
                 onClick={handlePrevTab}
-                className="group relative h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
+                className="group relative h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg alucard-edge-btn-quiet cursor-pointer"
                 aria-label="Segmen Sebelumnya"
               >
-                <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
-                <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-9 left-0 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-2xl">
+                <ChevronLeft className="w-4 h-4 stroke-[2.2]" />
+                <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-9 left-0 z-50 px-2.5 py-1 rounded-md bg-[#090a0e] border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-2xl">
                   Segmen Sebelumnya
                 </span>
               </button>
 
-              {/* Proportional flex row using desktopFlexClass so longer labels like Status Barang never truncate */}
-              <div className="flex items-center gap-1 lg:gap-1.5 flex-1 min-w-0">
+              {/* Marked Tab Bar: raised slate plate + gold ink + sliding thin gold underline */}
+              <div className="flex items-center gap-1 flex-1 min-w-0">
                 {tabs.map((tab) => {
                   const isActive = activeTab === tab.id;
                   return (
@@ -413,38 +431,45 @@ export const Navbar: React.FC<NavbarProps> = ({
                       onClick={() => setActiveTab(tab.id)}
                       className={`group relative ${
                         tab.desktopFlexClass || 'flex-1'
-                      } min-w-fit h-9 px-2 lg:px-2.5 text-[11px] lg:text-xs font-extrabold rounded-lg flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${
+                      } min-w-fit h-9 px-2 lg:px-2.5 text-[11px] lg:text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors duration-150 active:scale-[0.98] ${
                         isActive
-                          ? 'text-white'
-                          : 'text-zinc-400 hover:text-white border border-transparent hover:border-zinc-800/80'
+                          ? 'text-amber-300 font-extrabold'
+                          : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.03]'
                       }`}
                     >
                       {isActive && (
                         <motion.span
-                          layoutId="desktop-nav-active-pill"
-                          transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                          className="absolute inset-0 rounded-lg bg-black border border-amber-500/80 shadow-[0_0_12px_rgba(245,158,11,0.14)]"
+                          layoutId="desktop-nav-active-surface"
+                          transition={ALUCARD_SPRING_SNAPPY}
+                          className="absolute inset-0 rounded-lg bg-[#12141c] border border-zinc-700/80"
+                        />
+                      )}
+                      {isActive && (
+                        <motion.span
+                          layoutId="desktop-nav-active-bar"
+                          transition={ALUCARD_SPRING_SNAPPY}
+                          className="absolute bottom-0 left-2.5 right-2.5 h-[2px] rounded-full bg-amber-400"
                         />
                       )}
                       <span className="relative z-10 flex items-center justify-center gap-1.5">
-                        <span className={isActive ? 'text-amber-400 shrink-0' : 'shrink-0'}>
+                        <span className={isActive ? 'text-amber-400 shrink-0' : 'text-zinc-400 group-hover:text-zinc-200 shrink-0'}>
                           {tab.icon}
                         </span>
                         <span className="whitespace-nowrap">{tab.shortLabel}</span>
                         {tab.countText !== undefined && (
                           <span
-                            className={`text-[10px] font-mono font-bold shrink-0 ${
+                            className={`text-[10px] font-mono tabular-nums font-bold shrink-0 ${
                               isActive
-                                ? 'inline text-amber-400'
+                                ? 'inline text-amber-300'
                                 : 'hidden xl:inline text-zinc-500'
                             }`}
                           >
-                            ({tab.countText})
+                            {tab.countText}
                           </span>
                         )}
                       </span>
 
-                      <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-9 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-2xl">
+                      <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-9 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-[#090a0e] border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-2xl">
                         {tab.fullLabel}
                       </span>
                     </button>
@@ -455,11 +480,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={handleNextTab}
-                className="group relative h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg bg-black hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
+                className="group relative h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg alucard-edge-btn-quiet cursor-pointer"
                 aria-label="Segmen Berikutnya"
               >
-                <ChevronRight className="w-4 h-4 stroke-[2.5]" />
-                <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-9 right-0 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-2xl">
+                <ChevronRight className="w-4 h-4 stroke-[2.2]" />
+                <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -bottom-9 right-0 z-50 px-2.5 py-1 rounded-md bg-[#090a0e] border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-2xl">
                   Segmen Berikutnya
                 </span>
               </button>
@@ -468,7 +493,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-black/95 backdrop-blur-md border-t border-zinc-800 safe-bottom-nav shadow-[0_-8px_24px_rgba(0,0,0,0.9)]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#06070a]/95 backdrop-blur-md border-t border-zinc-800/90 safe-bottom-nav shadow-[0_-10px_28px_rgba(0,0,0,0.85)]">
         <div className="flex items-center justify-between gap-0.5 px-1">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -478,12 +503,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 title={tab.fullLabel}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl text-[8.5px] tracking-tight font-bold transition-all duration-200 ease-out cursor-pointer min-w-0 ${
+                className={`relative flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg text-[8.5px] tracking-tight font-bold transition-colors duration-150 active:scale-[0.96] cursor-pointer min-w-0 ${
                   isActive
-                    ? 'bg-black text-white border border-amber-500/80 shadow-[0_0_8px_rgba(245,158,11,0.14)]'
-                    : 'text-zinc-400 hover:text-white border border-transparent'
+                    ? 'bg-[#12141c] text-amber-300 font-extrabold'
+                    : 'text-zinc-400 hover:text-white'
                 }`}
               >
+                {isActive && (
+                  <motion.span
+                    layoutId="mobile-nav-active-bar"
+                    transition={ALUCARD_SPRING_SNAPPY}
+                    className="absolute top-0 left-2 right-2 h-[2px] rounded-full bg-amber-400"
+                  />
+                )}
                 <span className={isActive ? 'text-amber-400 shrink-0' : 'shrink-0'}>
                   {tab.icon}
                 </span>

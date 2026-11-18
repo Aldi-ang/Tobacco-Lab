@@ -230,16 +230,24 @@ export function SegmentedControl<T extends string>({
               aria-selected={isActive}
               title={fullText}
               onClick={() => onChange(opt.id)}
-              className={`group relative w-full h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-extrabold whitespace-nowrap transition-colors duration-150 cursor-pointer ${
+              className={`group relative w-full h-8 px-2 rounded-lg flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-extrabold whitespace-nowrap transition-colors duration-150 active:scale-[0.97] cursor-pointer ${
                 isActive
-                  ? 'text-white'
-                  : 'text-zinc-400 hover:text-white border border-transparent hover:border-zinc-800/80'
+                  ? 'text-amber-300'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/[0.03]'
               }`}
             >
               {isActive && (
-                <div
-                  key={`active-${groupId}`}
-                  className="absolute inset-0 rounded-lg bg-black border border-amber-500/80 shadow-[0_0_10px_rgba(245,158,11,0.12)]"
+                <motion.div
+                  layoutId={`seg-surface-${groupId}`}
+                  transition={{ type: 'spring', duration: 0.26, bounce: 0 }}
+                  className="absolute inset-0 rounded-lg bg-[#12141c] border border-zinc-700/80"
+                />
+              )}
+              {isActive && (
+                <motion.div
+                  layoutId={`seg-bar-${groupId}`}
+                  transition={{ type: 'spring', duration: 0.26, bounce: 0 }}
+                  className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-amber-400"
                 />
               )}
               <span className="relative z-10 flex items-center justify-center gap-1.5 min-w-0">
@@ -247,16 +255,16 @@ export function SegmentedControl<T extends string>({
                 <span className="truncate">{opt.label}</span>
                 {opt.badge !== undefined && (
                   <span
-                    className={`text-[10px] font-mono font-bold shrink-0 ${
-                      isActive ? 'text-amber-400' : 'text-zinc-400'
+                    className={`text-[10px] font-mono tabular-nums font-bold shrink-0 ${
+                      isActive ? 'text-amber-300' : 'text-zinc-400'
                     }`}
                   >
-                    ({opt.badge})
+                    {opt.badge}
                   </span>
                 )}
               </span>
 
-              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-9 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-black border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
+              <span className="pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute -top-9 left-1/2 -translate-x-1/2 z-50 px-2.5 py-1 rounded-md bg-[#090a0e] border border-zinc-700 text-white text-[10px] font-bold whitespace-nowrap shadow-xl">
                 {fullText}
               </span>
             </button>

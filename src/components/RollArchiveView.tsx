@@ -1004,7 +1004,7 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleOpenRollCard(roll)}
-                    className="h-8 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/75 text-amber-300 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors whitespace-nowrap shrink-0"
+                    className="alucard-edge-btn h-8 px-3 rounded-lg font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <Maximize2 className="w-3.5 h-3.5 shrink-0" />
                     <span>Buka Detail / Nota</span>
@@ -1241,12 +1241,12 @@ export const RollArchiveView: React.FC<RollArchiveViewProps> = ({
             return (
               <motion.div
                 key={roll.id}
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: Math.min(idx * 0.04, 0.2) }}
-                whileHover={{ y: -3 }}
+                transition={{ duration: 0.16, delay: Math.min(idx * 0.025, 0.12), ease: [0.23, 1, 0.32, 1] }}
+                whileHover={{ y: -2 }}
                 onClick={() => handleOpenRollCard(roll)}
-                className="text-left group relative requiem-card border-2 border-zinc-800/90 hover:border-zinc-700 rounded-2xl p-4 shadow-[0_7px_0_0_#09090b,0_12px_20px_rgba(0,0,0,0.85)] hover:shadow-[0_9px_0_0_#f59e0b,0_16px_28px_rgba(245,158,11,0.2)] transition-all duration-200 cursor-pointer flex flex-col justify-between gap-3"
+                className="text-left group relative requiem-card border border-zinc-800/90 hover:border-amber-500/70 rounded-2xl p-4 transition-[border-color,box-shadow,transform] duration-200 cursor-pointer flex flex-col justify-between gap-3"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">

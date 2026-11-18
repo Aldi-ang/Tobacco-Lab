@@ -84,8 +84,28 @@ export const PrintableGradeCardPaper: React.FC<{
   compact: boolean;
   graderName?: string;
   printYear?: number;
-}> = ({ lotNumber, packagingChoices, compact, graderName = '', printYear }) => {
+  previewEmptySlotLabel?: string;
+}> = ({
+  lotNumber,
+  packagingChoices,
+  compact,
+  graderName = '',
+  printYear,
+  previewEmptySlotLabel,
+}) => {
   if (!lotNumber) {
+    if (previewEmptySlotLabel) {
+      return (
+        <div
+          className="grade-card-paper-item bg-zinc-50/60 border border-dashed border-zinc-200 text-zinc-400 flex items-center justify-center select-none min-h-[210px]"
+          aria-hidden="true"
+        >
+          <span className="font-mono text-[10px] font-bold uppercase tracking-widest">
+            {previewEmptySlotLabel}
+          </span>
+        </div>
+      );
+    }
     return (
       <div
         className="grade-card-paper-item bg-white border border-transparent select-none"

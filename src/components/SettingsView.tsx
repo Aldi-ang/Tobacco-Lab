@@ -668,10 +668,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 key={seg.id}
                 type="button"
                 onClick={() => setActiveSegment(seg.id)}
-                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1 ${
+                className={`relative p-2.5 rounded-xl border text-left transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.97] cursor-pointer flex flex-col justify-between gap-1 overflow-hidden ${
                   isActive
-                    ? 'bg-black border-amber-500 shadow-[0_0_16px_rgba(245,158,11,0.16)]'
-                    : 'bg-zinc-950/70 border-zinc-800/90 hover:border-zinc-700 text-zinc-400 hover:text-white'
+                    ? 'bg-[#12141c] border-amber-500/75'
+                    : 'bg-[#08090d] border-zinc-800/90 hover:border-zinc-700 text-zinc-400 hover:text-white'
                 }`}
               >
                 <div className="flex items-center justify-between gap-1.5">
@@ -680,9 +680,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </span>
                   {seg.badge !== undefined && (
                     <span
-                      className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-black ${
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-mono tabular-nums font-black ${
                         isActive
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          ? 'bg-amber-500/15 text-amber-300 border border-amber-500/45'
                           : 'bg-zinc-900 text-zinc-400 border border-zinc-800'
                       }`}
                     >
@@ -693,13 +693,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div>
                   <div
                     className={`text-xs font-black truncate ${
-                      isActive ? 'text-white' : 'text-zinc-200'
+                      isActive ? 'text-amber-200' : 'text-zinc-200'
                     }`}
                   >
                     {seg.label}
                   </div>
                   <div className="text-[10px] text-zinc-500 truncate">{seg.shortDesc}</div>
                 </div>
+                {isActive && (
+                  <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-amber-400" />
+                )}
               </button>
             );
           })}

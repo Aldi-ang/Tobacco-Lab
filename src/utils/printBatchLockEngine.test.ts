@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildReprintSlotPlan,
+  buildSlotAssignedReprintPlan,
   confirmPendingBatchLock,
   createPendingPrintBatch,
   parseReprintLotCodes,
@@ -121,3 +122,53 @@ test('buildReprintSlotPlan packs damaged old lot with fresh sequential lots (GAB
   assert.equal(sparsePlan.blankUnusedSlots, true);
   assert.equal(sparsePlan.pageCount, 1);
 });
+
+test('buildSlotAssignedReprintPlan combines different numbers across chosen Slots 1-6 onto ONE single A4 page', () => {
+  const freshPool = ['MTL009', 'MTL010', 'MTL011', 'MTL012', 'MTL013', 'MTL014'];
+
+  // Combine distinct prefixes & numbers in Slot 1, Slot 3, Slot 5 on 1 sheet
+  const combinedSparse = buildSlotAssignedReprintPlan({
+    slotCodes: ['mtl008', '', 'yh41', '', 'bm1', ''],
+    mode: 'SLOT_TERPILIH',
+    generatedFreshLots: freshPool,
+    requestedCount: 6,
+    paperFormat: 'A4_6',
+  });
+  assert.equal(combinedSparse.pageCount, 1);
+  assert.equal(combinedSparse.blankUnusedSlots, true);
+  assert.deepEqual(combinedSparse.reprintedLots, ['MTL008', 'YH41', 'BM1']);
+  assert.deepEqual(combinedSparse.freshLotsToLock, []);
+  assert.deepEqual(combinedSparse.slots, ['MTL008', null, 'YH41', null, 'BM1', null]);
+
+  // GABUNG_BARU preserves assigned slot positions and fills empty slots with fresh sequential lots
+  const combinedWithFresh = buildSlotAssignedReprintPlan({
+    slotCodes: ['MTL008', '', 'YH41', '', 'BM1', ''],
+    mode: 'GABUNG_BARU',
+    generatedFreshLots: freshPool,
+    requestedCount: 6,
+    paperFormat: 'A4_6',
+  });
+  assert.equal(combinedWithFresh.pageCount, 1);
+  assert.equal(combinedWithFresh.blankUnusedSlots, false);
+  assert.deepEqual(combinedWithFresh.slots, [
+    'MTL008',
+    'MTL009',
+    'YH41',
+    'MTL010',
+    'BM1',
+    'MTL011',
+  ]);
+  assert.deepEqual(combinedWithFresh.freshLotsToLock, ['MTL009', 'MTL010', 'MTL011']);
+
+  // Thermal mode prints all assigned slots sequentially
+  const thermalPlan = buildSlotAssignedReprintPlan({
+    slotCodes: ['', 'YH41', '', 'BM1', '', ''],
+    mode: 'SLOT_TERPILIH',
+    generatedFreshLots: freshPool,
+    requestedCount: 6,
+    paperFormat: 'THERMAL_80',
+  });
+  assert.deepEqual(thermalPlan.slots, ['YH41', 'BM1']);
+  assert.equal(thermalPlan.pageCount, 2);
+});
+

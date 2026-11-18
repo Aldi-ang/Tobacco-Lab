@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
 import {
   Archive,
+  ArrowLeftRight,
   Calendar,
   Check,
   CheckCircle2,
@@ -72,13 +73,12 @@ import {
   LockedBatchSnapshot,
   PendingPrintBatch,
   ReprintMode,
-  buildReprintSlotPlan,
+  buildSlotAssignedReprintPlan,
   confirmPendingBatchLock,
   createPendingPrintBatch,
   loadIssuedPrintedLots,
   loadLastLockedBatch,
   loadPendingPrintBatch,
-  parseReprintLotCodes,
   resolveActiveBatchLots,
   saveIssuedPrintedLots,
   saveLastLockedBatch,
@@ -88,12 +88,9 @@ import {
 } from '../utils/printBatchLockEngine';
 import { generateA4GradeCardsPdf } from '../utils/a4PdfExportEngine';
 import {
-  ReprintReasonCode,
   buildPrefixAuditGridBlock,
   buildPrefixAuditLedgers,
   detectPreviousPrefixHistory,
-  evaluateReprintWarnings,
-  isReprintSafetySatisfied,
 } from '../utils/prefixAuditLedger';
 import {
   PrintableGradeCardBackPaper,
@@ -104,7 +101,6 @@ import {
   DeleteConfirmWarning,
   PrefixHistoryResumeNotice,
   PrintErrorWarning,
-  ReprintSafetyWarning,
 } from './PrintWarningBanner';
 
 interface GradeCardPrintPanelProps {
@@ -177,17 +173,16 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [printPdfError, setPrintPdfError] = useState<string | null>(null);
 
-  // Reprint Recovery State
+  // Reprint Recovery State (1-to-1 per-slot A4 position assignment: Slots 1..6)
   const [reprintModeType, setReprintModeType] = useState<ReprintMode>('SLOT_TERPILIH');
-  const [reprintLotsInput, setReprintLotsInput] = useState('');
-  const [reprintReason, setReprintReason] = useState<ReprintReasonCode | null>(null);
-  const [reprintWarningConfirmed, setReprintWarningConfirmed] = useState(false);
-  const [selectedSlotIndexes, setSelectedSlotIndexes] = useState<number[]>([0]);
+  const [reprintSlotCodes, setReprintSlotCodes] = useState<string[]>(['', '', '', '', '', '']);
+  const [activeReprintSlotIndex, setActiveReprintSlotIndex] = useState<number>(0);
 
   // 100-Number Read-Only Audit Portal State
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [auditSelectedPrefixKey, setAuditSelectedPrefixKey] = useState<string>('');
   const [auditBlockIndex, setAuditBlockIndex] = useState<number>(0);
+  const [auditAssignedInSession, setAuditAssignedInSession] = useState(false);
 
   const effectivePrintCount = snapPrintCountForFormat(printCount, paperFormat);
   const activeGraderName = graderRegistryRaw.lastSelectedGrader;
@@ -227,6 +222,10 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
       if (e.key === 'Escape') {
         if (isAuditModalOpen) {
           setIsAuditModalOpen(false);
+          if (auditAssignedInSession) {
+            setPrintModeTab('reprint');
+            setPrintPdfError(null);
+          }
         } else {
           onClose();
         }
@@ -234,7 +233,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, isAuditModalOpen, onClose]);
+  }, [isOpen, isAuditModalOpen, auditAssignedInSession, onClose]);
 
   const prefixRegistry = useMemo(
     () =>
@@ -277,36 +276,55 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
     [rawTobaccos, packagingList, graderRegistryRaw.registeredGraders]
   );
 
+  const stockedLotSet = useMemo(
+    () =>
+      new Set(
+        rawTobaccos.map((t) => normalizeLotNumber(t.lotNumber)).filter(Boolean)
+      ),
+    [rawTobaccos]
+  );
+
+  const printedLotSet = useMemo(
+    () =>
+      new Set(
+        issuedPrintedLots.map((l) => normalizeLotNumber(l)).filter(Boolean)
+      ),
+    [issuedPrintedLots]
+  );
+
+  const printedOrStockedLotSet = useMemo(
+    () => new Set([...printedLotSet, ...stockedLotSet]),
+    [printedLotSet, stockedLotSet]
+  );
+
   const parsedReprintLots = useMemo(
-    () => (printModeTab === 'reprint' ? parseReprintLotCodes(reprintLotsInput) : []),
-    [printModeTab, reprintLotsInput]
-  );
-
-  const reprintWarning = useMemo(
     () =>
-      evaluateReprintWarnings({
-        reprintLots: parsedReprintLots,
-        rawTobaccos,
-        issuedPrintedLots,
-      }),
-    [parsedReprintLots, rawTobaccos, issuedPrintedLots]
+      printModeTab === 'reprint'
+        ? Array.from(
+            new Set(
+              reprintSlotCodes
+                .map((c) => normalizeLotNumber(c))
+                .filter(Boolean)
+            )
+          )
+        : [],
+    [printModeTab, reprintSlotCodes]
   );
 
-  const parsedReprintSignature = parsedReprintLots.join(',');
-  useEffect(() => {
-    setReprintWarningConfirmed(false);
-    setReprintReason(null);
-  }, [parsedReprintSignature]);
-
-  const isReprintAllowed = useMemo(
-    () =>
-      isReprintSafetySatisfied({
-        warning: reprintWarning,
-        reason: reprintReason,
-        confirmed: reprintWarningConfirmed,
-      }),
-    [reprintWarning, reprintReason, reprintWarningConfirmed]
-  );
+  const slotAssignmentsByLot = useMemo(() => {
+    const map = new Map<string, number[]>();
+    reprintSlotCodes.forEach((rawCode, idx) => {
+      const norm = normalizeLotNumber(rawCode);
+      if (!norm) return;
+      const existing = map.get(norm);
+      if (existing) {
+        existing.push(idx + 1);
+      } else {
+        map.set(norm, [idx + 1]);
+      }
+    });
+    return map;
+  }, [reprintSlotCodes]);
 
   const prefixAuditLedgers = useMemo(
     () =>
@@ -364,7 +382,17 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
     } else {
       setAuditBlockIndex(0);
     }
+    setAuditAssignedInSession(false);
     setIsAuditModalOpen(true);
+  };
+
+  const handleCloseAuditModal = (forceReprintTab = false) => {
+    setIsAuditModalOpen(false);
+    const hasAnySlot = reprintSlotCodes.some((c) => Boolean(normalizeLotNumber(c)));
+    if (forceReprintTab || (auditAssignedInSession && hasAnySlot)) {
+      setPrintModeTab('reprint');
+      setPrintPdfError(null);
+    }
   };
 
   const handleSelectAuditPrefix = (prefixKey: string) => {
@@ -395,25 +423,39 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
     [isAddingPrefix, newPrefixDraft, rawTobaccos, issuedPrintedLots, prefixRegistry]
   );
 
+  const occupiedReprintSlotCount = useMemo(
+    () => reprintSlotCodes.filter((c) => Boolean(normalizeLotNumber(c))).length,
+    [reprintSlotCodes]
+  );
+
   const reprintFreshNeededCount = useMemo(() => {
-    if (parsedReprintLots.length === 0) return effectivePrintCount;
+    if (printModeTab !== 'reprint' || parsedReprintLots.length === 0) return effectivePrintCount;
     if (reprintModeType === 'SLOT_TERPILIH') return 0;
-    const minPages = isThermalMode ? parsedReprintLots.length : Math.ceil(parsedReprintLots.length / 6);
-    const totalSlots = isThermalMode
-      ? Math.max(parsedReprintLots.length, effectivePrintCount)
-      : Math.max(effectivePrintCount, minPages * 6);
-    return Math.max(0, totalSlots - parsedReprintLots.length);
-  }, [parsedReprintLots, reprintModeType, isThermalMode, effectivePrintCount]);
+    if (isThermalMode) {
+      return Math.max(0, Math.max(parsedReprintLots.length, effectivePrintCount) - parsedReprintLots.length);
+    }
+    const snappedTarget = snapPrintCountForFormat(effectivePrintCount, 'A4_6');
+    return Math.max(0, snappedTarget - occupiedReprintSlotCount);
+  }, [
+    printModeTab,
+    parsedReprintLots.length,
+    occupiedReprintSlotCount,
+    reprintModeType,
+    isThermalMode,
+    effectivePrintCount,
+  ]);
 
   const generatedBatchNumbers = useMemo(
     () =>
-      generateNextLotBatchNumbers(
-        rawTobaccos,
-        Math.max(effectivePrintCount, reprintFreshNeededCount),
-        customLotPrefix,
-        issuedPrintedLots,
-        activeMinStartSeq
-      ),
+      customLotPrefix
+        ? generateNextLotBatchNumbers(
+            rawTobaccos,
+            Math.max(effectivePrintCount, reprintFreshNeededCount),
+            customLotPrefix,
+            issuedPrintedLots,
+            activeMinStartSeq
+          )
+        : [],
     [
       rawTobaccos,
       effectivePrintCount,
@@ -435,17 +477,11 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
     [pendingPrintBatch, generatedBatchNumbers, customLotPrefix, reprintFreshNeededCount]
   );
 
-  const effectiveSelectedSlotIndexes = useMemo(() => {
-    const cap = Math.max(1, parsedReprintLots.length);
-    return selectedSlotIndexes.slice(-cap);
-  }, [selectedSlotIndexes, parsedReprintLots.length]);
-
   const activeReprintPlan = useMemo(
     () =>
-      buildReprintSlotPlan({
+      buildSlotAssignedReprintPlan({
+        slotCodes: printModeTab === 'reprint' ? reprintSlotCodes : ['', '', '', '', '', ''],
         mode: printModeTab === 'reprint' ? reprintModeType : 'GABUNG_BARU',
-        reprintLots: parsedReprintLots,
-        selectedSlotIndexes: effectiveSelectedSlotIndexes,
         generatedFreshLots: freshLotsForBatch,
         requestedCount: effectivePrintCount,
         paperFormat,
@@ -453,8 +489,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
     [
       printModeTab,
       reprintModeType,
-      parsedReprintLots,
-      effectiveSelectedSlotIndexes,
+      reprintSlotCodes,
       freshLotsForBatch,
       effectivePrintCount,
       paperFormat,
@@ -538,45 +573,53 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
     setPrintYearDraft(String(clean));
   };
 
-  const handleToggleSlotIndex = (slotIdx: number) => {
-    const neededCount = Math.max(1, parsedReprintLots.length);
-    if (neededCount <= 1) {
-      setSelectedSlotIndexes([slotIdx]);
-      return;
-    }
-    setSelectedSlotIndexes((prev) => {
-      const normalized = prev.slice(-neededCount);
-      if (normalized.includes(slotIdx)) {
-        return normalized.length > 1 ? normalized.filter((s) => s !== slotIdx) : normalized;
-      }
-      if (normalized.length >= neededCount) {
-        return [...normalized.slice(normalized.length - neededCount + 1), slotIdx].sort(
-          (a, b) => a - b
-        );
-      }
-      return [...normalized, slotIdx].sort((a, b) => a - b);
-    });
+  const handleSelectReprintSlot = (slotIdx: number) => {
+    setActiveReprintSlotIndex(Math.max(0, Math.min(5, slotIdx)));
   };
 
-  const handleToggleReprintChip = (lotCode: string) => {
-    const curr = parseReprintLotCodes(reprintLotsInput);
-    const next = curr.includes(lotCode)
-      ? curr.filter((x) => x !== lotCode)
-      : [...curr, lotCode];
-    setReprintLotsInput(next.join(', '));
+  const handleClearReprintSlot = (slotIdx: number) => {
+    setReprintSlotCodes((prev) => {
+      const next = [...prev];
+      next[slotIdx] = '';
+      return next;
+    });
+    setPrintPdfError(null);
+  };
+
+  const handleUpdateActiveSlotInput = (rawVal: string) => {
+    const cleaned = rawVal
+      .toUpperCase()
+      .replace(/\s+/g, '')
+      .replace(/[^A-Z0-9-]/g, '');
+    setReprintSlotCodes((prev) => {
+      const next = [...prev];
+      next[activeReprintSlotIndex] = cleaned;
+      return next;
+    });
+    setPrintPdfError(null);
+  };
+
+  const handleAssignChipToActiveSlot = (lotCode: string) => {
+    const norm = normalizeLotNumber(lotCode);
+    setReprintSlotCodes((prev) => {
+      const next = [...prev];
+      const current = normalizeLotNumber(next[activeReprintSlotIndex]);
+      next[activeReprintSlotIndex] = current === norm ? '' : norm;
+      return next;
+    });
+    setPrintPdfError(null);
   };
 
   const handleLoadLotForRedownloadFromLedger = (lotCode: string) => {
-    setIsAuditModalOpen(false);
-    setPrintModeTab('reprint');
-    setReprintModeType('SLOT_TERPILIH');
-    const curr = parseReprintLotCodes(reprintLotsInput);
-    const next = curr.includes(lotCode) ? curr : [...curr, lotCode];
-    setReprintLotsInput(next.join(', '));
-    setReprintWarningConfirmed(false);
-    setReprintReason(null);
+    const norm = normalizeLotNumber(lotCode);
+    setReprintSlotCodes((prev) => {
+      const next = [...prev];
+      next[activeReprintSlotIndex] = norm;
+      return next;
+    });
+    setAuditAssignedInSession(true);
     setPrintPdfError(null);
-    onShowToast?.(`Lot ${lotCode} dimuat ke Cetak Ulang — pilih alasan & konfirmasi peringatan.`);
+    onShowToast?.(`${norm} → Slot ${activeReprintSlotIndex + 1}.`);
   };
 
   const handleSelectSavedPrefix = (prefix: string) => {
@@ -674,6 +717,10 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
 
   const handleApplySkipStartSequence = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!customLotPrefix) {
+      onShowToast?.('Buat atau pilih prefix seri terlebih dahulu.');
+      return;
+    }
     const parsed = parseInt(skipStartSeqDraft.trim(), 10);
     if (!Number.isFinite(parsed) || parsed < 2) {
       onShowToast?.('Masukkan angka mulai minimal 2 (contoh: 19).');
@@ -685,11 +732,12 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
     savePendingPrintBatch(null);
     setShowSkipNumber(false);
     onShowToast?.(
-      `Urutan "${customLotPrefix || 'Harian'}" diatur mulai dari #${String(parsed).padStart(3, '0')}.`
+      `Urutan "${customLotPrefix}" diatur mulai dari #${String(parsed).padStart(3, '0')}.`
     );
   };
 
   const handleResetSkipStartSequence = () => {
+    if (!customLotPrefix) return;
     const next = setPrefixStartSequence(prefixRegistry, customLotPrefix, null);
     persistPrefixRegistry(next);
     setPendingPrintBatch(null);
@@ -713,13 +761,6 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
 
   const handleDownloadA4Pdf = () => {
     if (isGeneratingPdf || lotBatchNumbers.length === 0) return;
-    if (!isReprintAllowed) {
-      const msg =
-        'Pilih alasan cetak ulang & centang konfirmasi peringatan terlebih dahulu sebelum mengunduh PDF.';
-      setPrintPdfError(msg);
-      onShowToast?.(msg);
-      return;
-    }
 
     const slotSnapshot = [...activePrintSlots];
     const freshSnapshot = [...freshLotsToLock];
@@ -754,7 +795,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
         );
       } else {
         onShowToast?.(
-          `PDF Cetak Ulang (${parsedReprintLots.join(', ')}) dibuat — urutan nomor baru tetap aman.`
+          `PDF Custom Printing (${parsedReprintLots.join(', ')}) dibuat — urutan nomor baru tetap aman.`
         );
       }
     } catch (err) {
@@ -775,13 +816,6 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
 
   const handleSystemPrintAttempt = () => {
     if (lotBatchNumbers.length === 0) return;
-    if (!isReprintAllowed) {
-      const msg =
-        'Pilih alasan cetak ulang & centang konfirmasi peringatan terlebih dahulu sebelum mencetak.';
-      setPrintPdfError(msg);
-      onShowToast?.(msg);
-      return;
-    }
 
     const freshSnapshot = [...freshLotsToLock];
     setPrintPdfError(null);
@@ -881,21 +915,18 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
 
   if (!isOpen) return null;
 
-  const dailyPreviewPrefix =
-    generateNextLotBatchNumbers(
-      rawTobaccos,
-      1,
-      '',
-      issuedPrintedLots,
-      getPrefixStartSequence(prefixRegistry, '') ?? 1
-    )[0]?.replace(/\d+$/, '') || 'LOT-';
-
   const batchRangeText =
     lotBatchNumbers.length === 0
-      ? 'Pilih nomor seri'
+      ? printModeTab === 'new' && !customLotPrefix
+        ? 'Tambah prefix dulu'
+        : 'Pilih nomor seri'
       : lotBatchNumbers.length === 1
         ? lotBatchNumbers[0]
-        : `${lotBatchNumbers[0]} – ${lotBatchNumbers[lotBatchNumbers.length - 1]}`;
+        : printModeTab === 'reprint'
+          ? lotBatchNumbers.length <= 3
+            ? lotBatchNumbers.join(', ')
+            : `${lotBatchNumbers.slice(0, 2).join(', ')} +${lotBatchNumbers.length - 2} lainnya`
+          : `${lotBatchNumbers[0]} – ${lotBatchNumbers[lotBatchNumbers.length - 1]}`;
 
   const outputYieldText = isThermalMode
     ? `${lotBatchNumbers.length} Slip ${paperFormat === 'THERMAL_58' ? '58mm' : '80mm'}`
@@ -903,8 +934,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
         duplexMode !== 'OFF' ? ' Bolak-Balik' : ''
       })`;
 
-  const primaryDisabled =
-    isGeneratingPdf || lotBatchNumbers.length === 0 || !isReprintAllowed;
+  const primaryDisabled = isGeneratingPdf || lotBatchNumbers.length === 0;
 
   return (
     <>
@@ -921,10 +951,10 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
             className="fixed inset-0 z-[90] bg-[#040406] text-white flex flex-col overflow-hidden"
           >
             {/* Slim Single-Row Header */}
-            <header className="px-4 sm:px-6 py-2.5 border-b border-zinc-800 bg-[#08090d] flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <header className="px-4 sm:px-6 py-2.5 border-b border-zinc-800/90 bg-[#08090d] flex flex-wrap items-center justify-between gap-3 shrink-0">
               {/* Left: Title + Live Range */}
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-[#0d0f14] border border-amber-500/70 flex items-center justify-center text-amber-300 shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-[#0d0f14] border border-amber-500/65 flex items-center justify-center text-amber-300 shrink-0">
                   <Printer className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
@@ -941,11 +971,11 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                 </div>
               </div>
 
-              {/* Center: Mode Switch (New Batch vs Reprint Recovery) */}
+              {/* Center: Alucard Marked Edge-Plate Swapper (Seri Baru ⇄ Custom Printing) */}
               <div
                 role="tablist"
                 aria-label="Mode Cetak"
-                className="inline-flex p-0.5 rounded-xl bg-black border border-zinc-800 gap-0.5 shrink-0"
+                className="inline-flex items-center p-1 rounded-xl bg-[#040507] border border-amber-500/50 gap-1 shrink-0"
               >
                 <button
                   type="button"
@@ -956,14 +986,29 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                     setPrintModeTab('new');
                     setPrintPdfError(null);
                   }}
-                  className={`h-8 px-3.5 rounded-lg text-xs font-extrabold border inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+                  className={`relative h-8 px-3.5 rounded-lg text-xs border inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.97] ${
                     printModeTab === 'new'
-                      ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
-                      : 'bg-transparent text-zinc-400 border-transparent hover:text-white'
+                      ? 'bg-[#12141c] text-amber-200 border-amber-500/80 font-extrabold'
+                      : 'bg-[#090a0e] text-zinc-300 border-zinc-800 hover:border-zinc-600 hover:text-white font-semibold'
                   }`}
                 >
-                  <Layers className="w-3.5 h-3.5" />
+                  <Layers className="w-3.5 h-3.5 shrink-0 text-amber-400" />
                   <span>Seri Baru</span>
+                  {printModeTab === 'new' && (
+                    <span className="absolute bottom-0 left-2.5 right-2.5 h-[2px] rounded-full bg-amber-400" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPrintModeTab((prev) => (prev === 'new' ? 'reprint' : 'new'));
+                    setPrintPdfError(null);
+                  }}
+                  aria-label="Tukar Mode Cetak"
+                  title="Tukar antara Seri Baru dan Custom Printing"
+                  className="h-7 w-7 rounded-lg text-amber-400/85 hover:text-amber-300 hover:bg-amber-500/10 inline-flex items-center justify-center shrink-0 cursor-pointer transition-[color,background-color,transform] duration-150 active:scale-95"
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
@@ -974,14 +1019,17 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                     setPrintModeTab('reprint');
                     setPrintPdfError(null);
                   }}
-                  className={`h-8 px-3.5 rounded-lg text-xs font-extrabold border inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+                  className={`relative h-8 px-3.5 rounded-lg text-xs border inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.97] ${
                     printModeTab === 'reprint'
-                      ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
-                      : 'bg-transparent text-zinc-400 border-transparent hover:text-white'
+                      ? 'bg-[#12141c] text-amber-200 border-amber-500/80 font-extrabold'
+                      : 'bg-[#090a0e] text-zinc-300 border-zinc-800 hover:border-zinc-600 hover:text-white font-semibold'
                   }`}
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Cetak Ulang</span>
+                  <SlidersHorizontal className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                  <span>Custom Printing</span>
+                  {printModeTab === 'reprint' && (
+                    <span className="absolute bottom-0 left-2.5 right-2.5 h-[2px] rounded-full bg-amber-400" />
+                  )}
                 </button>
               </div>
 
@@ -992,7 +1040,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                     type="button"
                     onClick={onSwitchToScanner}
                     aria-label="Ke Scan"
-                    className="h-8 px-2.5 sm:px-3 rounded-lg bg-black hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-300 hover:text-white text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+                    className="alucard-edge-btn-quiet h-8 px-2.5 sm:px-3 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
                   >
                     <span className="sm:hidden">Scan</span>
                     <span className="hidden sm:inline">Ke Scan</span>
@@ -1003,7 +1051,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                   data-testid="open-fullscreen-audit-panel-btn"
                   onClick={handleOpenAuditModal}
                   aria-label="Audit 100 Nomor"
-                  className="h-8 px-2.5 sm:px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/75 text-amber-300 text-xs font-extrabold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+                  className="alucard-edge-btn h-8 px-2.5 sm:px-3 rounded-lg text-xs font-extrabold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <Grid3X3 className="w-3.5 h-3.5" />
                   <span className="sm:hidden">Audit 100</span>
@@ -1014,7 +1062,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                   data-testid="close-print-panel-btn"
                   onClick={onClose}
                   aria-label="Tutup Panel Cetak"
-                  className="h-8 px-2.5 rounded-lg bg-black hover:bg-zinc-900 border border-zinc-700 text-zinc-200 hover:text-white text-xs font-bold inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+                  className="alucard-edge-btn-quiet h-8 px-2.5 rounded-lg text-xs font-bold inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Tutup</span>
@@ -1034,34 +1082,24 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                         <h3 className="text-xs font-extrabold text-zinc-200 tracking-wide">
                           1. Prefix Seri Kartu
                         </h3>
-                        <button
-                          type="button"
-                          data-testid="toggle-skip-number-btn"
-                          onClick={() => setShowSkipNumber((v) => !v)}
-                          className="text-[11px] font-bold text-zinc-400 hover:text-amber-300 inline-flex items-center gap-1 cursor-pointer whitespace-nowrap transition-colors"
-                        >
-                          <Hash className="w-3 h-3" />
-                          <span>
-                            {activeMinStartSeq > 1
-                              ? `Mulai #${String(activeMinStartSeq).padStart(3, '0')}`
-                              : 'Lompat Nomor'}
-                          </span>
-                        </button>
+                        {customLotPrefix && (
+                          <button
+                            type="button"
+                            data-testid="toggle-skip-number-btn"
+                            onClick={() => setShowSkipNumber((v) => !v)}
+                            className="text-[11px] font-bold text-zinc-400 hover:text-amber-300 inline-flex items-center gap-1 cursor-pointer whitespace-nowrap transition-colors"
+                          >
+                            <Hash className="w-3 h-3" />
+                            <span>
+                              {activeMinStartSeq > 1
+                                ? `Mulai #${String(activeMinStartSeq).padStart(3, '0')}`
+                                : 'Lompat Nomor'}
+                            </span>
+                          </button>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleSelectSavedPrefix('')}
-                          className={`h-8 px-3 rounded-lg font-mono text-xs font-extrabold border whitespace-nowrap cursor-pointer transition-colors ${
-                            customLotPrefix === ''
-                              ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
-                              : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
-                          }`}
-                        >
-                          Harian ({dailyPreviewPrefix.replace(/-$/, '')})
-                        </button>
-
                         {prefixRegistry.registeredPrefixes.map((pref) => {
                           const active = customLotPrefix === pref;
                           const confirmingThis = pendingDeletePrefix === pref;
@@ -1107,6 +1145,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                         {!isAddingPrefix && (
                           <button
                             type="button"
+                            data-testid="add-prefix-btn"
                             onClick={() => setIsAddingPrefix(true)}
                             className="h-8 px-3 rounded-lg bg-black hover:bg-[#0d0f14] border border-dashed border-amber-500/65 text-amber-300 text-xs font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors"
                           >
@@ -1115,6 +1154,12 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                           </button>
                         )}
                       </div>
+
+                      {prefixRegistry.registeredPrefixes.length === 0 && !isAddingPrefix && (
+                        <p className="text-[11px] text-zinc-400 leading-snug">
+                          Belum ada prefix. Klik <strong className="text-amber-300">+ Prefix Baru</strong> (mis. MTL, TMG) untuk membuat nomor seri.
+                        </p>
+                      )}
 
                       {isAddingPrefix && (
                         <div className="space-y-2 pt-1">
@@ -1404,152 +1449,256 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                   </>
                 ) : (
                   /* MODE 2: CETAK ULANG NOMOR LAMA / RUSAK */
-                  <div className="divide-y divide-zinc-800/80">
-                    <section className="p-3.5 sm:p-4 space-y-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-xs font-extrabold text-zinc-200 tracking-wide">
-                          1. Pilih Nomor Seri Lama / Rusak
-                        </h3>
-                        <button
-                          type="button"
-                          onClick={handleOpenAuditModal}
-                          className="text-[11px] font-bold text-amber-300 hover:underline cursor-pointer"
-                        >
-                          Pilih via Audit 100 Nomor
-                        </button>
-                      </div>
+                  (() => {
+                    const activeSlotRaw = reprintSlotCodes[activeReprintSlotIndex] || '';
+                    const activeSlotNorm = normalizeLotNumber(activeSlotRaw);
+                    const isActiveSlotStocked = Boolean(
+                      activeSlotNorm && stockedLotSet.has(activeSlotNorm)
+                    );
+                    const isActiveSlotPrinted = Boolean(
+                      activeSlotNorm && printedLotSet.has(activeSlotNorm)
+                    );
+                    const isActiveSlotRed = isActiveSlotStocked || isActiveSlotPrinted;
 
-                      <input
-                        id="reprint-lots-input"
-                        type="text"
-                        value={reprintLotsInput}
-                        onChange={(e) => setReprintLotsInput(e.target.value.toUpperCase())}
-                        placeholder="Ketik nomor seri (mis. MTL005 atau MTL005, MTL006)"
-                        className="w-full h-10 px-3 rounded-lg bg-black border border-amber-500/70 font-mono text-xs font-bold text-amber-300 focus:outline-hidden focus:border-amber-400"
-                      />
-
-                      {recentPrintableLotsForChips.length > 0 && (
-                        <div className="space-y-1.5">
-                          <div className="text-[11px] font-semibold text-zinc-400">
-                            Seri Terakhir:
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {recentPrintableLotsForChips.map((lotCode) => {
-                              const selected = parsedReprintLots.includes(lotCode);
-                              return (
-                                <button
-                                  key={lotCode}
-                                  type="button"
-                                  onClick={() => handleToggleReprintChip(lotCode)}
-                                  className={`h-7 px-2.5 rounded-lg font-mono text-[11px] font-bold border cursor-pointer transition-colors ${
-                                    selected
-                                      ? 'bg-[#0d0f14] text-amber-300 border-amber-500/85'
-                                      : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                    return (
+                      <div className="divide-y divide-zinc-800/80">
+                        <section className="p-3.5 sm:p-4 space-y-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <h3 className="text-xs font-extrabold text-zinc-200 tracking-wide truncate">
+                                1. Pilih Nomor · Slot {activeReprintSlotIndex + 1}
+                              </h3>
+                              {activeSlotNorm && (
+                                <span
+                                  className={`text-[10px] font-extrabold shrink-0 ${
+                                    isActiveSlotRed ? 'text-red-400' : 'text-amber-300'
                                   }`}
                                 >
-                                  {lotCode}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </section>
+                                  {isActiveSlotStocked
+                                    ? 'Sudah di Stok'
+                                    : isActiveSlotPrinted
+                                      ? 'Sudah Dicetak'
+                                      : 'Belum Tercatat'}
+                                </span>
+                              )}
+                            </div>
 
-                    <section className="p-3.5 sm:p-4 space-y-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-xs font-extrabold text-zinc-200 tracking-wide">
-                          2. Penempatan Hemat Kertas
-                        </h3>
-                        {!isThermalMode && (
-                          <button
-                            type="button"
-                            onClick={() => handleChangePaperFormat('THERMAL_80')}
-                            className="text-[11px] font-bold text-amber-300 hover:underline inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <Printer className="w-3 h-3" />
-                            <span>Pakai Thermal 1 Slip</span>
-                          </button>
-                        )}
-                      </div>
+                            <button
+                              type="button"
+                              data-testid="reprint-pick-audit-btn"
+                              onClick={handleOpenAuditModal}
+                              className="h-7 px-2.5 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/75 text-[11px] font-extrabold text-amber-300 cursor-pointer shrink-0 transition-colors"
+                            >
+                              Pilih Nomor
+                            </button>
+                          </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setReprintModeType('SLOT_TERPILIH')}
-                          className={`p-2.5 rounded-lg border text-left cursor-pointer transition-colors ${
-                            reprintModeType === 'SLOT_TERPILIH'
-                              ? 'bg-[#0d0f14] text-amber-300 border-amber-500/85'
-                              : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-700'
-                          }`}
-                        >
-                          <div className="text-xs font-extrabold">Slot Terpilih 1–6</div>
-                          <div className="text-[11px] text-zinc-400 mt-0.5">
-                            Sisa kertas putih bersih, urutan baru tidak berubah
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              id="reprint-lots-input"
+                              type="text"
+                              value={activeSlotRaw}
+                              onChange={(e) => handleUpdateActiveSlotInput(e.target.value)}
+                              placeholder={`Nomor untuk Slot ${activeReprintSlotIndex + 1} (mis. MTL005)`}
+                              className={`flex-1 min-w-0 h-10 px-3 rounded-lg bg-black border font-mono text-xs font-bold focus:outline-hidden transition-colors ${
+                                isActiveSlotRed
+                                  ? 'border-red-500/85 text-red-300 focus:border-red-400'
+                                  : 'border-amber-500/70 text-amber-300 focus:border-amber-400'
+                              }`}
+                            />
+                            {activeSlotRaw && (
+                              <button
+                                type="button"
+                                onClick={() => handleClearReprintSlot(activeReprintSlotIndex)}
+                                aria-label={`Kosongkan Slot ${activeReprintSlotIndex + 1}`}
+                                title={`Kosongkan Slot ${activeReprintSlotIndex + 1}`}
+                                className="h-10 px-2.5 rounded-lg bg-black hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white text-xs font-bold shrink-0 cursor-pointer transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setReprintModeType('GABUNG_BARU')}
-                          className={`p-2.5 rounded-lg border text-left cursor-pointer transition-colors ${
-                            reprintModeType === 'GABUNG_BARU'
-                              ? 'bg-[#0d0f14] text-amber-300 border-amber-500/85'
-                              : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-700'
-                          }`}
-                        >
-                          <div className="text-xs font-extrabold">Gabung Seri Baru</div>
-                          <div className="text-[11px] text-zinc-400 mt-0.5">
-                            Isi slot sisa dengan seri baru agar penuh 1 A4
-                          </div>
-                        </button>
-                      </div>
 
-                      {!isThermalMode && reprintModeType === 'SLOT_TERPILIH' && (
-                        <div className="space-y-1.5 pt-1">
-                          <div className="text-[11px] font-semibold text-zinc-400">
-                            Pilih posisi cetak pada lembar A4 (2 × 3):
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5 max-w-[260px]">
-                            {[0, 1, 2, 3, 4, 5].map((slotIdx) => {
-                              const active = effectiveSelectedSlotIndexes.includes(slotIdx);
-                              return (
+                          {/* Quick Slot 1..6 Position Switcher inside Pilih Nomor */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-semibold text-zinc-400">
+                                {isThermalMode
+                                  ? 'Slot Kartu Cetak (1–6):'
+                                  : 'Slot Posisi Kertas A4 (1–6 · digabung dalam 1 lembar):'}
+                              </span>
+                              {parsedReprintLots.length > 0 && (
                                 <button
-                                  key={slotIdx}
                                   type="button"
-                                  onClick={() => handleToggleSlotIndex(slotIdx)}
-                                  className={`h-9 px-3 rounded-lg font-mono text-xs font-black border cursor-pointer transition-colors ${
-                                    active
-                                      ? 'bg-[#0d0f14] text-amber-300 border-amber-500/85'
-                                      : 'bg-black text-zinc-400 border-zinc-800 hover:text-white'
-                                  }`}
+                                  onClick={() =>
+                                    setReprintSlotCodes(['', '', '', '', '', ''])
+                                  }
+                                  className="text-[10px] font-bold text-zinc-400 hover:text-red-300 cursor-pointer"
                                 >
-                                  Slot {slotIdx + 1}
+                                  Reset Semua
                                 </button>
-                              );
-                            })}
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {[0, 1, 2, 3, 4, 5].map((slotIdx) => {
+                                const code = normalizeLotNumber(reprintSlotCodes[slotIdx]);
+                                const isActiveSlot = activeReprintSlotIndex === slotIdx;
+                                const isRedCode = Boolean(
+                                  code && printedOrStockedLotSet.has(code)
+                                );
+                                return (
+                                  <div
+                                    key={slotIdx}
+                                    className={`flex items-stretch rounded-lg border overflow-hidden transition-colors ${
+                                      isActiveSlot
+                                        ? isRedCode
+                                          ? 'bg-[#170709] border-red-400'
+                                          : 'bg-[#0d0f14] border-amber-500/90'
+                                        : isRedCode
+                                          ? 'bg-[#100507] border-red-500/45 hover:border-red-400/80'
+                                          : 'bg-black border-zinc-800 hover:border-zinc-700'
+                                    }`}
+                                  >
+                                    <button
+                                      type="button"
+                                      data-testid={`reprint-slot-btn-${slotIdx + 1}`}
+                                      onClick={() => handleSelectReprintSlot(slotIdx)}
+                                      className="flex-1 min-w-0 px-2.5 py-1.5 text-left cursor-pointer"
+                                    >
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span
+                                          className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                                            isActiveSlot ? 'text-amber-300' : 'text-zinc-500'
+                                          }`}
+                                        >
+                                          Slot {slotIdx + 1}
+                                        </span>
+                                      </div>
+                                      <div
+                                        className={`font-mono text-xs font-black truncate mt-0.5 ${
+                                          !code
+                                            ? 'text-zinc-600 font-semibold'
+                                            : isRedCode
+                                              ? 'text-red-400'
+                                              : 'text-amber-300'
+                                        }`}
+                                      >
+                                        {code || 'Kosong'}
+                                      </div>
+                                    </button>
+                                    {code && (
+                                      <button
+                                        type="button"
+                                        data-testid={`clear-reprint-slot-${slotIdx + 1}`}
+                                        onClick={() => handleClearReprintSlot(slotIdx)}
+                                        aria-label={`Hapus nomor dari Slot ${slotIdx + 1}`}
+                                        title={`Hapus dari Slot ${slotIdx + 1}`}
+                                        className="w-7 flex items-center justify-center border-l border-zinc-800/80 text-zinc-500 hover:text-red-300 hover:bg-black/40 cursor-pointer shrink-0 transition-colors"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </section>
 
-                    {parsedReprintLots.length > 0 && (
-                      <section className="p-3.5 sm:p-4">
-                        <ReprintSafetyWarning
-                          warning={reprintWarning}
-                          selectedReason={reprintReason}
-                          onSelectReason={(reason) => {
-                            setReprintReason(reason);
-                            setPrintPdfError(null);
-                          }}
-                          confirmed={reprintWarningConfirmed}
-                          onConfirmedChange={(checked) => {
-                            setReprintWarningConfirmed(checked);
-                            if (checked) setPrintPdfError(null);
-                          }}
-                        />
-                      </section>
-                    )}
-                  </div>
+                          {recentPrintableLotsForChips.length > 0 && (
+                            <div className="space-y-1.5 pt-0.5">
+                              <div className="flex items-center justify-between gap-2 text-[11px]">
+                                <span className="font-semibold text-zinc-400">
+                                  Seri Terakhir:
+                                </span>
+                                <span className="text-[10px] font-bold text-red-400">
+                                  Merah = Sudah dicetak / stok
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {recentPrintableLotsForChips.map((lotCode) => {
+                                  const isInActiveSlot = activeSlotNorm === lotCode;
+                                  const isInAnySlot = parsedReprintLots.includes(lotCode);
+                                  const isPrintedOrStock = printedOrStockedLotSet.has(lotCode);
+                                  return (
+                                    <button
+                                      key={lotCode}
+                                      type="button"
+                                      onClick={() => handleAssignChipToActiveSlot(lotCode)}
+                                      className={`h-7 px-2.5 rounded-lg font-mono text-[11px] font-bold border cursor-pointer transition-colors ${
+                                        isPrintedOrStock
+                                          ? isInActiveSlot
+                                            ? 'bg-[#21090c] text-red-200 border-red-400'
+                                            : isInAnySlot
+                                              ? 'bg-[#170609] text-red-300 border-red-500/80'
+                                              : 'bg-[#110507] hover:bg-[#1a080b] text-red-400 border-red-500/45'
+                                          : isInActiveSlot
+                                            ? 'bg-[#0d0f14] text-amber-300 border-amber-400'
+                                            : isInAnySlot
+                                              ? 'bg-[#0d0f14] text-amber-200 border-amber-500/60'
+                                              : 'bg-black hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                                      }`}
+                                    >
+                                      {lotCode}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </section>
+
+                        <section className="p-3.5 sm:p-4 space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="text-xs font-extrabold text-zinc-200 tracking-wide">
+                              2. Penempatan Hemat Kertas
+                            </h3>
+                            {!isThermalMode && (
+                              <button
+                                type="button"
+                                onClick={() => handleChangePaperFormat('THERMAL_80')}
+                                className="text-[11px] font-bold text-amber-300 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <Printer className="w-3 h-3" />
+                                <span>Pakai Thermal 1 Slip</span>
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setReprintModeType('SLOT_TERPILIH')}
+                              className={`p-2.5 rounded-lg border text-left cursor-pointer transition-colors ${
+                                reprintModeType === 'SLOT_TERPILIH'
+                                  ? 'bg-[#0d0f14] text-amber-300 border-amber-500/85'
+                                  : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                              }`}
+                            >
+                              <div className="text-xs font-extrabold">Slot Terpilih 1–6</div>
+                              <div className="text-[11px] text-zinc-400 mt-0.5">
+                                Sisa kertas putih bersih, urutan baru tidak berubah
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setReprintModeType('GABUNG_BARU')}
+                              className={`p-2.5 rounded-lg border text-left cursor-pointer transition-colors ${
+                                reprintModeType === 'GABUNG_BARU'
+                                  ? 'bg-[#0d0f14] text-amber-300 border-amber-500/85'
+                                  : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                              }`}
+                            >
+                              <div className="text-xs font-extrabold">Gabung Seri Baru</div>
+                              <div className="text-[11px] text-zinc-400 mt-0.5">
+                                Isi slot kosong dengan seri baru agar penuh 1 A4
+                              </div>
+                            </button>
+                          </div>
+                        </section>
+
+                      </div>
+                    );
+                  })()
                 )}
 
                 {/* Section 4 (Shared): Default-First Format & Printer Setup */}
@@ -1691,7 +1840,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                 <div className="px-4 sm:px-6 py-2.5 border-b border-zinc-800/80 bg-[#08090d] flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
                     <span className="text-zinc-400">
-                      {printModeTab === 'reprint' ? 'Cetak Ulang:' : 'Seri Berikutnya:'}
+                      {printModeTab === 'reprint' ? 'Custom Printing:' : 'Seri Berikutnya:'}
                     </span>
                     <span className="font-mono font-black text-amber-300 tabular-nums">
                       {batchRangeText}
@@ -1776,23 +1925,44 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
 
                 {/* Sheet Preview Canvas */}
                 <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable] p-4 sm:p-6">
-                  {isWaitingReprintInput ? (
+                  {printModeTab === 'new' && !customLotPrefix ? (
+                    <div className="h-full min-h-[260px] rounded-xl border border-dashed border-zinc-800 bg-[#07080b] flex flex-col items-center justify-center text-center p-6 space-y-3">
+                      <Layers className="w-7 h-7 text-amber-400" />
+                      <div className="space-y-1 max-w-md">
+                        <div className="text-sm font-extrabold text-white">
+                          Belum Ada Prefix Seri Kartu
+                        </div>
+                        <p className="text-xs text-zinc-400">
+                          Buat prefix seri terlebih dahulu (contoh: <b className="font-mono text-amber-300">MTL</b> atau <b className="font-mono text-amber-300">TMG</b>) agar nomor kartu dan barcode bisa dicetak.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingPrefix(true)}
+                        className="h-9 px-4 rounded-xl bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Buat Prefix Baru</span>
+                      </button>
+                    </div>
+                  ) : isWaitingReprintInput ? (
                     <div className="h-full min-h-[260px] rounded-xl border border-dashed border-zinc-800 bg-[#07080b] flex flex-col items-center justify-center text-center p-6 space-y-3">
                       <RotateCcw className="w-7 h-7 text-zinc-500" />
                       <div className="space-y-1 max-w-md">
                         <div className="text-sm font-extrabold text-white">
-                          Masukkan Nomor Seri yang Akan Dicetak Ulang
+                          Pilih Slot 1–6 &amp; Isi Nomor Kartu
                         </div>
                         <p className="text-xs text-zinc-400">
-                          Ketik nomor seri lama di panel kiri, pilih dari daftar seri terakhir, atau buka{' '}
-                          <strong className="text-amber-300">Audit 100 Nomor</strong> untuk memilih kartu yang rusak.
+                          Klik Slot 1–6 di panel kiri lalu ketik nomor seri, pilih dari{' '}
+                          <strong className="text-red-400">Seri Terakhir</strong>, atau tekan{' '}
+                          <strong className="text-amber-300">Pilih Nomor</strong> untuk menggabungkan beberapa kartu pada 1 lembar A4.
                         </p>
                       </div>
                     </div>
                   ) : isThermalMode ? (
                     <div className="py-2 flex flex-wrap items-start justify-center gap-5">
-                      {lotBatchNumbers.map((lot) => (
-                        <div key={lot} className="shadow-2xl">
+                      {lotBatchNumbers.map((lot, tIdx) => (
+                        <div key={`${tIdx}-${lot}`} className="shadow-2xl">
                           <ThermalGradeCardPaper
                             lotNumber={lot}
                             packagingChoices={masterDict.packagings}
@@ -1820,15 +1990,21 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                                 <span>HALAMAN A4 #{pageIdx + 1} — SISI DEPAN (6 KARTU)</span>
                                 <span>POTONG GARIS TEPI HITAM</span>
                               </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-3 gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-3 sm:auto-rows-fr gap-3">
                                 {pageLots.map((lot, sIdx) => (
                                   <PrintableGradeCardPaper
-                                    key={lot || `empty-front-${pageIdx}-${sIdx}`}
+                                    key={`${pageIdx}-front-${sIdx}-${lot || 'empty'}`}
                                     lotNumber={lot}
                                     packagingChoices={masterDict.packagings}
                                     compact={true}
                                     graderName={activeGraderName}
                                     printYear={printYear}
+                                    previewEmptySlotLabel={
+                                      printModeTab === 'reprint' &&
+                                      reprintModeType === 'SLOT_TERPILIH'
+                                        ? `Slot ${sIdx + 1} · Kosong`
+                                        : undefined
+                                    }
                                   />
                                 ))}
                               </div>
@@ -1844,7 +2020,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                                   </span>
                                   <span>SEJAJAR DI BALIK KARTU DEPAN</span>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-3 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-3 sm:auto-rows-fr gap-3">
                                   {backSlots.map((slot, sIdx) => (
                                     <PrintableGradeCardBackPaper
                                       key={`${pageIdx}-back-${sIdx}`}
@@ -1881,21 +2057,13 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                         </span>
                       </button>
                     )}
-
-                    {printModeTab === 'reprint' &&
-                      parsedReprintLots.length > 0 &&
-                      !isReprintAllowed && (
-                        <span className="text-[11px] font-semibold text-red-300">
-                          Pilih alasan &amp; centang konfirmasi peringatan untuk cetak ulang.
-                        </span>
-                      )}
                   </div>
 
                   <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
                     <button
                       type="button"
                       onClick={handleSystemPrintAttempt}
-                      disabled={lotBatchNumbers.length === 0 || !isReprintAllowed}
+                      disabled={lotBatchNumbers.length === 0}
                       className={`h-10 px-4 rounded-xl font-extrabold text-xs inline-flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0 transition-colors border ${
                         isThermalMode
                           ? 'bg-[#0d0f14] hover:bg-amber-500/10 border-amber-500/85 text-amber-300'
@@ -1942,34 +2110,34 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
           document.body
         )}
 
-      {/* Full-Screen Individual Panel: 100-Number 2-Box Prefix Audit Matrix (Read-Only) */}
+      {/* Full-Screen Individual Panel: 100-Number 2-Box Prefix Audit Matrix (Read-Only) + Slot 1–6 Picker */}
       {typeof document !== 'undefined' &&
         isOpen &&
         isAuditModalOpen &&
-        activeAuditLedger &&
-        activeAuditGridBlock &&
         createPortal(
           <div
             data-testid="prefix-audit-ledger-panel"
             className="fixed inset-0 z-[140] bg-[#07080b] text-white flex flex-col overflow-hidden"
           >
-            {/* Top Bar: Prefix Switcher (Prev / Select / Next) + Legend + Close */}
+            {/* Top Bar: Prefix Switcher (Prev / Select / Next) + Legend + Apply/Close */}
             <div className="px-3 sm:px-5 py-2.5 border-b border-zinc-800 bg-[#0b0c10] flex flex-wrap items-center justify-between gap-2 shrink-0">
               <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-black tracking-wide text-white">
                   <Lock className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>Audit 100 Nomor</span>
                 </span>
-                <span className="text-[11px] font-semibold text-zinc-400">
-                  · Read-Only ·{' '}
-                  {activeAuditLedger.isDeletedPrefix
-                    ? 'Arsip Terhapus'
-                    : activeAuditLedger.isAutoDaily
-                      ? 'Harian'
-                      : 'Aktif'}
-                </span>
+                {activeAuditLedger && (
+                  <span className="text-[11px] font-semibold text-zinc-400">
+                    · Read-Only ·{' '}
+                    {activeAuditLedger.isDeletedPrefix
+                      ? 'Arsip Terhapus'
+                      : activeAuditLedger.isAutoDaily
+                        ? 'Arsip Harian'
+                        : 'Aktif'}
+                  </span>
+                )}
 
-                {activeAuditLedger.isDeletedPrefix && (
+                {activeAuditLedger?.isDeletedPrefix && (
                   <button
                     type="button"
                     onClick={() => handleRestoreDeletedPrefix(activeAuditLedger.prefixKey)}
@@ -1981,50 +2149,52 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
               </div>
 
               {/* Prefix Series Switcher */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  data-testid="audit-prev-prefix-btn"
-                  disabled={prefixAuditLedgers.length <= 1}
-                  onClick={() => handleStepAuditPrefix(-1)}
-                  title="Prefix seri sebelumnya"
-                  className="h-8 px-2.5 rounded-lg bg-black hover:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-700 hover:border-amber-500/70 text-xs font-extrabold text-zinc-200 inline-flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Prev</span>
-                </button>
+              {activeAuditLedger && prefixAuditLedgers.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    data-testid="audit-prev-prefix-btn"
+                    disabled={prefixAuditLedgers.length <= 1}
+                    onClick={() => handleStepAuditPrefix(-1)}
+                    title="Prefix seri sebelumnya"
+                    className="h-8 px-2.5 rounded-lg bg-black hover:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed border border-zinc-700 hover:border-amber-500/70 text-xs font-extrabold text-zinc-200 inline-flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Prev</span>
+                  </button>
 
-                <select
-                  data-testid="audit-prefix-select"
-                  aria-label="Pilih atau ganti prefix seri"
-                  value={activeAuditLedger.prefixKey}
-                  onChange={(e) => handleSelectAuditPrefix(e.target.value)}
-                  className="h-8 px-2.5 rounded-lg bg-[#0d0f14] border border-amber-500/80 text-xs font-mono font-black text-amber-300 focus:outline-hidden cursor-pointer"
-                >
-                  {prefixAuditLedgers.map((l, idx) => (
-                    <option key={l.prefixKey} value={l.prefixKey} className="bg-black text-white">
-                      {`${idx + 1}/${prefixAuditLedgers.length} • ${l.displayLabel}${
-                        l.isDeletedPrefix ? ' (Arsip Terhapus)' : ''
-                      }`}
-                    </option>
-                  ))}
-                </select>
+                  <select
+                    data-testid="audit-prefix-select"
+                    aria-label="Pilih atau ganti prefix seri"
+                    value={activeAuditLedger.prefixKey}
+                    onChange={(e) => handleSelectAuditPrefix(e.target.value)}
+                    className="h-8 px-2.5 rounded-lg bg-[#0d0f14] border border-amber-500/80 text-xs font-mono font-black text-amber-300 focus:outline-hidden cursor-pointer"
+                  >
+                    {prefixAuditLedgers.map((l, idx) => (
+                      <option key={l.prefixKey} value={l.prefixKey} className="bg-black text-white">
+                        {`${idx + 1}/${prefixAuditLedgers.length} • ${l.displayLabel}${
+                          l.isDeletedPrefix ? ' (Arsip Terhapus)' : ''
+                        }`}
+                      </option>
+                    ))}
+                  </select>
 
-                <button
-                  type="button"
-                  data-testid="audit-next-prefix-btn"
-                  disabled={prefixAuditLedgers.length <= 1}
-                  onClick={() => handleStepAuditPrefix(1)}
-                  title="Ganti ke prefix seri berikutnya"
-                  className="h-8 px-2.5 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed border border-amber-500/80 text-xs font-extrabold text-amber-300 inline-flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <span>Next</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    data-testid="audit-next-prefix-btn"
+                    disabled={prefixAuditLedgers.length <= 1}
+                    onClick={() => handleStepAuditPrefix(1)}
+                    title="Ganti ke prefix seri berikutnya"
+                    className="h-8 px-2.5 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed border border-amber-500/80 text-xs font-extrabold text-amber-300 inline-flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
-              {/* Status Tickbox Legend + Close */}
-              <div className="flex flex-wrap items-center gap-3">
+              {/* Status Tickbox Legend + Apply/Close */}
+              <div className="flex flex-wrap items-center gap-2.5">
                 <div className="hidden xl:flex items-center gap-2.5 text-[11px] font-bold text-zinc-300">
                   <span className="inline-flex items-center gap-1.5">
                     <span className="w-4 h-4 rounded bg-emerald-500 border border-emerald-400 text-black inline-flex items-center justify-center">
@@ -2044,11 +2214,23 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                   </span>
                 </div>
 
+                {occupiedReprintSlotCount > 0 && (
+                  <button
+                    type="button"
+                    data-testid="apply-audit-slots-btn"
+                    onClick={() => handleCloseAuditModal(true)}
+                    className="alucard-edge-btn h-8 px-3 rounded-lg text-xs font-black inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Pakai ke Cetak ({occupiedReprintSlotCount})</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   data-testid="close-fullscreen-audit-panel-btn"
-                  onClick={() => setIsAuditModalOpen(false)}
-                  className="h-8 px-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-100 text-xs font-black inline-flex items-center gap-1 cursor-pointer"
+                  onClick={() => handleCloseAuditModal(false)}
+                  className="alucard-edge-btn-quiet h-8 px-3 rounded-lg text-xs font-black inline-flex items-center gap-1 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                   <span>Tutup</span>
@@ -2056,152 +2238,275 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
               </div>
             </div>
 
-            {/* Sub-bar: Read-Only Summary + 100-Block Range Pagination */}
-            <div className="px-3 sm:px-5 py-1.5 border-b border-zinc-800/80 bg-black/70 flex flex-wrap items-center justify-between gap-2 text-[11px] shrink-0">
-              <div className="flex flex-wrap items-center gap-2 font-mono tabular-nums text-zinc-300">
-                <span>
-                  Stok: <b className="text-emerald-400">{activeAuditLedger.stockRegisteredCount}</b>
-                </span>
-                <span className="text-zinc-600" aria-hidden="true">
-                  ·
-                </span>
-                <span>
-                  Dicetak: <b className="text-amber-300">{activeAuditLedger.printedNotStockCount}</b>
-                </span>
-                <span className="text-zinc-600" aria-hidden="true">
-                  ·
-                </span>
-                <span>
-                  Lanjut: <b className="text-amber-300">{activeAuditLedger.nextNewLot}</b>
-                </span>
-                <span className="hidden md:inline text-zinc-500">
-                  · Klik kotak Hijau/Kuning untuk muat ke Cetak Ulang
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                {activeAuditGridBlock.totalBlocks > 1 && (
+            {/* Embedded Slot 1–6 Picker Bar inside Audit Panel */}
+            <div
+              data-testid="audit-panel-slots-bar"
+              className="px-3 sm:px-5 py-2 border-b border-zinc-800/80 bg-[#050608] space-y-1.5 shrink-0"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <span className="font-extrabold text-zinc-200">
+                    Slot Custom Printing (1–6)
+                  </span>
+                  <span className="text-zinc-500 hidden sm:inline">
+                    · Pilih slot aktif lalu klik kotak Hijau/Kuning di bawah
+                  </span>
+                  <span className="font-bold text-red-400">
+                    · Merah = sudah dicetak / stok
+                  </span>
+                </div>
+                {occupiedReprintSlotCount > 0 && (
                   <button
                     type="button"
-                    disabled={activeAuditGridBlock.blockIndex <= 0}
-                    onClick={() => setAuditBlockIndex((b) => Math.max(0, b - 1))}
-                    className="h-7 px-2 rounded bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 border border-zinc-700 text-[10px] font-bold text-zinc-200 inline-flex items-center gap-0.5 cursor-pointer"
+                    data-testid="audit-reset-slots-btn"
+                    onClick={() => setReprintSlotCodes(['', '', '', '', '', ''])}
+                    className="text-[11px] font-bold text-zinc-400 hover:text-red-300 cursor-pointer"
                   >
-                    <ChevronLeft className="w-3 h-3" />
-                    <span>100</span>
-                  </button>
-                )}
-                <span className="font-mono font-bold text-zinc-300 tabular-nums">
-                  #{String(activeAuditGridBlock.startSeq).padStart(3, '0')} – #
-                  {String(activeAuditGridBlock.endSeq).padStart(3, '0')} (100)
-                </span>
-                {activeAuditGridBlock.totalBlocks > 1 && (
-                  <button
-                    type="button"
-                    disabled={activeAuditGridBlock.blockIndex >= activeAuditGridBlock.totalBlocks - 1}
-                    onClick={() =>
-                      setAuditBlockIndex((b) =>
-                        Math.min(activeAuditGridBlock.totalBlocks - 1, b + 1)
-                      )
-                    }
-                    className="h-7 px-2 rounded bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 border border-zinc-700 text-[10px] font-bold text-zinc-200 inline-flex items-center gap-0.5 cursor-pointer"
-                  >
-                    <span>100</span>
-                    <ChevronRight className="w-3 h-3" />
+                    Reset Semua
                   </button>
                 )}
               </div>
-            </div>
 
-            {/* Main 100-Number 2-Box Matrix */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 flex flex-col justify-start">
-              <div
-                data-testid={`prefix-ledger-card-${activeAuditLedger.prefixKey}`}
-                className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-1.5"
-              >
-                {activeAuditGridBlock.entries.map((entry) => {
-                  const isStock = entry.status === 'STOCK_REGISTERED';
-                  const isPrintedOnly = entry.status === 'PRINTED_NOT_STOCK';
-                  const isInteractiveReprint = isStock || isPrintedOnly;
-                  const tooltip = isStock
-                    ? `${entry.lotCode} · Terdaftar Stok: ${entry.stockName || 'Gudang'} (Klik untuk Cetak Ulang)`
-                    : isPrintedOnly
-                      ? `${entry.lotCode} · Sudah Dicetak, belum masuk stok (Klik untuk Cetak Ulang)`
-                      : `${entry.lotCode} · Belum Dicetak`;
-
-                  const content = (
-                    <>
-                      <span
-                        className={`flex-1 py-2 font-mono font-black tracking-tight text-left truncate ${
-                          entry.lotCode.length > 9 ? 'text-[10px] px-1.5' : 'text-xs px-2'
-                        } ${
-                          isStock
-                            ? 'text-emerald-200'
-                            : isPrintedOnly
-                              ? 'text-amber-200'
-                              : 'text-zinc-500'
-                        }`}
-                      >
-                        {entry.lotCode}
-                      </span>
-
-                      <span
-                        aria-label={
-                          isStock
-                            ? `${entry.lotCode}: Stok Terpakai`
-                            : isPrintedOnly
-                              ? `${entry.lotCode}: Sudah Dicetak`
-                              : `${entry.lotCode}: Belum Dicetak`
-                        }
-                        className={`w-7 shrink-0 border-l flex items-center justify-center ${
-                          isStock
-                            ? 'bg-emerald-500 border-emerald-400 text-black'
-                            : isPrintedOnly
-                              ? 'bg-amber-400 border-amber-300 text-black'
-                              : 'bg-black border-zinc-800'
-                        }`}
-                      >
-                        {isStock ? (
-                          <Check className="w-4 h-4" strokeWidth={3} />
-                        ) : isPrintedOnly ? (
-                          <Printer className="w-3.5 h-3.5" strokeWidth={2.5} />
-                        ) : null}
-                      </span>
-                    </>
-                  );
-
-                  if (isInteractiveReprint) {
-                    return (
-                      <button
-                        key={entry.lotCode}
-                        type="button"
-                        data-testid={`ledger-entry-${entry.lotCode}`}
-                        title={tooltip}
-                        onClick={() => handleLoadLotForRedownloadFromLedger(entry.lotCode)}
-                        className={`h-10 rounded-lg border flex items-stretch overflow-hidden select-none cursor-pointer transition-colors ${
-                          isStock
-                            ? 'bg-[#08150f] hover:bg-[#0c2117] border-emerald-500/65 hover:border-emerald-400'
-                            : 'bg-[#141007] hover:bg-[#1f1809] border-amber-500/65 hover:border-amber-400'
-                        }`}
-                      >
-                        {content}
-                      </button>
-                    );
-                  }
-
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5">
+                {[0, 1, 2, 3, 4, 5].map((slotIdx) => {
+                  const code = normalizeLotNumber(reprintSlotCodes[slotIdx]);
+                  const isActiveSlot = activeReprintSlotIndex === slotIdx;
+                  const isRedCode = Boolean(code && printedOrStockedLotSet.has(code));
                   return (
                     <div
-                      key={entry.lotCode}
-                      data-testid={`ledger-entry-${entry.lotCode}`}
-                      title={tooltip}
-                      className="h-10 rounded-lg border border-zinc-800/90 bg-[#09090c] flex items-stretch overflow-hidden select-none"
+                      key={slotIdx}
+                      className={`flex items-stretch rounded-lg border overflow-hidden transition-colors ${
+                        isActiveSlot
+                          ? isRedCode
+                            ? 'bg-[#170709] border-red-400'
+                            : 'bg-[#0d0f14] border-amber-500/90'
+                          : isRedCode
+                            ? 'bg-[#100507] border-red-500/45 hover:border-red-400/80'
+                            : 'bg-black border-zinc-800 hover:border-zinc-700'
+                      }`}
                     >
-                      {content}
+                      <button
+                        type="button"
+                        data-testid={`audit-slot-btn-${slotIdx + 1}`}
+                        onClick={() => handleSelectReprintSlot(slotIdx)}
+                        className="flex-1 min-w-0 px-2.5 py-1 text-left cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span
+                            className={`text-[10px] font-extrabold uppercase tracking-wider ${
+                              isActiveSlot ? 'text-amber-300' : 'text-zinc-500'
+                            }`}
+                          >
+                            Slot {slotIdx + 1}
+                          </span>
+                        </div>
+                        <div
+                          className={`font-mono text-xs font-black truncate ${
+                            !code
+                              ? 'text-zinc-600 font-semibold'
+                              : isRedCode
+                                ? 'text-red-400'
+                                : 'text-amber-300'
+                          }`}
+                        >
+                          {code || 'Kosong'}
+                        </div>
+                      </button>
+                      {code && (
+                        <button
+                          type="button"
+                          data-testid={`clear-audit-slot-${slotIdx + 1}`}
+                          onClick={() => handleClearReprintSlot(slotIdx)}
+                          aria-label={`Hapus nomor dari Slot ${slotIdx + 1}`}
+                          title={`Hapus dari Slot ${slotIdx + 1}`}
+                          className="w-7 flex items-center justify-center border-l border-zinc-800/80 text-zinc-500 hover:text-red-300 hover:bg-black/40 cursor-pointer shrink-0 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </div>
+
+            {activeAuditLedger && activeAuditGridBlock ? (
+              <>
+                {/* Sub-bar: Read-Only Summary + 100-Block Range Pagination */}
+                <div className="px-3 sm:px-5 py-1.5 border-b border-zinc-800/80 bg-black/70 flex flex-wrap items-center justify-between gap-2 text-[11px] shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 font-mono tabular-nums text-zinc-300">
+                    <span>
+                      Stok: <b className="text-emerald-400">{activeAuditLedger.stockRegisteredCount}</b>
+                    </span>
+                    <span className="text-zinc-600" aria-hidden="true">
+                      ·
+                    </span>
+                    <span>
+                      Dicetak: <b className="text-amber-300">{activeAuditLedger.printedNotStockCount}</b>
+                    </span>
+                    <span className="text-zinc-600" aria-hidden="true">
+                      ·
+                    </span>
+                    <span>
+                      Lanjut: <b className="text-amber-300">{activeAuditLedger.nextNewLot}</b>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {activeAuditGridBlock.totalBlocks > 1 && (
+                      <button
+                        type="button"
+                        disabled={activeAuditGridBlock.blockIndex <= 0}
+                        onClick={() => setAuditBlockIndex((b) => Math.max(0, b - 1))}
+                        className="h-7 px-2 rounded bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 border border-zinc-700 text-[10px] font-bold text-zinc-200 inline-flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <ChevronLeft className="w-3 h-3" />
+                        <span>100</span>
+                      </button>
+                    )}
+                    <span className="font-mono font-bold text-zinc-300 tabular-nums">
+                      #{String(activeAuditGridBlock.startSeq).padStart(3, '0')} – #
+                      {String(activeAuditGridBlock.endSeq).padStart(3, '0')} (100)
+                    </span>
+                    {activeAuditGridBlock.totalBlocks > 1 && (
+                      <button
+                        type="button"
+                        disabled={activeAuditGridBlock.blockIndex >= activeAuditGridBlock.totalBlocks - 1}
+                        onClick={() =>
+                          setAuditBlockIndex((b) =>
+                            Math.min(activeAuditGridBlock.totalBlocks - 1, b + 1)
+                          )
+                        }
+                        className="h-7 px-2 rounded bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 border border-zinc-700 text-[10px] font-bold text-zinc-200 inline-flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <span>100</span>
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Main 100-Number 2-Box Matrix */}
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4 flex flex-col justify-start">
+                  <div
+                    data-testid={`prefix-ledger-card-${activeAuditLedger.prefixKey}`}
+                    className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-1.5"
+                  >
+                    {activeAuditGridBlock.entries.map((entry) => {
+                      const isStock = entry.status === 'STOCK_REGISTERED';
+                      const isPrintedOnly = entry.status === 'PRINTED_NOT_STOCK';
+                      const isInteractiveReprint = isStock || isPrintedOnly;
+                      const assignedSlots = slotAssignmentsByLot.get(entry.lotCode);
+                      const isInActiveSlot =
+                        normalizeLotNumber(reprintSlotCodes[activeReprintSlotIndex]) ===
+                        entry.lotCode;
+                      const tooltip = isStock
+                        ? `${entry.lotCode} · Terdaftar Stok: ${entry.stockName || 'Gudang'} (Klik untuk pasang ke Slot ${activeReprintSlotIndex + 1})`
+                        : isPrintedOnly
+                          ? `${entry.lotCode} · Sudah Dicetak, belum masuk stok (Klik untuk pasang ke Slot ${activeReprintSlotIndex + 1})`
+                          : `${entry.lotCode} · Belum Dicetak`;
+
+                      const content = (
+                        <>
+                          <span
+                            className={`flex-1 py-2 font-mono font-black tracking-tight text-left truncate flex items-center justify-between gap-1 ${
+                              entry.lotCode.length > 9 ? 'text-[10px] px-1.5' : 'text-xs px-2'
+                            } ${
+                              isStock
+                                ? 'text-emerald-200'
+                                : isPrintedOnly
+                                  ? 'text-amber-200'
+                                  : 'text-zinc-500'
+                            }`}
+                          >
+                            <span className="truncate">{entry.lotCode}</span>
+                            {assignedSlots && assignedSlots.length > 0 && (
+                              <span
+                                className={`text-[9px] font-black px-1 py-0.5 rounded shrink-0 ${
+                                  isInActiveSlot
+                                    ? 'bg-red-500 text-white'
+                                    : 'bg-red-950/90 text-red-300 border border-red-500/60'
+                                }`}
+                              >
+                                S{assignedSlots.join(',')}
+                              </span>
+                            )}
+                          </span>
+
+                          <span
+                            aria-label={
+                              isStock
+                                ? `${entry.lotCode}: Stok Terpakai`
+                                : isPrintedOnly
+                                  ? `${entry.lotCode}: Sudah Dicetak`
+                                  : `${entry.lotCode}: Belum Dicetak`
+                            }
+                            className={`w-7 shrink-0 border-l flex items-center justify-center ${
+                              isStock
+                                ? 'bg-emerald-500 border-emerald-400 text-black'
+                                : isPrintedOnly
+                                  ? 'bg-amber-400 border-amber-300 text-black'
+                                  : 'bg-black border-zinc-800'
+                            }`}
+                          >
+                            {isStock ? (
+                              <Check className="w-4 h-4" strokeWidth={3} />
+                            ) : isPrintedOnly ? (
+                              <Printer className="w-3.5 h-3.5" strokeWidth={2.5} />
+                            ) : null}
+                          </span>
+                        </>
+                      );
+
+                      if (isInteractiveReprint) {
+                        return (
+                          <button
+                            key={entry.lotCode}
+                            type="button"
+                            data-testid={`ledger-entry-${entry.lotCode}`}
+                            title={tooltip}
+                            onClick={() => handleLoadLotForRedownloadFromLedger(entry.lotCode)}
+                            className={`h-10 rounded-lg border flex items-stretch overflow-hidden select-none cursor-pointer transition-colors ${
+                              isInActiveSlot
+                                ? 'bg-[#1c090c] border-red-400 ring-1 ring-red-400/70'
+                                : assignedSlots
+                                  ? 'bg-[#140709] border-red-500/75 hover:border-red-400'
+                                  : isStock
+                                    ? 'bg-[#08150f] hover:bg-[#0c2117] border-emerald-500/65 hover:border-emerald-400'
+                                    : 'bg-[#141007] hover:bg-[#1f1809] border-amber-500/65 hover:border-amber-400'
+                            }`}
+                          >
+                            {content}
+                          </button>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={entry.lotCode}
+                          data-testid={`ledger-entry-${entry.lotCode}`}
+                          title={tooltip}
+                          className="h-10 rounded-lg border border-zinc-800/90 bg-[#09090c] flex items-stretch overflow-hidden select-none"
+                        >
+                          {content}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center space-y-2">
+                <Grid3X3 className="w-8 h-8 text-zinc-600" />
+                <div className="text-sm font-extrabold text-white">
+                  Belum Ada Riwayat Nomor
+                </div>
+                <p className="text-xs text-zinc-400 max-w-md">
+                  Buat <strong className="text-amber-300">Prefix Baru</strong> di tab{' '}
+                  <strong className="text-white">Seri Baru</strong> (contoh: MTL, TMG) untuk mulai mencatat status 100 nomor per seri.
+                </p>
+              </div>
+            )}
           </div>,
           document.body
         )}
@@ -2212,9 +2517,9 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
           <div className="grade-card-print-portal">
             <style>{buildDynamicPrintPageCss(paperFormat)}</style>
             {isThermalMode
-              ? lotBatchNumbers.map((lot) => (
+              ? lotBatchNumbers.map((lot, tIdx) => (
                   <ThermalGradeCardPaper
-                    key={lot}
+                    key={`portal-thermal-${tIdx}-${lot}`}
                     lotNumber={lot}
                     packagingChoices={masterDict.packagings}
                     profile={paperFormat === 'THERMAL_58' ? 'THERMAL_58' : 'THERMAL_80'}
@@ -2242,7 +2547,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                       >
                         {pageLots.map((lot, sIdx) => (
                           <PrintableGradeCardPaper
-                            key={lot || `empty-portal-front-${pageIdx}-${sIdx}`}
+                            key={`portal-front-${pageIdx}-${sIdx}-${lot || 'empty'}`}
                             lotNumber={lot}
                             packagingChoices={masterDict.packagings}
                             compact={true}

@@ -4,8 +4,9 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, MotionConfig } from 'motion/react';
 import { X, Calculator, AlertTriangle, Trash2, Undo2 } from 'lucide-react';
+import { AlucardToast, ALUCARD_EASE, ALUCARD_EASE_DRAWER } from './components/AlucardMotion';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { RawTobaccoList } from './components/RawTobaccoList';
 import { RawTobaccoModal } from './components/RawTobaccoModal';
@@ -1665,24 +1666,28 @@ export default function App() {
 
   if (authReady && !currentUser && !offlineBypass) {
     return (
-      <div className="min-h-screen bg-[#020203] text-white relative">
-        <ArchitecturalBackground />
-        <CloudLoginScreen
-          onContinueOffline={() => {
-            setOfflineBypass(true);
-            showToast('Mode Lokal Aktif — Klik "Login Cloud" di atas kapan saja untuk sinkronisasi Google.');
-          }}
-        />
-      </div>
+      <MotionConfig reducedMotion="user">
+        <div className="min-h-screen bg-[#040406] text-white relative">
+          <ArchitecturalBackground />
+          <CloudLoginScreen
+            onContinueOffline={() => {
+              setOfflineBypass(true);
+              showToast('Mode Lokal Aktif — Klik "Login Cloud" di atas kapan saja untuk sinkronisasi Google.');
+            }}
+          />
+          <AlucardToast message={toastMessage} />
+        </div>
+      </MotionConfig>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#020203] text-white flex flex-col font-sans selection:bg-amber-500 selection:text-black relative">
-      {/* Artistic Resident Evil 9 Requiem Architectural Background */}
-      <ArchitecturalBackground />
+    <MotionConfig reducedMotion="user">
+      <div className="min-h-screen bg-[#040406] text-white flex flex-col font-sans selection:bg-amber-500 selection:text-black relative">
+        {/* Artistic Resident Evil 9 Requiem Architectural Background */}
+        <ArchitecturalBackground />
 
-      <div className="relative z-10 flex flex-col min-h-screen">
+        <div className="relative z-10 flex flex-col min-h-screen">
         <Navbar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -1738,8 +1743,15 @@ export default function App() {
         />
 
         <main className="flex-1 max-w-7xl w-full mx-auto py-4 sm:py-5 safe-main-container">
-          <div key={activeTab}>
-            {activeTab === 'inventory' && (
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.16, ease: ALUCARD_EASE }}
+            >
+              {activeTab === 'inventory' && (
                 <RawTobaccoList
                   tobaccos={rawTobaccos}
                   finishedBatches={finishedBatches}
@@ -1969,7 +1981,8 @@ export default function App() {
                   currentVersion={CURRENT_APP_VERSION}
                 />
               )}
-          </div>
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 
@@ -1980,21 +1993,21 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.18, ease: ALUCARD_EASE }}
             className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-start overflow-y-auto p-2 sm:p-4 md:p-6"
             onClick={() => setIsSimulatorOpen(false)}
           >
             <motion.div
-              initial={{ opacity: 0, y: -40, scale: 0.96 }}
+              initial={{ opacity: 0, y: -24, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -30, scale: 0.96 }}
-              transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+              exit={{ opacity: 0, y: -16, scale: 0.97 }}
+              transition={{ duration: 0.24, ease: ALUCARD_EASE_DRAWER }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-6xl bg-[#050507] border-2 border-amber-500/50 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.95)] overflow-hidden my-2 sm:my-4"
+              className="w-full max-w-6xl bg-[#090a0e] border border-amber-500/45 rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.9)] overflow-hidden my-2 sm:my-4"
             >
-              <div className="sticky top-0 z-20 bg-black/95 backdrop-blur-xl px-4 py-3 border-b border-zinc-800 flex items-center justify-between gap-3">
+              <div className="sticky top-0 z-20 bg-[#090a0e]/95 backdrop-blur-xl px-4 py-3 border-b border-zinc-800/80 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/50 flex items-center justify-center text-amber-400 shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-[#0d0f14] border border-amber-500/60 flex items-center justify-center text-amber-300 shrink-0">
                     <Calculator className="w-4 h-4" />
                   </div>
                   <div>
@@ -2009,7 +2022,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIsSimulatorOpen(false)}
-                  className="min-h-9 px-3 py-1.5 rounded-xl bg-zinc-950 hover:bg-zinc-900 text-zinc-200 hover:text-white border border-zinc-700 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                  className="alucard-edge-btn-quiet min-h-9 px-3 py-1.5 rounded-xl font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <X className="w-4 h-4" />
                   <span>Tutup Simulator</span>
@@ -2264,7 +2277,7 @@ export default function App() {
               break;
             case 'patch_notes':
               setIsPatchNotesOpen(true);
-              showToast('🧭 Nolan membuka Catatan Pembaruan.');
+              showToast('Nolan membuka Patch Notes.');
               break;
           }
         }}
@@ -2382,18 +2395,20 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.16, ease: ALUCARD_EASE }}
             className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setPendingDeletion(null)}
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ duration: 0.2, ease: ALUCARD_EASE }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md bg-[#09090c] border-2 border-red-500/80 rounded-2xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-4"
+              className="w-full max-w-md bg-[#090a0e] border border-red-500/70 rounded-2xl p-5 shadow-[0_24px_60px_rgba(0,0,0,0.92)] space-y-4"
             >
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/60 flex items-center justify-center text-red-400 shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-[#16080b] border border-red-500/60 flex items-center justify-center text-red-400 shrink-0">
                   <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div className="space-y-1">
@@ -2406,11 +2421,11 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-zinc-800 flex items-center justify-end gap-2">
+              <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setPendingDeletion(null)}
-                  className="h-9 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-extrabold cursor-pointer"
+                  className="alucard-edge-btn-quiet h-9 px-4 rounded-xl text-xs font-extrabold cursor-pointer"
                 >
                   Batal
                 </button>
@@ -2421,7 +2436,7 @@ export default function App() {
                     setPendingDeletion(null);
                     action();
                   }}
-                  className="h-9 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white border border-red-400 text-xs font-black inline-flex items-center gap-1.5 cursor-pointer shadow-lg"
+                  className="alucard-edge-btn-danger h-9 px-4 rounded-xl text-xs font-black inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>{pendingDeletion.confirmLabel || 'Ya, Hapus Sekarang'}</span>
@@ -2436,11 +2451,12 @@ export default function App() {
       <AnimatePresence>
         {undoDeletionSnapshot && (
           <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
+            initial={{ opacity: 0, y: 14, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 16, scale: 0.96 }}
+            exit={{ opacity: 0, y: 12, scale: 0.96 }}
+            transition={{ duration: 0.2, ease: ALUCARD_EASE }}
             data-testid="undo-toast"
-            className="fixed bottom-16 md:bottom-4 left-4 z-[65] bg-[#09090c]/95 border border-amber-500/75 text-white px-2.5 py-1.5 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.85)] flex items-center gap-2 max-w-[300px]"
+            className="fixed bottom-16 md:bottom-4 left-4 z-[65] bg-[#0b0c10]/95 border border-amber-500/70 text-white px-2.5 py-1.5 rounded-xl shadow-[0_12px_28px_rgba(0,0,0,0.85)] flex items-center gap-2 max-w-[300px]"
           >
             <span className="text-[11px] font-semibold text-zinc-200 truncate min-w-0 flex-1">
               {undoDeletionSnapshot.label}
@@ -2448,7 +2464,7 @@ export default function App() {
             <button
               type="button"
               onClick={handleRestoreUndoSnapshot}
-              className="h-6 px-2 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
+              className="alucard-edge-btn h-6 px-2 rounded-lg font-bold text-[11px] inline-flex items-center gap-1 cursor-pointer shrink-0"
             >
               <Undo2 className="w-3 h-3 stroke-[2.2]" />
               <span>Undo</span>
@@ -2456,7 +2472,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setUndoDeletionSnapshot(null)}
-              className="h-6 w-6 rounded-lg bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer shrink-0"
+              className="h-6 w-6 rounded-lg bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center cursor-pointer shrink-0 transition-colors"
               aria-label="Tutup banner undo"
             >
               <X className="w-3 h-3" />
@@ -2465,19 +2481,8 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-16 md:bottom-5 right-4 z-50 bg-black border border-zinc-700 text-white px-4 py-3 rounded-xl flex items-center gap-2.5 text-xs font-extrabold"
-          >
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <AlucardToast message={toastMessage} />
     </div>
+    </MotionConfig>
   );
 }

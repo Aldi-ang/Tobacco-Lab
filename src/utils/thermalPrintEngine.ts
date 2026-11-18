@@ -59,7 +59,7 @@ export function extractLotPrefixCode(lotNumber: string, customPrefix?: string): 
   if (explicit && trimmed.startsWith(explicit)) return explicit;
   const hyphenMatch = trimmed.match(/^([A-Z0-9-]+?)-\d+$/);
   if (hyphenMatch && hyphenMatch[1]) return hyphenMatch[1];
-  const compactMatch = trimmed.match(/^([A-Z0-9-]*?[A-Z])(\d{2,})$/);
+  const compactMatch = trimmed.match(/^([A-Z0-9-]*?[A-Z])(\d+)$/);
   if (compactMatch && compactMatch[1]) return compactMatch[1].replace(/-+$/, '');
   const parts = trimmed.split('-');
   if (parts.length > 1) return parts.slice(0, -1).join('-');

@@ -966,15 +966,15 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     key={tobacco.id}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    whileHover={{ y: -3 }}
-                    transition={{ duration: 0.18, delay: Math.min(idx * 0.02, 0.15) }}
+                    whileHover={{ y: -2 }}
+                    transition={{ duration: 0.16, delay: Math.min(idx * 0.015, 0.12), ease: [0.23, 1, 0.32, 1] }}
                     {...holdHandlers}
-                    className={`requiem-card border-2 rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between shadow-[0_7px_0_0_#18181b,0_14px_26px_rgba(0,0,0,0.9)] hover:shadow-[0_8px_0_0_#f59e0b,0_16px_30px_rgba(245,158,11,0.18)] transition-all duration-200 group min-h-[308px] sm:min-h-[320px] select-none ${
+                    className={`requiem-card border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between transition-[border-color,box-shadow,transform] duration-200 group min-h-[308px] sm:min-h-[320px] select-none ${
                       isBeingHeld
-                        ? 'border-amber-400 scale-[0.985] ring-2 ring-amber-400/70'
+                        ? 'border-amber-400 scale-[0.985] ring-2 ring-amber-400/60'
                         : missingFlags.isIncomplete
-                          ? 'border-amber-500/55 hover:border-amber-400'
-                          : 'border-zinc-700/90 hover:border-amber-500/80'
+                          ? 'border-amber-500/50 hover:border-amber-400/90'
+                          : 'border-zinc-800/90 hover:border-amber-500/70'
                     }`}
                   >
                     {/* Clickable Area -> Opens Detail Modal (or Hold >= 280ms pops Quick-Edit Menu) */}
@@ -1185,7 +1185,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     <button
                       type="button"
                       onClick={() => setVisibleCardLimit((prev) => prev + 36)}
-                      className="px-3.5 py-1.5 rounded-xl bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 text-xs font-black transition-colors cursor-pointer"
+                      className="alucard-edge-btn px-3.5 py-1.5 rounded-xl text-xs font-black cursor-pointer"
                     >
                       + Tampilkan 36 Berikutnya ({filteredRaw.length - visibleCardLimit} sisa)
                     </button>
@@ -1245,10 +1245,11 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 return (
                   <motion.div
                     key={item.id}
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    whileHover={{ y: -3 }}
-                    className="requiem-card border-2 border-zinc-700/90 hover:border-amber-500/80 rounded-2xl p-4 space-y-3.5 shadow-[0_7px_0_0_#18181b,0_14px_26px_rgba(0,0,0,0.9)] hover:shadow-[0_8px_0_0_#f59e0b,0_16px_30px_rgba(245,158,11,0.18)] transition-all duration-200 min-w-0 overflow-hidden"
+                    whileHover={{ y: -2 }}
+                    transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+                    className="requiem-card border border-zinc-800/90 hover:border-amber-500/70 rounded-2xl p-4 space-y-3.5 transition-[border-color,box-shadow,transform] duration-200 min-w-0 overflow-hidden"
                   >
                     <div
                       onClick={() => setSelectedRejectDetail(item)}

@@ -3,28 +3,28 @@ import React from 'react';
 export const ArchitecturalBackground: React.FC = () => {
   return (
     <div
-      className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none bg-[#020203]"
+      className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none bg-[#040406]"
       aria-hidden="true"
     >
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse 70% 45% at 50% -12%, rgba(255, 255, 255, 0.035) 0%, rgba(245, 158, 11, 0.025) 35%, rgba(2, 2, 3, 0.99) 75%)',
+            'radial-gradient(ellipse 68% 42% at 50% -10%, rgba(244, 244, 245, 0.028) 0%, rgba(245, 158, 11, 0.018) 34%, rgba(4, 4, 6, 0.99) 76%)',
         }}
       />
 
       <div
-        className="absolute -top-32 left-1/2 -translate-x-1/2 w-[140vw] h-[75vh] opacity-15"
+        className="absolute -top-32 left-1/2 -translate-x-1/2 w-[130vw] h-[70vh] opacity-[0.11]"
         style={{
           background:
-            'conic-gradient(from 145deg at 50% 0%, transparent 0deg, rgba(255, 255, 255, 0.05) 15deg, transparent 30deg, rgba(245, 158, 11, 0.04) 35deg, transparent 48deg, rgba(255, 255, 255, 0.04) 58deg, transparent 72deg)',
-          filter: 'blur(28px)',
+            'conic-gradient(from 145deg at 50% 0%, transparent 0deg, rgba(255, 255, 255, 0.04) 15deg, transparent 30deg, rgba(245, 158, 11, 0.03) 35deg, transparent 48deg, rgba(255, 255, 255, 0.03) 58deg, transparent 72deg)',
+          filter: 'blur(26px)',
         }}
       />
 
       <svg
-        className="absolute inset-0 w-full h-full opacity-[0.09]"
+        className="absolute inset-0 w-full h-full opacity-[0.065]"
         viewBox="0 0 1920 1080"
         fill="none"
         preserveAspectRatio="xMidYMid slice"

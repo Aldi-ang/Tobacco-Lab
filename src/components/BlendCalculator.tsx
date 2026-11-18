@@ -668,7 +668,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
           <button
             type="button"
             onClick={() => setIsAutoRacikOpen(true)}
-            className="h-9 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/80 font-black text-xs flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors"
+            className="alucard-edge-btn h-9 px-3 rounded-xl font-black text-xs flex items-center gap-1.5 whitespace-nowrap cursor-pointer"
             title="Auto-Racik Otomatis dari Stok Tersedia (4 Parameter)"
           >
             <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -738,7 +738,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                 setIngredients(undoBlendSnapshot.previousIngredients);
                 setUndoBlendSnapshot(null);
               }}
-              className="h-7 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/15 border border-amber-500/80 text-amber-300 text-xs font-black inline-flex items-center gap-1 cursor-pointer"
+              className="alucard-edge-btn h-7 px-3 rounded-lg text-xs font-black inline-flex items-center gap-1 cursor-pointer"
             >
               <Undo2 className="w-3.5 h-3.5" />
               <span>Urungkan (Undo)</span>

@@ -219,6 +219,7 @@ test('extractLotPrefixCode derives real prefix from lot when customPrefix belong
   assert.equal(extractLotPrefixCode('MTL005', 'TMG'), 'MTL');
   assert.equal(extractLotPrefixCode('TMG-009', 'MTL'), 'TMG');
   assert.equal(extractLotPrefixCode('PANEN-005', 'PANEN-'), 'PANEN');
+  assert.equal(extractLotPrefixCode('BM1', 'MTL'), 'BM');
 });
 
 test('buildPrefixAuditGridBlock always generates 100 consecutive slots per block across pages and deleted prefixes', () => {
@@ -307,5 +308,20 @@ test('isReprintSafetySatisfied enforces both reason selection and confirmation f
     isReprintSafetySatisfied({ warning: unprintedWarning, reason: null, confirmed: false }),
     true
   );
+});
+
+test('buildPrefixAuditLedgers does not synthesize an empty default Harian bucket', () => {
+  const emptyReg: PrefixRegistryState = {
+    registeredPrefixes: [],
+    lastSelectedPrefix: '',
+    dismissedPrefixes: [],
+    minStartSeqByPrefix: {},
+  };
+  const emptyLedgers = buildPrefixAuditLedgers({
+    rawTobaccos: [],
+    issuedPrintedLots: [],
+    prefixRegistry: emptyReg,
+  });
+  assert.equal(emptyLedgers.length, 0);
 });
 

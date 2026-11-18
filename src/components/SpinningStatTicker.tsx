@@ -123,14 +123,14 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
       </div>
 
       <div className="relative my-auto py-1.5 min-h-[48px] flex items-center overflow-hidden">
-        <AnimatePresence mode="wait" custom={direction}>
+        <AnimatePresence mode="wait" custom={direction} initial={false}>
           <motion.div
             key={current.id}
             custom={direction}
-            initial={{ opacity: 0, y: direction * 14, rotateX: direction * -55, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-            exit={{ opacity: 0, y: direction * -14, rotateX: direction * 55, scale: 0.96 }}
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ opacity: 0, y: direction * 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: direction * -10 }}
+            transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
             className="w-full"
           >
             {current.characterParams && current.characterParams.length > 0 ? (
@@ -281,7 +281,7 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
     <div
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      className={`requiem-card rounded-xl border border-zinc-700/90 bg-black/95 select-none shadow-[0_4px_0_0_#18181b,0_10px_20px_rgba(0,0,0,0.85)] ${
+      className={`requiem-card rounded-xl border border-zinc-800/90 select-none ${
         expanded ? 'p-3 sm:p-3.5 space-y-2.5' : 'px-3 py-2'
       }`}
     >
@@ -290,9 +290,9 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
           onClick={() => (expanded ? current.onOpenCalc?.() : setExpanded(true))}
           className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
         >
-          <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+          <span className="w-1 h-3.5 rounded-full bg-amber-400 shrink-0" aria-hidden="true" />
           {expanded ? (
-            <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-zinc-200 truncate">
+            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-zinc-200 truncate">
               {current.title}
             </span>
           ) : (
@@ -300,10 +300,10 @@ export const AutoSlideValueTicker: React.FC<AutoSlideValueTickerProps> = ({
               <span className="text-[11px] font-black uppercase tracking-wide text-zinc-300 whitespace-nowrap">
                 {current.mobileLabel || current.tabLabel}:
               </span>
-              <span className={`font-mono font-black text-sm sm:text-base whitespace-nowrap ${mainValueColor}`}>
+              <span className={`font-mono tabular-nums font-black text-sm sm:text-base whitespace-nowrap ${mainValueColor}`}>
                 {current.mainValue}
               </span>
-              <span className="hidden md:inline-block text-[11px] font-mono text-zinc-400 truncate">
+              <span className="hidden md:inline-block text-[11px] font-mono tabular-nums text-zinc-400 truncate">
                 • {current.subLabel}: <b className="text-zinc-200">{current.subValue}</b>
               </span>
             </div>

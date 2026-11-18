@@ -1,5 +1,5 @@
 import { RawTobacco } from '../types/tobacco';
-import { generateNextLotBatchNumbers, normalizeLotNumber } from './gradeCardEngine';
+import { normalizeLotNumber } from './gradeCardEngine';
 import {
   PrefixRegistryState,
   extractCustomGenerationPrefixFromLot,
@@ -338,16 +338,6 @@ export function buildPrefixAuditLedgers(params: {
     }
     b.seqsPresent.add(parsed.seq);
     if (parsed.seq > b.maxSeenSeq) b.maxSeenSeq = parsed.seq;
-  }
-
-  // Always include today's daily prefix if no custom prefixes or if daily lots exist
-  const todayDailyLot = generateNextLotBatchNumbers(rawTobaccos, 1, '', issuedPrintedLots, 1)[0];
-  const todayDailyParsed = todayDailyLot ? parseLotPrefixAndSeq(todayDailyLot, []) : null;
-  if (todayDailyParsed && !buckets.has(todayDailyParsed.prefixKey)) {
-    const dailyStart = getPrefixStartSequence(prefixRegistry, '') ?? 1;
-    if (dailyStart > 1 || buckets.size === 0) {
-      ensureBucket(todayDailyParsed.prefixKey, true);
-    }
   }
 
   const ledgers: PrefixAuditLedgerSummary[] = [];
