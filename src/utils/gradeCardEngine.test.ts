@@ -414,3 +414,57 @@ test('normalizeScannedPurchaseDate parses DMY with editable card year & defaults
   assert.equal(materialized.purchaseDate, '2026-11-16');
   assert.equal(materialized.graderName, 'Pak Joko');
 });
+
+test('classifyScannedCardsForReview strips stray ink punctuation from characterNotes and parses MTL001 card cleanly', () => {
+  const pkgList: PackagingMaster[] = [
+    ...SAMPLE_PACKAGINGS,
+    {
+      id: 'pkg-goni',
+      name: 'BALL GONI PRESS',
+      packagingMassKg: 1.5,
+      taraPercent: 0,
+      taraFlatKg: 2,
+      packagingCostRp: 25000,
+      pressCostRp: 15000,
+    },
+  ];
+
+  const reviewed = classifyScannedCardsForReview({
+    scannedCards: [
+      {
+        lotNumber: 'MTL001',
+        purchaseDate: '18 / 11 / 2026',
+        graderName: 'Aldi',
+        sellerName: 'P Yohan',
+        origin: 'MTL',
+        name: 'Windusari',
+        colorGrade: 'D+',
+        packagingType: 'BALL GONI PRESS',
+        powerRating: 4,
+        impactRating: 4,
+        bitterRating: 5,
+        burnRating: 3,
+        sugarRating: 1,
+        aromaRating: 2,
+        grossWeightKg: 50,
+        pricePerKgPurchase: 80000,
+        characterNotes: '.',
+        confidenceScore: 94,
+      },
+    ],
+    rawTobaccos: [],
+    packagingList: pkgList,
+    defaultPrintYear: 2026,
+    registeredGraders: ['Aldi'],
+  });
+
+  assert.equal(reviewed.length, 1);
+  assert.equal(reviewed[0].lotNumber, 'MTL001');
+  assert.equal(reviewed[0].purchaseDate, '2026-11-18');
+  assert.equal(reviewed[0].origin, 'Muntilan');
+  assert.equal(reviewed[0].colorGrade, 'D+');
+  assert.equal(reviewed[0].packagingType, 'BALL GONI PRESS');
+  assert.equal(reviewed[0].characterNotes, '');
+  assert.equal(reviewed[0].grossWeightKg, 50);
+  assert.equal(reviewed[0].pricePerKgPurchase, 80000);
+});

@@ -42,6 +42,10 @@ import {
 } from '../utils/graderRegistryEngine';
 import { loadPrintPreferences } from '../utils/printPreferences';
 import { getSmartPriceGuard, getSmartWeightGuard } from '../utils/smartInputGuard';
+import {
+  formatScannerClientError,
+  parseSafeApiResponseText,
+} from '../utils/safeApiResponse';
 
 interface GradeCardScannerModalProps {
   isOpen: boolean;
@@ -92,36 +96,69 @@ const UNCERTAIN_FIELD_LABELS: Record<string, string> = {
   aromaRating: 'Aroma',
 };
 
+function loadImageElementFromDataOrUrl(src: string): Promise<HTMLImageElement> {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error('Format foto belum didukung browser ini.'));
+    el.src = src;
+  });
+}
+
+function readBlobAsDataUrl(file: File): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string' && reader.result.startsWith('data:')) {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Gagal membaca file gambar.'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Gagal membaca file gambar dari penyimpanan HP.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function loadImageElementFromFile(source: File): Promise<HTMLImageElement> {
+  if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+    const objUrl = URL.createObjectURL(source);
+    try {
+      return await loadImageElementFromDataOrUrl(objUrl);
+    } catch {
+      // Fallback to FileReader data URL (helps on iOS standalone / strict Safari blob handling)
+    } finally {
+      URL.revokeObjectURL(objUrl);
+    }
+  }
+  const dataUrl = await readBlobAsDataUrl(source);
+  return await loadImageElementFromDataOrUrl(dataUrl);
+}
+
 /** Resize & compress image client-side cleanly before uploading to AI Vision + extract local Code 39 barcodes */
 async function compressImageFileToJpegBase64(
   source: File | HTMLVideoElement
 ): Promise<{ dataUrl: string; base64: string; mimeType: string; localBarcodes: string[] }> {
-  const MAX_DIM = 1800;
+  const MAX_DIM = 1280;
 
   let width = 0;
   let height = 0;
   let drawSource: CanvasImageSource;
 
   if (source instanceof HTMLVideoElement) {
-    width = source.videoWidth || 1280;
-    height = source.videoHeight || 720;
+    if (!source.videoWidth || !source.videoHeight || source.readyState < 2) {
+      throw new Error('Kamera masih bersiap, tunggu gambar tampil lalu coba jepret lagi.');
+    }
+    width = source.videoWidth;
+    height = source.videoHeight;
     drawSource = source;
   } else {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image();
-      const objUrl = URL.createObjectURL(source);
-      el.onload = () => {
-        URL.revokeObjectURL(objUrl);
-        resolve(el);
-      };
-      el.onerror = () => {
-        URL.revokeObjectURL(objUrl);
-        reject(new Error('Gagal membaca file gambar.'));
-      };
-      el.src = objUrl;
-    });
+    const img = await loadImageElementFromFile(source);
     width = img.naturalWidth || img.width;
     height = img.naturalHeight || img.height;
+    if (!width || !height) {
+      throw new Error('Ukuran gambar tidak terbaca. Coba pilih foto lain atau ambil foto ulang.');
+    }
     drawSource = img;
   }
 
@@ -136,9 +173,21 @@ async function compressImageFileToJpegBase64(
   if (!ctx) throw new Error('Browser canvas tidak tersedia.');
 
   ctx.drawImage(drawSource, 0, 0, targetW, targetH);
-  const localBarcodes = decodeCode39FromCanvas(canvas);
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
-  const base64 = dataUrl.split('base64,')[1] || '';
+
+  let localBarcodes: string[] = [];
+  try {
+    localBarcodes = decodeCode39FromCanvas(canvas);
+  } catch {
+    localBarcodes = [];
+  }
+
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+  const rawBase64 = dataUrl.includes('base64,') ? dataUrl.split('base64,').pop() || '' : '';
+  const base64 = rawBase64.replace(/\s+/g, '');
+  if (base64.length < 100) {
+    throw new Error('Hasil kompresi gambar kosong. Silakan ambil foto ulang dengan cahaya lebih baik.');
+  }
+
   return { dataUrl, base64, mimeType: 'image/jpeg', localBarcodes };
 }
 
@@ -486,10 +535,14 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
 
     setIsScanningAI(true);
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+
     try {
       const response = await fetch('/api/scan-grade-card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           imageBase64: imageData.base64,
           mimeType: imageData.mimeType,
@@ -504,12 +557,26 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
           },
         }),
       });
+      window.clearTimeout(timeoutId);
 
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error || `Server error (${response.status})`);
+      const rawText = await response.text();
+      const parsedResp = parseSafeApiResponseText<{
+        cards?: ScannedGradeCardRawInput[];
+        imageQualityWarning?: string;
+        modelUsed?: string;
+        error?: string;
+      }>({
+        ok: response.ok,
+        status: response.status,
+        rawText,
+        fallbackError: 'Gagal memproses foto Kartu Grade di server AI.',
+      });
+
+      if (!parsedResp.ok || !parsedResp.data) {
+        throw new Error(parsedResp.errorMessage || `Server error (${response.status})`);
       }
 
+      const payload = parsedResp.data;
       const rawCards: ScannedGradeCardRawInput[] = Array.isArray(payload.cards)
         ? payload.cards
         : [];
@@ -618,23 +685,36 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
         onShowToast?.(`${newCards} kartu stok baru terbaca & siap dicek sebelum disimpan.`);
       }
     } catch (err) {
-      setScanError(
-        err instanceof Error
-          ? err.message
-          : 'Gagal terhubung ke Scanner AI. Periksa koneksi internet Anda.'
-      );
+      window.clearTimeout(timeoutId);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setScanError(
+          'Scanner AI melebihi batas waktu (30 detik). Silakan coba scan ulang atau gunakan jaringan yang lebih stabil.'
+        );
+      } else {
+        setScanError(
+          formatScannerClientError(
+            err,
+            'Gagal terhubung ke Scanner AI. Periksa koneksi internet Anda.'
+          )
+        );
+      }
     } finally {
       setIsScanningAI(false);
     }
   };
 
   const handleCaptureFromLiveVideo = async () => {
-    if (!videoRef.current) return;
+    const vid = videoRef.current;
+    if (!vid) return;
+    if (!vid.videoWidth || !vid.videoHeight || vid.readyState < 2) {
+      onShowToast?.('Kamera masih bersiap, tunggu gambar tampil lalu coba jepret lagi.');
+      return;
+    }
     try {
-      const compressed = await compressImageFileToJpegBase64(videoRef.current);
+      const compressed = await compressImageFileToJpegBase64(vid);
       await runAiVisionScan(compressed, cameraPurpose);
     } catch (err) {
-      setScanError(err instanceof Error ? err.message : 'Gagal mengambil gambar kamera.');
+      setScanError(formatScannerClientError(err, 'Gagal mengambil gambar kamera.'));
     }
   };
 
@@ -649,7 +729,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
       const compressed = await compressImageFileToJpegBase64(file);
       await runAiVisionScan(compressed, purposeOverride);
     } catch (err) {
-      setScanError(err instanceof Error ? err.message : 'Gagal memproses file foto.');
+      setScanError(formatScannerClientError(err, 'Gagal memproses file foto.'));
     }
   };
 

@@ -19,7 +19,15 @@ import {
   Download,
   SlidersHorizontal,
   Edit3,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
 } from 'lucide-react';
+import {
+  areAllCardsExpanded,
+  toggleAllCardsExpanded,
+  toggleCardExpanded,
+} from '../utils/cardExpandState';
 import {
   FinishedTobaccoSerial,
   TobaccoRollSample,
@@ -81,6 +89,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
   const [editingSerial, setEditingSerial] = useState<FinishedTobaccoSerial | null>(null);
   const [copiedMode, setCopiedMode] = useState<'CSV' | 'TSV' | null>(null);
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
+  const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
 
   const factories = ['ALL', ...Array.from(new Set(finishedBatches.map((b) => b.targetFactory)))];
 
@@ -98,6 +107,9 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
 
     return matchSearch && matchFactory && matchRoll;
   });
+
+  const visibleSerialIds = filtered.map((b) => b.id);
+  const allSerialsExpanded = areAllCardsExpanded(expandedCardIds, visibleSerialIds);
 
   // Live CSV & TSV strings for data synchronization
   const csvSyncText = buildFinishedBatchSyncCsv({
@@ -234,6 +246,8 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
       },
     ];
 
+    const isExpanded = Boolean(expandedCardIds[batch.id]);
+
     return (
       <motion.div
         key={batch.id}
@@ -242,18 +256,46 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
         whileHover={{ y: -2 }}
         transition={{ duration: 0.16, delay: Math.min(idx * 0.015, 0.12), ease: [0.23, 1, 0.32, 1] }}
         onClick={() => setActiveSerial(batch)}
-        className="text-left group relative requiem-card border border-zinc-800/90 hover:border-amber-500/70 rounded-2xl p-3.5 sm:p-4 transition-[border-color,box-shadow,transform] duration-200 cursor-pointer flex flex-col justify-between min-h-[304px] sm:min-h-[318px]"
+        className="text-left group relative requiem-card border border-zinc-800/90 hover:border-amber-500/70 rounded-2xl p-3 sm:p-3.5 transition-[border-color,box-shadow,transform] duration-200 cursor-pointer flex flex-col justify-between"
       >
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-1">
-            <span className="px-2 py-0.5 rounded-lg bg-black text-amber-400 border border-zinc-700 font-mono font-black text-[11px] sm:text-xs tracking-wide shrink-0">
+          <div className="flex items-center justify-between gap-1.5">
+            <span className="px-2 py-0.5 rounded-lg bg-black text-amber-400 border border-zinc-700 font-mono font-black text-[11px] sm:text-xs tracking-wide truncate min-w-0">
               SERI {formatSerialLineage(batch)}
             </span>
-            <span
-              className={`px-1.5 py-0.5 rounded-md text-[10px] font-black border shrink-0 ${gradeInfo.color}`}
-            >
-              Grade {batch.compositeColorGrade}
-            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <span
+                className={`px-1.5 py-0.5 rounded-md text-[10px] font-black border shrink-0 ${gradeInfo.color}`}
+              >
+                Grade {batch.compositeColorGrade}
+              </span>
+              <button
+                type="button"
+                aria-expanded={isExpanded}
+                aria-label={
+                  isExpanded
+                    ? `Ringkas kartu Seri ${batch.serialNumber}`
+                    : `Buka rincian kartu Seri ${batch.serialNumber}`
+                }
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpandedCardIds((prev) => toggleCardExpanded(prev, batch.id));
+                }}
+                className={`h-6 px-2 rounded-lg border text-[10px] font-bold inline-flex items-center gap-0.5 cursor-pointer shrink-0 transition-colors ${
+                  isExpanded
+                    ? 'bg-amber-500/12 text-amber-300 border-amber-500/70'
+                    : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border-zinc-800 hover:border-zinc-700'
+                }`}
+              >
+                <span>{isExpanded ? 'Ringkas' : 'Rincian'}</span>
+                {isExpanded ? (
+                  <ChevronUp className="w-3 h-3 shrink-0" />
+                ) : (
+                  <ChevronDown className="w-3 h-3 shrink-0" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-1 text-[11px] sm:text-xs text-white font-bold truncate">
@@ -277,44 +319,67 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
             )}
           </div>
 
-          {/* Permanent Summary Box with Real vs Billable Net Weight & Factory Weight Profit/Loss */}
-          <div className="bg-zinc-950/95 border border-zinc-800/90 rounded-xl px-2.5 py-2 space-y-1">
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-[9px] font-bold uppercase text-zinc-400">
-                Riil / Tagih
+          {!isExpanded ? (
+            <div className="bg-zinc-950/90 border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2 text-[10px] font-mono tabular-nums">
+              <span className="text-zinc-400 truncate">
+                <b className="text-white">{realTobaccoNetKg}</b> /{' '}
+                <b className="text-amber-400">{nettoKg} kg</b>
               </span>
-              <span className="font-mono font-black text-[11px] sm:text-xs text-white whitespace-nowrap">
-                {realTobaccoNetKg} kg / <span className="text-amber-400">{nettoKg} kg</span>
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-              <span className="text-[9px] font-bold uppercase text-zinc-400">
-                Harga Pabrik
-              </span>
-              <span className="font-mono font-black text-[11px] sm:text-xs text-zinc-200 whitespace-nowrap">
+              <span className="text-zinc-200 font-bold whitespace-nowrap shrink-0">
                 {formatRupiah(batch.factoryTargetPricePerKg)}
               </span>
             </div>
-            {factoryWeightProfitKg !== 0 && (
-              <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-                <span className="text-[9px] font-black uppercase text-zinc-200">
-                  Selisih Timbangan
-                </span>
-                <span
-                  className={`font-mono font-black text-[10px] sm:text-[11px] whitespace-nowrap ${
-                    factoryWeightProfitKg > 0 ? 'text-zinc-200' : 'text-red-400'
-                  }`}
-                >
-                  {factoryWeightProfitKg > 0 ? '+' : ''}
-                  {factoryWeightProfitKg} kg ({factoryWeightProfitRp > 0 ? '+' : ''}
-                  {formatRupiah(factoryWeightProfitRp)})
-                </span>
-              </div>
-            )}
-          </div>
+          ) : (
+            <AnimatePresence initial={false}>
+              <motion.div
+                key="expanded-serial"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+                className="space-y-2"
+              >
+                {/* Permanent Summary Box with Real vs Billable Net Weight & Factory Weight Profit/Loss */}
+                <div className="bg-zinc-950/95 border border-zinc-800/90 rounded-xl px-2.5 py-2 space-y-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[9px] font-bold uppercase text-zinc-400">
+                      Riil / Tagih
+                    </span>
+                    <span className="font-mono font-black text-[11px] sm:text-xs text-white whitespace-nowrap tabular-nums">
+                      {realTobaccoNetKg} kg / <span className="text-amber-400">{nettoKg} kg</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
+                    <span className="text-[9px] font-bold uppercase text-zinc-400">
+                      Harga Pabrik
+                    </span>
+                    <span className="font-mono font-black text-[11px] sm:text-xs text-zinc-200 whitespace-nowrap tabular-nums">
+                      {formatRupiah(batch.factoryTargetPricePerKg)}
+                    </span>
+                  </div>
+                  {factoryWeightProfitKg !== 0 && (
+                    <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
+                      <span className="text-[9px] font-black uppercase text-zinc-200">
+                        Selisih Timbangan
+                      </span>
+                      <span
+                        className={`font-mono font-black text-[10px] sm:text-[11px] whitespace-nowrap tabular-nums ${
+                          factoryWeightProfitKg > 0 ? 'text-zinc-200' : 'text-red-400'
+                        }`}
+                      >
+                        {factoryWeightProfitKg > 0 ? '+' : ''}
+                        {factoryWeightProfitKg} kg ({factoryWeightProfitRp > 0 ? '+' : ''}
+                        {formatRupiah(factoryWeightProfitRp)})
+                      </span>
+                    </div>
+                  )}
+                </div>
 
-          {/* Moving Panel with All 5 Character Parameters (/5) & Profit Breakdown */}
-          <SpinningStatTicker items={tickerItems} intervalMs={3200 + (idx % 3) * 350} />
+                {/* Moving Panel with All 5 Character Parameters (/5) & Profit Breakdown */}
+                <SpinningStatTicker items={tickerItems} intervalMs={3200 + (idx % 3) * 350} />
+              </motion.div>
+            </AnimatePresence>
+          )}
         </div>
 
         <div className="mt-2.5 pt-2 border-t border-zinc-900 flex items-center justify-between gap-2 text-[10px] text-zinc-400 group-hover:text-white transition-colors">
@@ -348,7 +413,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                 Hapus Seri {batch.serialNumber}
               </span>
             </button>
-            <span className="font-bold shrink-0">Rincian →</span>
+            <span className="font-bold shrink-0">Detail →</span>
           </div>
         </div>
       </motion.div>
@@ -399,6 +464,25 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
               className="w-full h-9 sm:h-10 pl-9 pr-3 bg-black border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700"
             />
           </div>
+
+          {viewMode !== 'csv-sync' && visibleSerialIds.length > 0 && (
+            <button
+              type="button"
+              aria-pressed={allSerialsExpanded}
+              onClick={() =>
+                setExpandedCardIds((prev) => toggleAllCardsExpanded(prev, visibleSerialIds))
+              }
+              className="alucard-edge-btn-quiet min-h-9 sm:min-h-10 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <ChevronsUpDown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline">
+                {allSerialsExpanded ? 'Ringkas Semua' : 'Buka Semua'}
+              </span>
+              <span className="sm:hidden">
+                {allSerialsExpanded ? 'Ringkas' : 'Buka'}
+              </span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -676,7 +760,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
         </motion.div>
       ) : viewMode === 'grid-3d' ? (
         /* Dynamic CSS Grid: 1 card per row on small phones (<420px), 2 per row when space permits (>=420px), 3-4 on larger screens */
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
           {filtered.map((batch, idx) => render3DCard(batch, idx))}
         </div>
       ) : (
@@ -729,7 +813,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
                 {items.map((batch, idx) => render3DCard(batch, idx))}
               </div>
             </div>

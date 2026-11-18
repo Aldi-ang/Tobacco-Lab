@@ -22,7 +22,15 @@ import {
   DollarSign,
   Sparkles,
   Hand,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
 } from 'lucide-react';
+import {
+  areAllCardsExpanded,
+  toggleAllCardsExpanded,
+  toggleCardExpanded,
+} from '../utils/cardExpandState';
 import {
   RawTobacco,
   FinishedTobaccoSerial,
@@ -109,6 +117,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
   >('name');
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
   const [visibleCardLimit, setVisibleCardLimit] = useState<number>(36);
+  const [expandedCardIds, setExpandedCardIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setVisibleCardLimit(36);
@@ -216,6 +225,10 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
       }
       return a.name.localeCompare(b.name);
     });
+
+  const visibleRawItems = filteredRaw.slice(0, visibleCardLimit);
+  const visibleRawIds = visibleRawItems.map((t) => t.id);
+  const allVisibleRawExpanded = areAllCardsExpanded(expandedCardIds, visibleRawIds);
 
   return (
     <div className="space-y-3 pb-20 md:pb-4">
@@ -677,10 +690,26 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     )}
                   </div>
 
-                  <span className="text-[10px] text-zinc-400 inline-flex items-center gap-1">
-                    <Hand className="w-3 h-3 text-amber-400 shrink-0" />
-                    <span>Tahan &amp; geser pada kartu untuk edit cepat</span>
-                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {visibleRawIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedCardIds((prev) => toggleAllCardsExpanded(prev, visibleRawIds))
+                        }
+                        aria-pressed={allVisibleRawExpanded}
+                        className="alucard-edge-btn-quiet h-7 px-2.5 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <ChevronsUpDown className="w-3 h-3 text-amber-400 shrink-0" />
+                        <span>{allVisibleRawExpanded ? 'Ringkas Semua' : 'Buka Semua'}</span>
+                      </button>
+                    )}
+
+                    <span className="text-[10px] text-zinc-400 inline-flex items-center gap-1">
+                      <Hand className="w-3 h-3 text-amber-400 shrink-0" />
+                      <span>Tahan &amp; geser pada kartu untuk edit cepat</span>
+                    </span>
+                  </div>
                 </div>
               );
             })()}
@@ -694,8 +723,8 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                {filteredRaw.slice(0, visibleCardLimit).map((tobacco, idx) => {
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
+                {visibleRawItems.map((tobacco, idx) => {
                 const gradeInfo = GRADE_LABELS[tobacco.colorGrade] || GRADE_LABELS['D'];
                 const power5 = clampRating5(tobacco.powerRating);
                 const impact5 = clampRating5(tobacco.impactRating);
@@ -707,6 +736,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 const m = getRawWeightMetrics(tobacco);
                 const missingFlags = getRawTobaccoMissingFlags(tobacco);
                 const isBeingHeld = holdMenu.isHoldingProgressId === tobacco.id;
+                const isExpanded = Boolean(expandedCardIds[tobacco.id]);
 
                 const buildHoldOptions = () => [
                   {
@@ -969,7 +999,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     whileHover={{ y: -2 }}
                     transition={{ duration: 0.16, delay: Math.min(idx * 0.015, 0.12), ease: [0.23, 1, 0.32, 1] }}
                     {...holdHandlers}
-                    className={`requiem-card border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between transition-[border-color,box-shadow,transform] duration-200 group min-h-[308px] sm:min-h-[320px] select-none ${
+                    className={`requiem-card border rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between transition-[border-color,box-shadow,transform] duration-200 group select-none ${
                       isBeingHeld
                         ? 'border-amber-400 scale-[0.985] ring-2 ring-amber-400/60'
                         : missingFlags.isIncomplete
@@ -985,16 +1015,51 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       }}
                       className="cursor-pointer space-y-2"
                     >
-                      <div className="flex items-center justify-between gap-1">
-                        <span
-                          className={`px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-black border shrink-0 ${gradeInfo.color}`}
-                        >
-                          Grade {tobacco.colorGrade}
-                        </span>
-                        <span className="text-[10px] text-zinc-400 truncate flex items-center gap-0.5 min-w-0">
-                          <MapPin className="w-2.5 h-2.5 text-zinc-300 shrink-0" />
-                          <span className="truncate">{tobacco.origin.split(' ')[0]}</span>
-                        </span>
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-black border shrink-0 ${gradeInfo.color}`}
+                          >
+                            Grade {tobacco.colorGrade}
+                          </span>
+                          <span className="text-[10px] text-zinc-400 truncate flex items-center gap-0.5 min-w-0">
+                            <MapPin className="w-2.5 h-2.5 text-zinc-300 shrink-0" />
+                            <span className="truncate">{tobacco.origin.split(' ')[0]}</span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0" data-no-card-hold="true">
+                          <span className="font-mono font-black text-[10px] sm:text-[11px] text-white tabular-nums whitespace-nowrap">
+                            {m.currentStockKg} kg
+                          </span>
+                          <button
+                            type="button"
+                            aria-expanded={isExpanded}
+                            aria-label={
+                              isExpanded
+                                ? `Ringkas kartu ${tobacco.name}`
+                                : `Buka rincian kartu ${tobacco.name}`
+                            }
+                            data-no-card-hold="true"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedCardIds((prev) => toggleCardExpanded(prev, tobacco.id));
+                            }}
+                            className={`h-6 px-2 rounded-lg border text-[10px] font-bold inline-flex items-center gap-0.5 cursor-pointer shrink-0 transition-colors ${
+                              isExpanded
+                                ? 'bg-amber-500/12 text-amber-300 border-amber-500/70'
+                                : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border-zinc-800 hover:border-zinc-700'
+                            }`}
+                          >
+                            <span>{isExpanded ? 'Ringkas' : 'Rincian'}</span>
+                            {isExpanded ? (
+                              <ChevronUp className="w-3 h-3 shrink-0" />
+                            ) : (
+                              <ChevronDown className="w-3 h-3 shrink-0" />
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       <div>
@@ -1076,41 +1141,78 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         </div>
                       )}
 
-                      {/* Permanent Summary Box with 3 Key Metrics: Total Modal, Weight Profit (Rp), Weight Profit (KG) */}
-                      <div className="bg-zinc-950/95 border border-zinc-800/90 rounded-xl px-2.5 py-2 space-y-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-[9px] font-black uppercase text-amber-400">
-                            Total Modal ({m.netWeightKg} kg)
+                      {!isExpanded ? (
+                        <div className="bg-zinc-950/90 border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2 text-[10px] font-mono tabular-nums">
+                          <span className="text-zinc-400 truncate">
+                            Modal:{' '}
+                            <b className="text-amber-400">
+                              {missingFlags.missingPrice
+                                ? 'Menyusul'
+                                : formatRupiah(m.totalModalAsal)}
+                            </b>
                           </span>
-                          <span className="font-mono font-black text-[11px] sm:text-xs text-amber-400 whitespace-nowrap">
-                            {missingFlags.missingPrice ? 'Menyusul' : formatRupiah(m.totalModalAsal)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-                          <span className="text-[9px] font-bold uppercase text-zinc-300">
-                            Weight Profit (Rp)
-                          </span>
-                          <span className="font-mono font-black text-[11px] text-white whitespace-nowrap">
-                            {m.weightProfitRp >= 0 ? '+' : ''}
-                            {formatRupiah(m.weightProfitRp)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-                          <span className="text-[9px] font-bold uppercase text-zinc-400">
-                            Weight Profit (KG)
-                          </span>
-                          <span className="font-mono font-bold text-[10px] text-amber-300 whitespace-nowrap">
+                          <span
+                            className={`font-bold whitespace-nowrap shrink-0 ${
+                              m.weightProfitKg >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}
+                          >
                             {m.weightProfitKg >= 0 ? '+' : ''}
-                            {m.weightProfitKg} kg{' '}
-                            <span className="text-zinc-400">
-                              (Sisa: {m.currentStockKg} kg)
-                            </span>
+                            {m.weightProfitKg} kg
                           </span>
                         </div>
-                      </div>
+                      ) : (
+                        <AnimatePresence initial={false}>
+                          <motion.div
+                            key="expanded-panel"
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.16, ease: [0.23, 1, 0.32, 1] }}
+                            className="space-y-2"
+                          >
+                            {/* Full Summary Box: Total Modal, Weight Profit (Rp), Weight Profit (KG) */}
+                            <div className="bg-zinc-950/95 border border-zinc-800/90 rounded-xl px-2.5 py-2 space-y-1">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[9px] font-black uppercase text-amber-400">
+                                  Total Modal ({m.netWeightKg} kg)
+                                </span>
+                                <span className="font-mono font-black text-[11px] sm:text-xs text-amber-400 whitespace-nowrap tabular-nums">
+                                  {missingFlags.missingPrice
+                                    ? 'Menyusul'
+                                    : formatRupiah(m.totalModalAsal)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
+                                <span className="text-[9px] font-bold uppercase text-zinc-300">
+                                  Weight Profit (Rp)
+                                </span>
+                                <span className="font-mono font-black text-[11px] text-white whitespace-nowrap tabular-nums">
+                                  {m.weightProfitRp >= 0 ? '+' : ''}
+                                  {formatRupiah(m.weightProfitRp)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
+                                <span className="text-[9px] font-bold uppercase text-zinc-400">
+                                  Weight Profit (KG)
+                                </span>
+                                <span className="font-mono font-bold text-[10px] text-amber-300 whitespace-nowrap tabular-nums">
+                                  {m.weightProfitKg >= 0 ? '+' : ''}
+                                  {m.weightProfitKg} kg{' '}
+                                  <span className="text-zinc-400">
+                                    (Sisa: {m.currentStockKg} kg)
+                                  </span>
+                                </span>
+                              </div>
+                            </div>
 
-                      {/* Moving Panel with All 6 Character Parameters (/5) & Clear Breakdown */}
-                      <SpinningStatTicker items={tickerItems} intervalMs={3200 + (idx % 3) * 350} />
+                            {/* Moving Panel with All 6 Character Parameters (/5) & Clear Breakdown */}
+                            <SpinningStatTicker
+                              items={tickerItems}
+                              intervalMs={3200 + (idx % 3) * 350}
+                            />
+                          </motion.div>
+                        </AnimatePresence>
+                      )}
                     </div>
 
                     {/* Minimalist Compact Card Footer with Quick Hold/Edit Menu Trigger */}

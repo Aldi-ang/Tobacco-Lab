@@ -292,6 +292,7 @@ export default function App() {
   const initialCloudLoadDoneRef = useRef<boolean>(false);
   // Strict guard: never push local state to Firestore unless the user actually mutated data after cloud load
   const hasLocalUserMutationRef = useRef<boolean>(false);
+  const lastStorageErrorToastRef = useRef<number>(0);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -299,6 +300,18 @@ export default function App() {
       setToastMessage(null);
     }, 3500);
   }, []);
+
+  const notifyStorageWriteError = useCallback(
+    (context: string, error: unknown) => {
+      console.error(`Error saving ${context}`, error);
+      const now = Date.now();
+      if (now - lastStorageErrorToastRef.current > 8000) {
+        lastStorageErrorToastRef.current = now;
+        showToast('Penyimpanan lokal browser penuh — gunakan Sync Cloud atau Backup JSON.');
+      }
+    },
+    [showToast]
+  );
 
   const recordUndoSnapshot = useCallback(
     (label: string) => {
@@ -810,7 +823,12 @@ export default function App() {
         setCloudSyncStatus('synced');
       } catch (err) {
         setCloudSyncStatus('error');
-        handleFirestoreError(err, OperationType.WRITE, workspacePath);
+        try {
+          handleFirestoreError(err, OperationType.WRITE, workspacePath);
+        } catch {
+          // Logged cleanly without unhandled async rejection
+        }
+        showToast('Gagal sinkronisasi ke Cloud. Periksa koneksi internet atau login ulang.');
       }
     }, 350);
 
@@ -823,47 +841,48 @@ export default function App() {
     factoryList,
     authReady,
     currentUser,
+    showToast,
   ]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.RAW, packLocalStorageVault(rawTobaccos));
     } catch (e) {
-      console.error('Error saving raw tobaccos', e);
+      notifyStorageWriteError('raw tobaccos', e);
     }
-  }, [rawTobaccos]);
+  }, [rawTobaccos, notifyStorageWriteError]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.FINISHED, packLocalStorageVault(finishedBatches));
     } catch (e) {
-      console.error('Error saving finished batches', e);
+      notifyStorageWriteError('finished batches', e);
     }
-  }, [finishedBatches]);
+  }, [finishedBatches, notifyStorageWriteError]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.ROLLS, packLocalStorageVault(rollSamples));
     } catch (e) {
-      console.error('Error saving rolls', e);
+      notifyStorageWriteError('rolls', e);
     }
-  }, [rollSamples]);
+  }, [rollSamples, notifyStorageWriteError]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.PACKAGING, packLocalStorageVault(packagingList));
     } catch (e) {
-      console.error('Error saving packaging', e);
+      notifyStorageWriteError('packaging', e);
     }
-  }, [packagingList]);
+  }, [packagingList, notifyStorageWriteError]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.FACTORIES, packLocalStorageVault(factoryList));
     } catch (e) {
-      console.error('Error saving factories', e);
+      notifyStorageWriteError('factories', e);
     }
-  }, [factoryList]);
+  }, [factoryList, notifyStorageWriteError]);
 
   const handleSaveRawTobacco = (tobacco: RawTobacco) => {
     hasLocalUserMutationRef.current = true;

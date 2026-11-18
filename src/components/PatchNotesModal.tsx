@@ -64,6 +64,18 @@ export const PATCH_RELEASES: PatchRelease[] = [
         description:
           'Setiap pilihan Diterima atau Reject otomatis terkunci agar aman dari salah tekan (dilengkapi tombol "Buka Kunci"), merapikan angka penghitung sebaris pada tab "Update" dan "Selesai", serta mengelompokkan riwayat selesai ke dalam folder per tanggal/pabrik berisi kartu gulungan ringkas siap klik.',
       },
+      {
+        type: 'ui',
+        title: 'Kartu Stok Mentah & Seri Jadi Bisa Di-Ringkas / Buka Rincian (HP & PC)',
+        description:
+          'Seluruh kartu Stok Mentah dan Seri Jadi kini tampil ringkas secara bawaan di HP maupun PC agar hemat ruang layar, lengkap dengan tombol per kartu ("Rincian ▾ / Ringkas ▴") dan tombol massal ("Buka Semua / Ringkas Semua") serta pengaman ErrorBoundary agar aplikasi selalu tangguh.',
+      },
+      {
+        type: 'fix',
+        title: 'Perbaikan Scanner Kamera HP/Safari ("Expected Pattern") & Kompresi Foto Vision',
+        description:
+          'Mengatasi error parsing JSON ("did not match expected pattern") di Safari/HP, mengecilkan ukuran upload foto ke 1280px agar hemat kuota & bebas error batas payload, memperbarui model AI Vision aktif, serta menaikkan batas waktu fungsi serverless.',
+      },
     ],
   },
   {

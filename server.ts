@@ -48,13 +48,30 @@ function getGeminiClient(apiKeyOverride?: string): GoogleGenAI {
   });
 }
 
-// 24/7 Official Multi-Model Cascade (from @google/genai skill):
+// 24/7 Official Multi-Model Cascade (verified active aliases from @google/genai skill):
 const NOLAN_24X7_MODEL_CASCADE = [
   'gemini-4-hydrogen',
-  'gemini-3.8-flash',
-  'gemini-flash-latest',
   'gemini-3.1-flash-lite',
 ] as const;
+
+function parseGeminiJsonSafely(rawText: string): any {
+  const trimmed = String(rawText || '').trim();
+  if (!trimmed) return {};
+  const unfenced = trimmed
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  try {
+    return JSON.parse(unfenced);
+  } catch {
+    const firstBrace = unfenced.indexOf('{');
+    const lastBrace = unfenced.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      return JSON.parse(unfenced.slice(firstBrace, lastBrace + 1));
+    }
+    throw new Error('Respons AI tidak berbentuk JSON valid.');
+  }
+}
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -78,23 +95,27 @@ async function generateWith24x7Fallback(params: {
   config: Record<string, any>;
   maxTotalWaitMs?: number;
   perModelTimeoutMs?: number;
+  modelCascade?: readonly string[];
 }): Promise<{ text: string; modelUsed: string }> {
   const apiKeys = getGeminiApiKeys();
   const keysToTry = apiKeys.length > 0 ? apiKeys : [undefined];
-  const maxTotalWaitMs = params.maxTotalWaitMs ?? 12000;
-  const perModelTimeoutMs = params.perModelTimeoutMs ?? 6000;
+  const maxTotalWaitMs = params.maxTotalWaitMs ?? 14000;
+  const perModelTimeoutMs = params.perModelTimeoutMs ?? 7000;
+  const cascade =
+    params.modelCascade && params.modelCascade.length > 0
+      ? params.modelCascade
+      : NOLAN_24X7_MODEL_CASCADE;
   const startAll = Date.now();
   let lastError: unknown = null;
 
   for (const key of keysToTry) {
     const ai = getGeminiClient(key);
-    for (let i = 0; i < NOLAN_24X7_MODEL_CASCADE.length; i++) {
+    for (let i = 0; i < cascade.length; i++) {
       if (Date.now() - startAll >= maxTotalWaitMs) {
         throw lastError || new Error('Exceeded max wait budget, switching to Local Engine.');
       }
-      const modelName = NOLAN_24X7_MODEL_CASCADE[i];
-      const supportsLowThinking =
-        modelName === 'gemini-4-hydrogen' || modelName === 'gemini-3.8-flash';
+      const modelName = cascade[i];
+      const supportsLowThinking = modelName === 'gemini-4-hydrogen';
       const modelConfig = supportsLowThinking
         ? {
             ...params.config,
@@ -117,6 +138,7 @@ async function generateWith24x7Fallback(params: {
           return { text, modelUsed: modelName };
         }
       } catch (err: any) {
+        console.warn(`[Gemini Cascade] ${modelName} failed:`, err?.message || err);
         lastError = err;
         continue;
       }
@@ -2096,7 +2118,7 @@ MEMORI & ATURAN YANG SUDAH DIPELAJARI NOLAN (A-BRAIN MEMORY):
             },
           },
         });
-        parsed = JSON.parse(result.text || '{}');
+        parsed = parseGeminiJsonSafely(result.text || '{}');
       } catch (cloudErr) {
         console.warn(
           'All Gemini pools busy (503/429), switching seamlessly to Nolan 24/7 Deterministic Engine:',
@@ -2366,20 +2388,26 @@ ATURAN PEMBACAAN KETAT:
    - Jika ada kotak/tulisan yang buram, miring, dua angka tercoret ragu, atau kurang jelas, WAJIB masukkan nama field-nya ke array uncertainFields (pilih dari: lotNumber, purchaseDate, graderName, name, origin, sellerName, colorGrade, packagingType, grossWeightKg, pricePerKgPurchase, powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating) dan turunkan confidenceScore (10-100).
    - Jika foto terlalu gelap/buram atau bukan foto Kartu Grade maupun Barcode, isi cards = [], detectedCount = 0, dan jelaskan di imageQualityWarning.`;
 
+      const safeMimeType =
+        typeof mimeType === 'string' && /^image\/(jpeg|png|webp|gif)$/i.test(mimeType.trim())
+          ? mimeType.trim().toLowerCase()
+          : 'image/jpeg';
+
       const result = await generateWith24x7Fallback({
         contents: {
           parts: [
             {
               inlineData: {
-                mimeType: typeof mimeType === 'string' && mimeType ? mimeType : 'image/jpeg',
+                mimeType: safeMimeType,
                 data: cleanBase64,
               },
             },
             { text: visionPrompt },
           ],
         },
-        maxTotalWaitMs: 32000,
-        perModelTimeoutMs: 16000,
+        maxTotalWaitMs: 22000,
+        perModelTimeoutMs: 10000,
+        modelCascade: ['gemini-3.1-flash-lite', 'gemini-4-hydrogen'],
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -2431,7 +2459,7 @@ ATURAN PEMBACAAN KETAT:
         },
       });
 
-      const parsed = JSON.parse(result.text || '{}');
+      const parsed = parseGeminiJsonSafely(result.text || '{}');
       const cards = Array.isArray(parsed.cards) ? parsed.cards : [];
       res.json({
         detectedCount: Number(parsed.detectedCount) || cards.length,

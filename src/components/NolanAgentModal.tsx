@@ -42,6 +42,7 @@ import {
 } from '../types/nolan';
 import { runNolanSmartEngine, humanizeNolanText } from '../utils/nolanSmartEngine';
 import { formatRupiah, clampRating5 } from '../utils/tobaccoMath';
+import { parseSafeApiResponseText } from '../utils/safeApiResponse';
 
 interface NolanAgentModalProps {
   isOpen: boolean;
@@ -556,10 +557,24 @@ export const NolanAgentModal: React.FC<NolanAgentModalProps> = ({
       });
       clearTimeout(timeoutId);
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Gagal mendapatkan respons dari Nolan.');
+      const rawText = await response.text();
+      const parsedResp = parseSafeApiResponseText<{
+        reply?: string;
+        navigateTo?: NolanNavTarget | null;
+        pendingAction?: NolanPendingAction | null;
+        recommendedBlend?: NolanRecommendedBlend | null;
+        newLearnedRule?: string | null;
+        error?: string;
+      }>({
+        ok: response.ok,
+        status: response.status,
+        rawText,
+        fallbackError: 'Gagal mendapatkan respons dari Nolan.',
+      });
+      if (!parsedResp.ok || !parsedResp.data) {
+        throw new Error(parsedResp.errorMessage || 'Gagal mendapatkan respons dari Nolan.');
       }
+      const data = parsedResp.data;
 
       const cleanReply = humanizeNolanText(data.reply || smartResult.replyMarkdown);
       const navTarget = (data.navigateTo || smartResult.navigateTo || null) as NolanNavTarget | null;

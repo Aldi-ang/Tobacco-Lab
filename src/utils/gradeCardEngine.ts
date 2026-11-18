@@ -538,7 +538,12 @@ export function classifyScannedCardsForReview(params: {
     const hasExplicitDate = !parsedDate.wasAutoDefaulted;
     const hasExplicitPkg = String(raw.packagingType || '').trim().length > 0;
     const hasExplicitGrade = String(raw.colorGrade || '').trim().length > 0;
-    const hasExplicitNotes = String(raw.characterNotes || '').trim().length > 0;
+    const cleanedNotesRaw = String(raw.characterNotes || '').trim();
+    const cleanedCharacterNotes =
+      cleanedNotesRaw.replace(/[-.,_•·*~`'"!?/\\|]+/g, '').trim().length > 0
+        ? cleanedNotesRaw
+        : '';
+    const hasExplicitNotes = cleanedCharacterNotes.length > 0;
 
     // Anti-Duplicate & Paper-First Update Detection
     let matchStatus: ScannedCardMatchAction = 'NEW_STOCK';
@@ -583,7 +588,7 @@ export function classifyScannedCardsForReview(params: {
         const existingPrice = Math.round(Number(matchedExisting.pricePerKgPurchase) || 0);
         const existingPkg = matchedExisting.taraFormula?.packagingType || '';
         const existingNotes = String(matchedExisting.characterNotes || '').trim();
-        const rawNotesClean = String(raw.characterNotes || '').trim();
+        const rawNotesClean = cleanedCharacterNotes;
 
         if (existingFlags.missingWeight && grossWeightKg > 0) {
           updateDiffSummary.push(`+ Timbangan: ${grossWeightKg} kg`);
@@ -747,7 +752,7 @@ export function classifyScannedCardsForReview(params: {
     const resolvedNotes =
       matchedExisting && !hasExplicitNotes
         ? matchedExisting.characterNotes || ''
-        : String(raw.characterNotes || '').trim();
+        : cleanedCharacterNotes;
 
     return {
       reviewId: `scan-rev-${Date.now()}-${idx}`,
