@@ -1702,7 +1702,7 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="min-h-screen bg-[#040406] text-white flex flex-col font-sans selection:bg-amber-500 selection:text-black relative">
+      <div className="min-h-screen bg-[#040406] text-white flex flex-col font-sans selection:bg-amber-500 selection:text-black relative overflow-x-clip">
         {/* Artistic Resident Evil 9 Requiem Architectural Background */}
         <ArchitecturalBackground />
 
@@ -1761,7 +1761,7 @@ export default function App() {
           }}
         />
 
-        <main className="flex-1 max-w-7xl w-full mx-auto py-4 sm:py-5 safe-main-container">
+        <main className="flex-1 max-w-[1440px] w-full mx-auto py-4 sm:py-5 safe-main-container">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={activeTab}

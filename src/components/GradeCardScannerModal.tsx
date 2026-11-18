@@ -135,15 +135,59 @@ async function loadImageElementFromFile(source: File): Promise<HTMLImageElement>
   return await loadImageElementFromDataOrUrl(dataUrl);
 }
 
+function encodeCanvasToBoundedJpeg(
+  canvas: HTMLCanvasElement,
+  initialWidth: number,
+  initialHeight: number
+): { dataUrl: string; base64: string } {
+  const MAX_BASE64_CHARS = 1_200_000;
+  let dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+  let base64 = (dataUrl.includes('base64,') ? dataUrl.split('base64,').pop() || '' : '').replace(
+    /\s+/g,
+    ''
+  );
+
+  if (base64.length > MAX_BASE64_CHARS) {
+    for (const q of [0.68, 0.56]) {
+      dataUrl = canvas.toDataURL('image/jpeg', q);
+      base64 = (dataUrl.includes('base64,') ? dataUrl.split('base64,').pop() || '' : '').replace(
+        /\s+/g,
+        ''
+      );
+      if (base64.length <= MAX_BASE64_CHARS) break;
+    }
+  }
+
+  if (base64.length > 1_400_000 && Math.max(initialWidth, initialHeight) > 960) {
+    const downScale = 960 / Math.max(initialWidth, initialHeight);
+    const smallCanvas = document.createElement('canvas');
+    smallCanvas.width = Math.max(1, Math.round(initialWidth * downScale));
+    smallCanvas.height = Math.max(1, Math.round(initialHeight * downScale));
+    const sctx = smallCanvas.getContext('2d');
+    if (sctx) {
+      sctx.drawImage(canvas, 0, 0, smallCanvas.width, smallCanvas.height);
+      dataUrl = smallCanvas.toDataURL('image/jpeg', 0.66);
+      base64 = (dataUrl.includes('base64,') ? dataUrl.split('base64,').pop() || '' : '').replace(
+        /\s+/g,
+        ''
+      );
+    }
+  }
+
+  return { dataUrl, base64 };
+}
+
 /** Resize & compress image client-side cleanly before uploading to AI Vision + extract local Code 39 barcodes */
 async function compressImageFileToJpegBase64(
-  source: File | HTMLVideoElement
+  source: File | HTMLVideoElement,
+  purpose: 'NEW_STOCK' | 'BARCODE_UPDATE' = 'NEW_STOCK'
 ): Promise<{ dataUrl: string; base64: string; mimeType: string; localBarcodes: string[] }> {
   const MAX_DIM = 1280;
 
   let width = 0;
   let height = 0;
   let drawSource: CanvasImageSource;
+  let bitmapToClose: ImageBitmap | null = null;
 
   if (source instanceof HTMLVideoElement) {
     if (!source.videoWidth || !source.videoHeight || source.readyState < 2) {
@@ -153,42 +197,76 @@ async function compressImageFileToJpegBase64(
     height = source.videoHeight;
     drawSource = source;
   } else {
-    const img = await loadImageElementFromFile(source);
-    width = img.naturalWidth || img.width;
-    height = img.naturalHeight || img.height;
-    if (!width || !height) {
-      throw new Error('Ukuran gambar tidak terbaca. Coba pilih foto lain atau ambil foto ulang.');
+    let loadedBitmap: ImageBitmap | null = null;
+    if (typeof createImageBitmap === 'function') {
+      try {
+        loadedBitmap = await createImageBitmap(source);
+      } catch {
+        loadedBitmap = null;
+      }
     }
-    drawSource = img;
+    if (loadedBitmap && loadedBitmap.width > 0 && loadedBitmap.height > 0) {
+      width = loadedBitmap.width;
+      height = loadedBitmap.height;
+      drawSource = loadedBitmap;
+      bitmapToClose = loadedBitmap;
+    } else {
+      if (loadedBitmap) {
+        try {
+          loadedBitmap.close();
+        } catch {
+          // ignore
+        }
+      }
+      const img = await loadImageElementFromFile(source);
+      width = img.naturalWidth || img.width;
+      height = img.naturalHeight || img.height;
+      if (!width || !height) {
+        throw new Error('Ukuran gambar tidak terbaca. Coba pilih foto lain atau ambil foto ulang.');
+      }
+      drawSource = img;
+    }
   }
 
-  const scale = Math.min(1, MAX_DIM / Math.max(width, height));
-  const targetW = Math.max(1, Math.round(width * scale));
-  const targetH = Math.max(1, Math.round(height * scale));
-
-  const canvas = document.createElement('canvas');
-  canvas.width = targetW;
-  canvas.height = targetH;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) throw new Error('Browser canvas tidak tersedia.');
-
-  ctx.drawImage(drawSource, 0, 0, targetW, targetH);
-
-  let localBarcodes: string[] = [];
   try {
-    localBarcodes = decodeCode39FromCanvas(canvas);
-  } catch {
-    localBarcodes = [];
-  }
+    const scale = Math.min(1, MAX_DIM / Math.max(width, height));
+    const targetW = Math.max(1, Math.round(width * scale));
+    const targetH = Math.max(1, Math.round(height * scale));
 
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-  const rawBase64 = dataUrl.includes('base64,') ? dataUrl.split('base64,').pop() || '' : '';
-  const base64 = rawBase64.replace(/\s+/g, '');
-  if (base64.length < 100) {
-    throw new Error('Hasil kompresi gambar kosong. Silakan ambil foto ulang dengan cahaya lebih baik.');
-  }
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d', { willReadFrequently: purpose === 'BARCODE_UPDATE' });
+    if (!ctx) throw new Error('Browser canvas tidak tersedia.');
 
-  return { dataUrl, base64, mimeType: 'image/jpeg', localBarcodes };
+    ctx.drawImage(drawSource, 0, 0, targetW, targetH);
+
+    let localBarcodes: string[] = [];
+    if (purpose === 'BARCODE_UPDATE') {
+      try {
+        localBarcodes = decodeCode39FromCanvas(canvas);
+      } catch {
+        localBarcodes = [];
+      }
+    }
+
+    const { dataUrl, base64 } = encodeCanvasToBoundedJpeg(canvas, targetW, targetH);
+    if (base64.length < 100) {
+      throw new Error(
+        'Hasil kompresi gambar kosong. Silakan ambil foto ulang dengan cahaya lebih baik.'
+      );
+    }
+
+    return { dataUrl, base64, mimeType: 'image/jpeg', localBarcodes };
+  } finally {
+    if (bitmapToClose) {
+      try {
+        bitmapToClose.close();
+      } catch {
+        // ignore
+      }
+    }
+  }
 }
 
 export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
@@ -536,7 +614,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
     setIsScanningAI(true);
 
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 30000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 55000);
 
     try {
       const response = await fetch('/api/scan-grade-card', {
@@ -548,12 +626,12 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
           mimeType: imageData.mimeType,
           scanMode: purpose,
           masterContext: {
-            sellers: masterDict.sellers,
-            graders: masterDict.graders,
-            origins: masterDict.origins,
-            packagings: masterDict.packagings,
-            tobaccoNames: masterDict.tobaccoNames,
-            existingLotNumbers: rawTobaccos.map((t) => t.lotNumber).filter(Boolean).slice(0, 120),
+            sellers: masterDict.sellers.slice(0, 60),
+            graders: masterDict.graders.slice(0, 40),
+            origins: masterDict.origins.slice(0, 60),
+            packagings: masterDict.packagings.slice(0, 30),
+            tobaccoNames: masterDict.tobaccoNames.slice(0, 60),
+            existingLotNumbers: rawTobaccos.map((t) => t.lotNumber).filter(Boolean).slice(0, 100),
           },
         }),
       });
@@ -688,7 +766,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
       window.clearTimeout(timeoutId);
       if (err instanceof DOMException && err.name === 'AbortError') {
         setScanError(
-          'Scanner AI melebihi batas waktu (30 detik). Silakan coba scan ulang atau gunakan jaringan yang lebih stabil.'
+          'Scanner AI melebihi batas waktu (55 detik). Silakan coba scan ulang atau gunakan jaringan yang lebih stabil.'
         );
       } else {
         setScanError(
@@ -711,7 +789,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
       return;
     }
     try {
-      const compressed = await compressImageFileToJpegBase64(vid);
+      const compressed = await compressImageFileToJpegBase64(vid, cameraPurpose);
       await runAiVisionScan(compressed, cameraPurpose);
     } catch (err) {
       setScanError(formatScannerClientError(err, 'Gagal mengambil gambar kamera.'));
@@ -726,7 +804,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
     e.target.value = '';
     if (!file) return;
     try {
-      const compressed = await compressImageFileToJpegBase64(file);
+      const compressed = await compressImageFileToJpegBase64(file, purposeOverride);
       await runAiVisionScan(compressed, purposeOverride);
     } catch (err) {
       setScanError(formatScannerClientError(err, 'Gagal memproses file foto.'));
@@ -952,7 +1030,10 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
 
                               <button
                                 type="button"
-                                onClick={() => nativeCameraInputRef.current?.click()}
+                                onClick={() => {
+                                  stopCamera();
+                                  nativeCameraInputRef.current?.click();
+                                }}
                                 className="h-10 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
                               >
                                 <ImageIcon className="w-3.5 h-3.5" />

@@ -572,10 +572,14 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-1">
-                        <label className="text-[10px] font-black text-white uppercase flex items-center gap-1.5">
+                        <label
+                          className={`text-[10px] font-black uppercase flex items-center gap-1.5 ${
+                            factoryPricePerKg <= 0 ? 'text-rose-400' : 'text-white'
+                          }`}
+                        >
                           <span>Harga Pabrik / KG (Rp)</span>
                           {factoryPricePerKg <= 0 && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/50 text-[9px]">
+                            <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/80 text-[9px]">
                               Belum Diisi
                             </span>
                           )}
@@ -603,7 +607,11 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                         }}
                         autoFocus
                         placeholder="0"
-                        className="w-full h-9 px-3 bg-zinc-950 border border-amber-500/80 focus:border-amber-400 rounded-lg text-white font-mono font-black text-sm focus:outline-hidden"
+                        className={`w-full h-9 px-3 bg-zinc-950 border rounded-lg font-mono font-black text-sm focus:outline-hidden ${
+                          factoryPricePerKg <= 0
+                            ? 'border-rose-500/80 focus:border-rose-400 text-rose-300 placeholder-rose-400/70'
+                            : 'border-amber-500/80 focus:border-amber-400 text-white'
+                        }`}
                       />
                     </div>
 
@@ -910,7 +918,9 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
                         disabled={!isUnlocked(item.key)}
                         className={getLockedInputClass(
                           item.key,
-                          'text-center font-mono font-black !px-1.5'
+                          `text-center font-mono font-black !px-1.5 ${
+                            item.val <= 0 ? '!text-rose-400 !border-rose-500/70' : ''
+                          }`
                         )}
                       />
                     </div>

@@ -206,6 +206,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span className="font-requiem font-black tracking-wide text-white text-[13px] sm:text-base lg:text-lg whitespace-nowrap">
                       TOBACCO <span className="text-amber-400">LAB</span>
                     </span>
+                    <button
+                      type="button"
+                      onClick={onOpenPatchNotes}
+                      title={`Versi terpasang ${CURRENT_APP_VERSION} — ketuk untuk buka Patch Notes`}
+                      aria-label={`Versi terpasang ${CURRENT_APP_VERSION}`}
+                      className="inline-flex items-center font-mono tabular-nums text-[9px] sm:text-[10px] font-bold tracking-tight px-1.5 py-0.5 rounded bg-[#0a0b0f] text-amber-300 border border-zinc-800 hover:border-amber-500/60 cursor-pointer shrink-0 transition-colors"
+                    >
+                      {CURRENT_APP_VERSION}
+                    </button>
                     <span className="hidden xl:inline-block text-[9px] uppercase font-extrabold tracking-widest px-1.5 py-0.5 rounded bg-zinc-950 text-zinc-300 border border-zinc-800 shrink-0">
                       CLOUD
                     </span>

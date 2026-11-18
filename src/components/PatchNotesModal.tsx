@@ -13,7 +13,7 @@ import {
 
 import { ALUCARD_EASE } from './AlucardMotion';
 
-export const CURRENT_APP_VERSION = 'v4.3.0';
+export const CURRENT_APP_VERSION = 'v4.3.5';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -32,11 +32,156 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v4.3.5',
+    date: '18 November 2026',
+    codename:
+      'Perbaikan Menyeluruh Scan Kartu Grade dari HP (Anti HTTP 500, Kompresi Foto Adaptif & Serverless Handler)',
+    isLatest: true,
+    highlights:
+      'Memperbaiki error "Gagal memproses foto Kartu Grade di server AI (HTTP 500)" saat scan dari kamera maupun galeri HP: mempercepat kompresi foto kamera 12MP–48MP agar aman di jaringan seluler & serverless, memperpanjang batas waktu Vision AI, serta memastikan handler Express/Serverless selalu mengembalikan JSON valid.',
+    changes: [
+      {
+        type: 'fix',
+        title: 'Perbaikan Serverless API & Body Stream Handler (/api/scan-grade-card)',
+        description:
+          'Handler api/index.ts kini menunggu siklus respons Express selesai sepenuhnya, melewati stream body yang sudah diparse serverless, membersihkan spasi base64, mengisolasi import vite dev, dan menambahkan rute /api/health serta pesan error Bahasa Indonesia yang jelas.',
+      },
+      {
+        type: 'fix',
+        title: 'Kompresi Foto HP Adaptif + Hemat Memori Kamera + Timeout 55 Detik',
+        description:
+          'Foto resolusi tinggi dari kamera/galeri HP kini dikompresi adaptif (tetap tajam namun ringan di bawah 900 KB via createImageBitmap), otomatis melepas stream kamera live sebelum membuka Kamera Bawaan HP, dan memberi waktu proses Vision AI hingga 55 detik.',
+      },
+      {
+        type: 'fix',
+        title: 'Versi Live v4.3.5 di Header & Patch Notes',
+        description:
+          'Memperbarui penanda versi aktif ke v4.3.5 pada header atas dan Patch Notes agar pembaruan langsung terkonfirmasi di HP maupun PC.',
+      },
+    ],
+  },
+  {
+    version: 'v4.3.4',
+    date: '18 November 2026',
+    codename:
+      'Penanda Teks Merah Otomatis untuk Variabel Belum Diisi di Dalam Panel Edit, Input & Rincian',
+    isLatest: false,
+    highlights:
+      'Seluruh variabel yang masih kosong atau bernilai 0 di dalam panel modal (Edit Cepat, Input Stok Baru, Edit Seri Jadi, dan Rincian Bahan) kini otomatis tampil berwarna merah agar langsung terlihat bagian mana yang masih perlu dilengkapi tanpa perlu menebak.',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Panel Edit Cepat: Tab, Atribut Kosong (0), Label & Ringkasan Berwarna Merah',
+        description:
+          'Tab yang belum lengkap (Timbangan, Harga, Grade & Atribut, Info), kotak atribut 0/5 (Kosong (0), judul Power–Aroma, nilai 0/5, & tombol 0), label/bingkai kolom kosong, dan baris "Masih kosong: ..." di footer Edit Cepat kini tampil tegas berwarna merah dan otomatis berubah normal setelah diisi.',
+      },
+      {
+        type: 'ui',
+        title: 'Input Stok, Edit Seri & Rincian Bahan Ikut Menyorot Data Kosong Merah',
+        description:
+          'Label kolom utama yang belum diisi pada Input Stok Baru, status "Butuh Timbangan & Harga", badge "Belum Diisi" pada Harga Pabrik Edit Seri, dan nilai kosong di modal Rincian Bahan juga diseragamkan ke warna merah di PC maupun HP.',
+      },
+      {
+        type: 'fix',
+        title: 'Versi Live v4.3.4 di Header & Patch Notes',
+        description:
+          'Memperbarui penanda versi aktif ke v4.3.4 pada header atas dan Patch Notes agar pembaruan langsung terkonfirmasi di HP maupun PC.',
+      },
+    ],
+  },
+  {
+    version: 'v4.3.3',
+    date: '18 November 2026',
+    codename:
+      'Teks & Angka Excel Lebih Besar + Penanda Merah Jelas untuk Variabel Belum Diisi (PC & HP)',
+    isLatest: false,
+    highlights:
+      'Memperbesar ukuran huruf dan angka di tabel Excel 2-baris PC dan kartu HP agar lebih nyaman dibaca, memperlebar kontainer layar PC agar detail Tarra & Wadah tidak terpotong, serta mengubah seluruh penanda data yang masih kosong/menyusul menjadi warna merah tegas agar langsung terlihat mana yang perlu dilengkapi.',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Huruf & Angka Tabel Excel PC dan Kartu Lebih Besar & Lebar',
+        description:
+          'Memperbesar ukuran angka dan teks di seluruh kolom tabel Excel 2-baris (Stok Mentah & Seri Jadi) termasuk 6 kolom Atribut (/5), harga, profit, bruto, dan metadata baris kedua, serta memperlebar layout desktop menjadi 1440px agar rincian Tarra & Wadah (Wd) terbaca utuh.',
+      },
+      {
+        type: 'ui',
+        title: 'Semua Variabel Kosong / Menyusul Kini Berwarna Merah Tegas',
+        description:
+          'Variabel yang belum terisi — Timbangan (0 kg / Isi Timbangan), Harga (Menyusul / Isi Harga), 6 Atribut Rasa kosong (0), Penjual, Asal, Kemasan, tombol filter Belum Lengkap, badge jumlah kurang, dan tombol Lengkapi/Edit — kini disorot warna merah (rose/red) di PC maupun HP agar langsung menonjol dari angka aktif.',
+      },
+      {
+        type: 'fix',
+        title: 'Versi Live v4.3.3 di Header & Patch Notes',
+        description:
+          'Memperbarui penanda versi aktif ke v4.3.3 pada header atas dan daftar Patch Notes sebagai konfirmasi pembaruan sudah masuk di PC maupun HP.',
+      },
+    ],
+  },
+  {
+    version: 'v4.3.2',
+    date: '18 November 2026',
+    codename:
+      'Tampilan Excel 2-Baris Padat Khusus PC (Stok Mentah & Seri Jadi) + Kartu Ringkas HP',
+    isLatest: false,
+    highlights:
+      'Menghadirkan format tabel ala Microsoft Excel 2 baris per item khusus di layar PC agar seluruh informasi stok (Lot, Tanggal, Nama, Penjual, Grader, Grade, Asal, Bruto, Kemasan, Potongan Tarra, Sisa Aktif, Modal, Harga + Fee, Weight Profit, 6 Atribut /5, Catatan, & Tombol Aksi) langsung terbaca sekaligus dan hemat ruang vertikal, sementara tampilan HP tetap menggunakan kartu ringkas buka-tutup yang nyaman disentuh.',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Tabel Excel 2-Baris Khusus PC untuk Stok Mentah & Seri Jadi',
+        description:
+          'Di layar PC (>= 768px), daftar Stok Mentah dan Seri Jadi kini tampil sebagai lembar kerja bergaya Microsoft Excel dengan 2 baris terstruktur per item, garis kotak presisi, penomoran baris Excel (#1, #2...), klik langsung nilai Modal/Profit untuk rincian rumus, serta tombol + Racik, Detail, Menu Edit, dan Hapus sebaris.',
+      },
+      {
+        type: 'ui',
+        title: 'Tampilan HP Tetap Kartu Ringkas Expandable (Rincian ▾ / Ringkas ▴)',
+        description:
+          'Khusus layar HP (< 768px), sistem otomatis mempertahankan tampilan kartu ringkas dengan tombol Rincian/Ringkas per kartu maupun Buka Semua tanpa memaksa tabel Excel yang sempit di ponsel.',
+      },
+      {
+        type: 'fix',
+        title: 'Konsistensi API Serverless & Indikator Versi Live v4.3.2',
+        description:
+          'Menjaga handler JSON serverless (/api/*) tetap aman untuk scan kamera & Nolan AI serta memperbarui versi aktif v4.3.2 di header atas agar Anda selalu tahu pembaruan sudah masuk di HP maupun PC.',
+      },
+    ],
+  },
+  {
+    version: 'v4.3.1',
+    date: '18 November 2026',
+    codename:
+      'Kartu Ringkas / Buka Rincian (HP & PC), Perbaikan Scanner Kamera HP/Safari & Indikator Versi Live',
+    isLatest: false,
+    highlights:
+      'Kartu Stok Mentah dan Seri Jadi kini tampil ringkas secara bawaan di HP maupun PC dengan tombol buka-tutup per kartu maupun massal, perbaikan error Scanner Kamera ("did not match expected pattern") di Safari/HP beserta percepatan AI Vision, pengaman ErrorBoundary anti-blank, dan penanda versi aktif di header atas agar update di HP langsung terlihat.',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Kartu Stok Mentah & Seri Jadi Bisa Di-Ringkas / Buka Rincian (HP & PC)',
+        description:
+          'Seluruh kartu Stok Mentah dan Seri Jadi kini tampil ringkas secara bawaan di layar HP maupun PC agar hemat ruang layar, lengkap dengan tombol per kartu ("Rincian ▾ / Ringkas ▴") tanpa memelarkan kartu sebelahnya serta tombol massal ("Buka Semua / Ringkas Semua").',
+      },
+      {
+        type: 'fix',
+        title: 'Perbaikan Scanner Kamera HP/Safari ("Expected Pattern") & Model AI Vision Cepat',
+        description:
+          'Mengatasi error parsing JSON ("did not match expected pattern") saat menerima respons non-JSON/timeout, menambahkan fallback pembacaan file FileReader untuk mode PWA iOS, mengecilkan kompresi upload foto ke 1280px (JPEG 0.80) agar aman di serverless, membersihkan titik tinta liar di kolom Catatan, memprioritaskan model Vision cepat (gemini-3.1-flash-lite), serta menaikkan maxDuration fungsi server menjadi 60 detik.',
+      },
+      {
+        type: 'fix',
+        title: 'Pengaman ErrorBoundary, Notifikasi Gagal Sync/Simpan & Indikator Versi di Header',
+        description:
+          'Menambahkan ErrorBoundary aplikasi agar bebas layar kosong jika terjadi error tak terduga, peringatan toast jika penyimpanan lokal atau Cloud Sync gagal, serta menampilkan kode versi aktif langsung di samping logo header dan notifikasi BARU di Patch Notes setiap kali versi naik.',
+      },
+    ],
+  },
+  {
     version: 'v4.3.0',
     date: '17 November 2026',
     codename:
       'Alucard RE9 Ark Lab Redesign & Motion, Stasiun Cetak & Audit 100 Nomor Custom Printing, Kunci Keputusan Riwayat & Patch Notes',
-    isLatest: true,
+    isLatest: false,
     highlights:
       'Perombakan visual & animasi menyeluruh menggunakan standar desain /alucard (Edge Buttons tanpa solid fill kuning, Marked Tabs dengan garis emas ramping, OdometerNumber bergulir, dan Toast centang SVG self-drawing), Stasiun Cetak Kartu Grade baru lengkap dengan mode tukar Seri Baru ⇄ Custom Printing, Slot 1–6 di dalam Audit 100 Nomor, serta penguncian keputusan Diterima/Reject dan pengelompokan folder Selesai per gulungan.',
     changes: [
@@ -63,18 +208,6 @@ export const PATCH_RELEASES: PatchRelease[] = [
         title: 'Kunci Keputusan Diterima/Reject, Tab "Update / Selesai" & Folder Arsip Gulungan Ringkas',
         description:
           'Setiap pilihan Diterima atau Reject otomatis terkunci agar aman dari salah tekan (dilengkapi tombol "Buka Kunci"), merapikan angka penghitung sebaris pada tab "Update" dan "Selesai", serta mengelompokkan riwayat selesai ke dalam folder per tanggal/pabrik berisi kartu gulungan ringkas siap klik.',
-      },
-      {
-        type: 'ui',
-        title: 'Kartu Stok Mentah & Seri Jadi Bisa Di-Ringkas / Buka Rincian (HP & PC)',
-        description:
-          'Seluruh kartu Stok Mentah dan Seri Jadi kini tampil ringkas secara bawaan di HP maupun PC agar hemat ruang layar, lengkap dengan tombol per kartu ("Rincian ▾ / Ringkas ▴") dan tombol massal ("Buka Semua / Ringkas Semua") serta pengaman ErrorBoundary agar aplikasi selalu tangguh.',
-      },
-      {
-        type: 'fix',
-        title: 'Perbaikan Scanner Kamera HP/Safari ("Expected Pattern") & Kompresi Foto Vision',
-        description:
-          'Mengatasi error parsing JSON ("did not match expected pattern") di Safari/HP, mengecilkan ukuran upload foto ke 1280px agar hemat kuota & bebas error batas payload, memperbarui model AI Vision aktif, serta menaikkan batas waktu fungsi serverless.',
       },
     ],
   },
@@ -1152,7 +1285,7 @@ export const PatchNotesModal: React.FC<PatchNotesModalProps> = ({ isOpen, onClos
                     key={tab.id}
                     type="button"
                     onClick={() => setFilterType(tab.id)}
-                    className={`relative h-8 px-3 rounded-lg text-xs font-extrabold transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.97] cursor-pointer border ${
+                    className={`relative h-8 px-2.5 sm:px-3 rounded-lg text-[11px] sm:text-xs font-extrabold whitespace-nowrap transition-[color,background-color,border-color,transform] duration-150 active:scale-[0.97] cursor-pointer border ${
                       active
                         ? 'bg-[#12141c] text-amber-300 border-amber-500/70'
                         : 'bg-[#07080b] text-zinc-400 hover:text-white border-zinc-800'

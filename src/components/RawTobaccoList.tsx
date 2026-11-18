@@ -25,12 +25,15 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
+  Eye,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {
   areAllCardsExpanded,
   toggleAllCardsExpanded,
   toggleCardExpanded,
 } from '../utils/cardExpandState';
+import { formatExcelSensoryRow, formatExcelTaraSummary } from '../utils/excelStockView';
 import {
   RawTobacco,
   FinishedTobaccoSerial,
@@ -628,13 +631,13 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         onClick={() =>
                           setMissingFilter(missingFilter === 'INCOMPLETE' ? 'ALL' : 'INCOMPLETE')
                         }
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer inline-flex items-center gap-1 ${
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer inline-flex items-center gap-1 ${
                           missingFilter === 'INCOMPLETE'
-                            ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
-                            : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/50'
+                            ? 'bg-rose-950/60 text-rose-200 border-rose-400 font-black ring-1 ring-rose-500/40'
+                            : 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border-rose-500/70'
                         }`}
                       >
-                        <Clock className="w-3 h-3" />
+                        <Clock className="w-3.5 h-3.5" />
                         <span>Belum Lengkap ({incompleteCount})</span>
                       </button>
                     )}
@@ -647,10 +650,10 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                             missingFilter === 'NEED_WEIGHT' ? 'ALL' : 'NEED_WEIGHT'
                           )
                         }
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
                           missingFilter === 'NEED_WEIGHT'
-                            ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
-                            : 'bg-black hover:bg-zinc-900 text-amber-300 border-zinc-800'
+                            ? 'bg-rose-950/60 text-rose-200 border-rose-400 font-black ring-1 ring-rose-500/40'
+                            : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/50'
                         }`}
                       >
                         ⏳ Butuh Timbangan ({needWeightCount})
@@ -663,10 +666,10 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         onClick={() =>
                           setMissingFilter(missingFilter === 'NEED_PRICE' ? 'ALL' : 'NEED_PRICE')
                         }
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
                           missingFilter === 'NEED_PRICE'
-                            ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
-                            : 'bg-black hover:bg-zinc-900 text-amber-300 border-zinc-800'
+                            ? 'bg-rose-950/60 text-rose-200 border-rose-400 font-black ring-1 ring-rose-500/40'
+                            : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/50'
                         }`}
                       >
                         ⏳ Butuh Harga ({needPriceCount})
@@ -679,10 +682,10 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         onClick={() =>
                           setMissingFilter(missingFilter === 'NEED_ATTR' ? 'ALL' : 'NEED_ATTR')
                         }
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
                           missingFilter === 'NEED_ATTR'
-                            ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
-                            : 'bg-black hover:bg-zinc-900 text-amber-300 border-zinc-800'
+                            ? 'bg-rose-950/60 text-rose-200 border-rose-400 font-black ring-1 ring-rose-500/40'
+                            : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/50'
                         }`}
                       >
                         ⏳ Butuh Atribut ({needAttrCount})
@@ -698,16 +701,21 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                           setExpandedCardIds((prev) => toggleAllCardsExpanded(prev, visibleRawIds))
                         }
                         aria-pressed={allVisibleRawExpanded}
-                        className="alucard-edge-btn-quiet h-7 px-2.5 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                        className="md:hidden alucard-edge-btn-quiet h-7 px-2.5 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
                       >
-                        <ChevronsUpDown className="w-3 h-3 text-amber-400 shrink-0" />
+                        <ChevronsUpDown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                         <span>{allVisibleRawExpanded ? 'Ringkas Semua' : 'Buka Semua'}</span>
                       </button>
                     )}
 
-                    <span className="text-[10px] text-zinc-400 inline-flex items-center gap-1">
-                      <Hand className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span className="md:hidden text-[11px] text-zinc-400 inline-flex items-center gap-1">
+                      <Hand className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                       <span>Tahan &amp; geser pada kartu untuk edit cepat</span>
+                    </span>
+
+                    <span className="hidden md:inline-flex items-center gap-1.5 text-xs text-zinc-400 font-semibold">
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Mode Excel 2-Baris (PC) · Kolom merah = data belum diisi</span>
                     </span>
                   </div>
                 </div>
@@ -715,7 +723,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
             })()}
           </div>
 
-          {/* Dynamic CSS Grid: 1 card per row on small phones (<420px), 2 per row when space permits (>=420px), 3-4 on larger screens */}
+          {/* Mobile (<768px): Compact Expandable Cards | PC (>=768px): 2-Line Microsoft Excel Ledger */}
           {filteredRaw.length === 0 ? (
             <div className="text-center py-12 requiem-card rounded-2xl border border-zinc-800">
               <Scale className="w-10 h-10 text-zinc-600 mx-auto mb-2" />
@@ -723,7 +731,692 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
+              {/* PC ONLY: 2-Line Microsoft Excel Stock Table */}
+              <div
+                data-testid="pc-raw-excel-table"
+                className="hidden md:block requiem-card border border-zinc-800/95 rounded-xl overflow-hidden shadow-2xl"
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1140px] table-fixed border-collapse text-left tabular-nums">
+                    <colgroup>
+                      <col className="w-[2.5%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[15.5%]" />
+                      <col className="w-[7%]" />
+                      <col className="w-[14.5%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[10.5%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[17.5%]" />
+                      <col className="w-[8.5%]" />
+                    </colgroup>
+                    <thead>
+                      <tr className="bg-[#0c0f17] border-b-2 border-zinc-700 text-[11px] font-black uppercase tracking-wider text-zinc-200 select-none">
+                        <th className="py-2 px-1 border-r border-zinc-800 text-center text-zinc-400">
+                          #
+                        </th>
+                        <th className="py-2 px-2 border-r border-zinc-800">
+                          <div>Lot</div>
+                          <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                            Tanggal
+                          </div>
+                        </th>
+                        <th className="py-2 px-2 border-r border-zinc-800">
+                          <div>Nama Tembakau</div>
+                          <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                            Penjual · Grader
+                          </div>
+                        </th>
+                        <th className="py-2 px-1.5 border-r border-zinc-800">
+                          <div>Grade</div>
+                          <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                            Asal
+                          </div>
+                        </th>
+                        <th className="py-2 px-2 border-r border-zinc-800">
+                          <div>Bruto · Kemasan</div>
+                          <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                            Pot. Tarra · Wadah
+                          </div>
+                        </th>
+                        <th className="py-2 px-2 border-r border-zinc-800 text-right">
+                          <div>Sisa Aktif</div>
+                          <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                            Nota · Riil
+                          </div>
+                        </th>
+                        <th className="py-2 px-2 border-r border-zinc-800 text-right">
+                          <div>Total Modal</div>
+                          <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                            Harga/KG + Fee
+                          </div>
+                        </th>
+                        <th className="py-2 px-2 border-r border-zinc-800 text-right">
+                          <div>W. Profit</div>
+                          <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                            Profit KG
+                          </div>
+                        </th>
+                        <th className="py-2 px-2 border-r border-zinc-800">
+                          <div>Atribut Rasa (/5)</div>
+                          <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                            Catatan · Status
+                          </div>
+                        </th>
+                        <th className="py-2 px-1.5 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+
+                    {visibleRawItems.map((tobacco, idx) => {
+                      const gradeInfo = GRADE_LABELS[tobacco.colorGrade] || GRADE_LABELS['D'];
+                      const pkgName = tobacco.taraFormula.packagingType || 'Keranjang';
+                      const m = getRawWeightMetrics(tobacco);
+                      const missingFlags = getRawTobaccoMissingFlags(tobacco);
+                      const sensoryCells = formatExcelSensoryRow({
+                        power: tobacco.powerRating,
+                        impact: tobacco.impactRating,
+                        bitter: tobacco.bitterRating,
+                        burn: tobacco.burnRating,
+                        sugar: tobacco.sugarRating,
+                        aroma: tobacco.aromaRating,
+                      });
+                      const taraSummary = formatExcelTaraSummary(
+                        tobacco.taraFormula.rawFormula,
+                        m.deductionKg,
+                        m.realPkgMassKg
+                      );
+                      const sellerText = (tobacco.sellerName || '').trim();
+                      const rowBand = idx % 2 === 0 ? 'bg-[#07080b]' : 'bg-[#0b0d14]';
+                      const power5 = clampRating5(tobacco.powerRating);
+                      const impact5 = clampRating5(tobacco.impactRating);
+                      const bitter5 = clampRating5(tobacco.bitterRating);
+                      const burn5 = clampRating5(tobacco.burnRating ?? 4.5);
+                      const sugar5 = clampRating5(tobacco.sugarRating ?? 4.0);
+                      const aroma5 = clampRating5(tobacco.aromaRating ?? 4.2);
+
+                      const openRowHoldMenu = (anchorEl: HTMLElement) => {
+                        holdMenu.openMenuImmediate({
+                          anchorEl,
+                          title: tobacco.name,
+                          subtitle: missingFlags.isIncomplete
+                            ? `Belum diisi: ${missingFlags.missingLabels.join(', ')}`
+                            : `Grade ${tobacco.colorGrade} · ${tobacco.origin}`,
+                          options: [
+                            {
+                              id: 'timbangan',
+                              label: 'Timbangan & Potongan Tarra',
+                              shortLabel: 'Timbangan',
+                              sublabel:
+                                tobacco.grossWeightKg > 0
+                                  ? `Bruto ${tobacco.grossWeightKg} kg • Netto ${m.netWeightKg} kg`
+                                  : 'Timbangan menyusul (0 kg)',
+                              detailRows: [
+                                {
+                                  label: 'Bruto Timbangan',
+                                  value:
+                                    tobacco.grossWeightKg > 0
+                                      ? `${tobacco.grossWeightKg} kg`
+                                      : 'Belum diisi (0 kg)',
+                                  tone: tobacco.grossWeightKg > 0 ? 'emerald' : 'rose',
+                                },
+                                {
+                                  label: 'Kemasan & Tarra',
+                                  value: `${pkgName} (−${m.deductionKg} kg)`,
+                                  tone: 'white',
+                                },
+                                {
+                                  label: 'Netto Nota vs Riil',
+                                  value: `${m.netWeightKg} kg • Riil ${m.realNetKg} kg`,
+                                  tone: 'amber',
+                                },
+                              ],
+                              icon: <Weight className="w-3.5 h-3.5" />,
+                              isMissing: missingFlags.missingWeight,
+                              missingLabel: 'Belum Diisi',
+                            },
+                            {
+                              id: 'harga',
+                              label: 'Harga Beli & Modal',
+                              shortLabel: 'Harga / KG',
+                              sublabel:
+                                tobacco.pricePerKgPurchase > 0
+                                  ? `${formatRupiah(tobacco.pricePerKgPurchase)}/kg`
+                                  : 'Harga menyusul (Rp 0)',
+                              detailRows: [
+                                {
+                                  label: 'Harga Beli / KG',
+                                  value:
+                                    tobacco.pricePerKgPurchase > 0
+                                      ? `${formatRupiah(tobacco.pricePerKgPurchase)}/kg`
+                                      : 'Belum diisi (Rp 0)',
+                                  tone: tobacco.pricePerKgPurchase > 0 ? 'emerald' : 'rose',
+                                },
+                                {
+                                  label: 'Total Modal Nota',
+                                  value:
+                                    m.totalModalAsal > 0
+                                      ? `${formatRupiah(m.totalModalAsal)} (${m.netWeightKg} kg)`
+                                      : 'Menyusul',
+                                  tone: 'amber',
+                                },
+                              ],
+                              icon: <DollarSign className="w-3.5 h-3.5" />,
+                              isMissing: missingFlags.missingPrice,
+                              missingLabel: 'Belum Diisi',
+                            },
+                            {
+                              id: 'grade_attr',
+                              label: 'Grade & Atribut (/5)',
+                              shortLabel: 'Atribut',
+                              sublabel: `Grade ${tobacco.colorGrade} · Pwr ${formatRating5(power5)} · Arm ${formatRating5(aroma5)}`,
+                              detailRows: [
+                                {
+                                  label: 'Power · Impact · Bitter',
+                                  value: `${formatRating5(power5)} · ${formatRating5(impact5)} · ${formatRating5(bitter5)} /5`,
+                                  tone: missingFlags.missingAttributes ? 'rose' : 'emerald',
+                                },
+                                {
+                                  label: 'Burn · Sugar · Aroma',
+                                  value: `${formatRating5(burn5)} · ${formatRating5(sugar5)} · ${formatRating5(aroma5)} /5`,
+                                  tone: missingFlags.missingAttributes ? 'rose' : 'emerald',
+                                },
+                              ],
+                              icon: <Sparkles className="w-3.5 h-3.5" />,
+                              isMissing: missingFlags.missingAttributes,
+                              missingLabel: 'Belum Diisi',
+                            },
+                            {
+                              id: 'info',
+                              label: 'Penjual, Daerah & Kemasan',
+                              shortLabel: 'Info',
+                              sublabel: sellerText
+                                ? `${sellerText} · ${pkgName}`
+                                : `Penjual belum diisi · ${pkgName}`,
+                              detailRows: [
+                                {
+                                  label: 'Penjual / Petani',
+                                  value: sellerText || 'Belum diisi',
+                                  tone: missingFlags.missingSeller ? 'rose' : 'emerald',
+                                },
+                                {
+                                  label: 'Kemasan',
+                                  value: pkgName,
+                                  tone: missingFlags.missingPackaging ? 'rose' : 'amber',
+                                },
+                              ],
+                              icon: <UserCheck className="w-3.5 h-3.5" />,
+                              isMissing:
+                                missingFlags.missingSeller ||
+                                missingFlags.missingOrigin ||
+                                missingFlags.missingPackaging,
+                              missingLabel: 'Belum Lengkap',
+                            },
+                            {
+                              id: 'full_edit',
+                              label: 'Edit Lengkap (Semua Kolom)',
+                              shortLabel: 'Edit Lengkap',
+                              sublabel: 'Buka form lengkap + Lot & Fee',
+                              detailRows: [
+                                {
+                                  label: 'Lot & Tanggal',
+                                  value: `${tobacco.lotNumber || '-'} · ${tobacco.purchaseDate}`,
+                                  tone: 'white',
+                                },
+                              ],
+                              icon: <Edit3 className="w-3.5 h-3.5" />,
+                            },
+                          ],
+                          onSelect: (optId) => {
+                            if (optId === 'full_edit') {
+                              onEdit(tobacco);
+                              return;
+                            }
+                            if (
+                              optId === 'timbangan' ||
+                              optId === 'harga' ||
+                              optId === 'grade_attr' ||
+                              optId === 'info'
+                            ) {
+                              setQuickEditState({ tobacco, section: optId });
+                            }
+                          },
+                        });
+                      };
+
+                      const openRowCalc = (focus: RawTobaccoCalcFocus) => {
+                        setCalcDetail(
+                          buildRawTobaccoCalcDetail({
+                            name: tobacco.name,
+                            packagingType: pkgName,
+                            grossWeightKg: tobacco.grossWeightKg,
+                            realPackagingMassKg: m.realPkgMassKg,
+                            percentTara: tobacco.taraFormula.percent,
+                            flatKgTara: tobacco.taraFormula.flatKg,
+                            pricePerKg: tobacco.pricePerKgPurchase,
+                            agentFees: tobacco.agentFees,
+                            additionalCost: tobacco.additionalPurchaseCost || 0,
+                            focus,
+                          })
+                        );
+                      };
+
+                      return (
+                        <tbody
+                          key={tobacco.id}
+                          className={`${rowBand} hover:bg-[#121622] transition-colors border-b border-zinc-700/90`}
+                        >
+                          {/* EXCEL BARIS 1: Identitas Lot, Nama, Grade, Bruto, Sisa, Total Modal, Profit Rp, 6 Atribut /5, Aksi */}
+                          <tr className="border-b border-dashed border-zinc-800/75">
+                            <td
+                              rowSpan={2}
+                              className="py-2 px-1 border-r border-zinc-800 bg-[#090b10] text-center align-middle font-mono text-xs font-bold text-zinc-400"
+                            >
+                              {idx + 1}
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedRawDetail(tobacco)}
+                                className="font-mono font-black text-[11.5px] text-amber-400 hover:text-amber-300 truncate max-w-full block text-left cursor-pointer"
+                                title={`Detail ${tobacco.lotNumber || tobacco.name}`}
+                              >
+                                {tobacco.lotNumber || 'MANUAL'}
+                              </button>
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle overflow-hidden">
+                              <div className="flex items-center justify-between gap-1.5 min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    missingFlags.missingName
+                                      ? setQuickEditState({ tobacco, section: 'info' })
+                                      : setSelectedRawDetail(tobacco)
+                                  }
+                                  className={`font-extrabold text-[13px] truncate text-left cursor-pointer transition-colors ${
+                                    missingFlags.missingName
+                                      ? 'text-rose-400 hover:text-rose-300 underline decoration-rose-500/50 underline-offset-2'
+                                      : 'text-white hover:text-amber-300'
+                                  }`}
+                                  title={
+                                    missingFlags.missingName
+                                      ? 'Klik untuk isi Nama / Jenis Tembakau'
+                                      : tobacco.name
+                                  }
+                                >
+                                  {missingFlags.missingName ? '⏳ Isi Nama' : tobacco.name}
+                                </button>
+                                {missingFlags.isIncomplete && (
+                                  <span
+                                    title={`Kurang: ${missingFlags.missingLabels.join(', ')}`}
+                                    className="px-1.5 py-0.5 rounded bg-rose-500/20 border border-rose-500/80 text-[10px] font-black text-rose-300 shrink-0 leading-none"
+                                  >
+                                    ⏳{missingFlags.missingCount}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-1.5 px-1.5 border-r border-zinc-800 align-middle overflow-hidden">
+                              <span
+                                className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-black border whitespace-nowrap ${gradeInfo.color}`}
+                              >
+                                Grade {tobacco.colorGrade}
+                              </span>
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle overflow-hidden">
+                              <div className="flex items-center justify-between gap-1.5 font-mono min-w-0">
+                                {missingFlags.missingWeight ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setQuickEditState({ tobacco, section: 'timbangan' })
+                                    }
+                                    title="Timbangan belum diisi — klik untuk melengkapi"
+                                    className="font-black text-[12.5px] text-rose-400 hover:text-rose-300 whitespace-nowrap shrink-0 cursor-pointer underline decoration-rose-500/50 underline-offset-2"
+                                  >
+                                    ⏳ 0 kg
+                                  </button>
+                                ) : (
+                                  <span className="font-black text-[13px] text-white whitespace-nowrap shrink-0">
+                                    {tobacco.grossWeightKg}kg
+                                  </span>
+                                )}
+                                {missingFlags.missingPackaging ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuickEditState({ tobacco, section: 'info' })}
+                                    title="Kemasan belum dipilih — klik untuk melengkapi"
+                                    className="text-[10.5px] font-black uppercase text-rose-400 hover:text-rose-300 truncate cursor-pointer underline decoration-rose-500/50 underline-offset-2"
+                                  >
+                                    ⏳ Kemasan
+                                  </button>
+                                ) : (
+                                  <span
+                                    className="text-[10.5px] font-bold uppercase text-amber-300 truncate"
+                                    title={pkgName}
+                                  >
+                                    {pkgName}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono overflow-hidden">
+                              <span
+                                className={`text-[13px] font-black whitespace-nowrap ${
+                                  missingFlags.missingWeight ? 'text-rose-400' : 'text-white'
+                                }`}
+                              >
+                                {m.currentStockKg} kg
+                              </span>
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  missingFlags.missingPrice
+                                    ? setQuickEditState({ tobacco, section: 'harga' })
+                                    : openRowCalc('PAID_VALUE')
+                                }
+                                title={
+                                  missingFlags.missingPrice
+                                    ? 'Harga beli belum diisi — klik untuk melengkapi'
+                                    : 'Lihat rincian rumus Total Modal'
+                                }
+                                className={`font-black text-[12.5px] whitespace-nowrap cursor-pointer underline underline-offset-2 ${
+                                  missingFlags.missingPrice
+                                    ? 'text-rose-400 hover:text-rose-300 decoration-rose-500/60'
+                                    : 'text-amber-400 hover:text-amber-300 decoration-amber-500/30'
+                                }`}
+                              >
+                                {missingFlags.missingPrice
+                                  ? '⏳ Menyusul'
+                                  : formatRupiah(m.totalModalAsal)}
+                              </button>
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() => openRowCalc('REAL_VALUE')}
+                                title="Lihat rincian rumus Weight Profit (Rp)"
+                                className={`font-black text-[12.5px] whitespace-nowrap cursor-pointer underline decoration-zinc-600 underline-offset-2 ${
+                                  m.weightProfitRp >= 0
+                                    ? 'text-white hover:text-amber-300'
+                                    : 'text-rose-400 hover:text-rose-300'
+                                }`}
+                              >
+                                {m.weightProfitRp >= 0 ? '+' : ''}
+                                {formatRupiah(m.weightProfitRp)}
+                              </button>
+                            </td>
+                            <td className="py-1.5 px-1.5 border-r border-zinc-800 align-middle overflow-hidden">
+                              <div
+                                onClick={
+                                  missingFlags.missingAttributes
+                                    ? () => setQuickEditState({ tobacco, section: 'grade_attr' })
+                                    : undefined
+                                }
+                                title={
+                                  missingFlags.missingAttributes
+                                    ? 'Atribut rasa belum diisi — klik untuk melengkapi'
+                                    : undefined
+                                }
+                                className={`grid grid-cols-6 divide-x rounded text-center font-mono border ${
+                                  missingFlags.missingAttributes
+                                    ? 'divide-rose-500/40 bg-rose-950/35 border-rose-500/80 cursor-pointer hover:bg-rose-950/55'
+                                    : 'divide-zinc-800 bg-black/70 border-zinc-800/90'
+                                }`}
+                              >
+                                {sensoryCells.map((cell) => (
+                                  <div
+                                    key={cell.code}
+                                    title={
+                                      missingFlags.missingAttributes
+                                        ? `${cell.fullLabel}: Belum diisi (0 / 5) — Klik untuk isi`
+                                        : `${cell.fullLabel}: ${cell.formatted} / 5`
+                                    }
+                                    className="px-0.5 py-1 leading-none"
+                                  >
+                                    <span
+                                      className={`block text-[8.5px] uppercase font-bold ${
+                                        missingFlags.missingAttributes
+                                          ? 'text-rose-300/90'
+                                          : 'text-zinc-400'
+                                      }`}
+                                    >
+                                      {cell.code}
+                                    </span>
+                                    <span
+                                      className={`block text-xs font-black mt-0.5 ${
+                                        missingFlags.missingAttributes
+                                          ? 'text-rose-400'
+                                          : 'text-amber-300'
+                                      }`}
+                                    >
+                                      {cell.formatted}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                            <td
+                              rowSpan={2}
+                              className="py-1.5 px-1.5 align-middle text-center bg-[#080a10]"
+                            >
+                              <div className="flex flex-col gap-1.5 items-stretch">
+                                <button
+                                  type="button"
+                                  aria-label={`Masukkan ${tobacco.name} ke Kalkulator Racikan`}
+                                  onClick={() => onAddToBlend(tobacco)}
+                                  className="btn-amber-outline h-7 px-2 rounded font-black text-[11px] inline-flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
+                                >
+                                  <Scale className="w-3.5 h-3.5 shrink-0" />
+                                  <span>+ Racik</span>
+                                </button>
+                                <div className="grid grid-cols-3 gap-1">
+                                  <button
+                                    type="button"
+                                    aria-label={`Lihat Detail ${tobacco.name}`}
+                                    title="Detail Lengkap"
+                                    onClick={() => setSelectedRawDetail(tobacco)}
+                                    className="h-7 rounded bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border border-zinc-800 flex items-center justify-center cursor-pointer"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={`Edit Cepat ${tobacco.name}`}
+                                    title={
+                                      missingFlags.isIncomplete
+                                        ? `Lengkapi ${missingFlags.missingCount} data kurang`
+                                        : 'Menu Edit'
+                                    }
+                                    onClick={(e) => openRowHoldMenu(e.currentTarget)}
+                                    className={`h-7 rounded border flex items-center justify-center cursor-pointer ${
+                                      missingFlags.isIncomplete
+                                        ? 'bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 border-rose-500/80'
+                                        : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-amber-300 border-zinc-800'
+                                    }`}
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={`Hapus ${tobacco.name}`}
+                                    title="Hapus Tembakau"
+                                    onClick={() => onDelete(tobacco.id)}
+                                    className="h-7 rounded bg-black hover:bg-red-950/70 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/70 flex items-center justify-center cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* EXCEL BARIS 2: Tanggal, Penjual & Grader, Asal, Tarra & Wadah, Nota & Riil, Harga/KG + Fee, Profit KG, Catatan & Quick Pills */}
+                          <tr className="text-[11px]">
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle font-mono text-zinc-300 whitespace-nowrap overflow-hidden">
+                              {tobacco.purchaseDate || '-'}
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle overflow-hidden">
+                              <div className="flex items-center justify-between gap-1.5 min-w-0">
+                                {sellerText ? (
+                                  <span
+                                    className="text-zinc-300 truncate"
+                                    title={`Penjual: ${sellerText}`}
+                                  >
+                                    Pjl: <b className="text-zinc-100">{sellerText}</b>
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuickEditState({ tobacco, section: 'info' })}
+                                    className="text-rose-400 hover:text-rose-300 hover:underline font-black cursor-pointer truncate"
+                                  >
+                                    ⏳ Isi Penjual
+                                  </button>
+                                )}
+                                {tobacco.graderName && (
+                                  <span className="text-[10px] font-bold text-amber-300/90 shrink-0 truncate max-w-[72px]">
+                                    Grd: {tobacco.graderName}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-1.5 px-1.5 border-r border-zinc-800 align-middle overflow-hidden">
+                              {missingFlags.missingOrigin ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickEditState({ tobacco, section: 'info' })}
+                                  title="Daerah asal belum diisi — klik untuk melengkapi"
+                                  className="text-rose-400 hover:text-rose-300 hover:underline font-black truncate flex items-center gap-0.5 min-w-0 cursor-pointer"
+                                >
+                                  <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+                                  <span className="truncate">⏳ Asal</span>
+                                </button>
+                              ) : (
+                                <span
+                                  className="text-zinc-300 truncate flex items-center gap-0.5 min-w-0"
+                                  title={tobacco.origin}
+                                >
+                                  <MapPin className="w-3 h-3 text-zinc-400 shrink-0" />
+                                  <span className="truncate">{tobacco.origin.split(' ')[0]}</span>
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle font-mono overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setQuickEditState({ tobacco, section: 'timbangan' })
+                                }
+                                title={
+                                  missingFlags.missingWeight
+                                    ? 'Timbangan belum diisi — klik untuk melengkapi'
+                                    : `Edit Timbangan & Tarra: ${taraSummary}`
+                                }
+                                className={`truncate max-w-full block text-left cursor-pointer ${
+                                  missingFlags.missingWeight
+                                    ? 'text-rose-400 hover:text-rose-300 font-black hover:underline'
+                                    : 'text-zinc-300 hover:text-white'
+                                }`}
+                              >
+                                {missingFlags.missingWeight ? '⏳ Isi Timbangan' : taraSummary}
+                              </button>
+                            </td>
+                            <td
+                              className={`py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono whitespace-nowrap overflow-hidden ${
+                                missingFlags.missingWeight
+                                  ? 'text-rose-400 font-bold'
+                                  : 'text-zinc-300'
+                              }`}
+                            >
+                              Nt {m.netWeightKg} · Rl {m.realNetKg}
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono text-zinc-200 whitespace-nowrap overflow-hidden">
+                              {missingFlags.missingPrice ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickEditState({ tobacco, section: 'harga' })}
+                                  className="text-rose-400 hover:text-rose-300 hover:underline font-black text-[11.5px] cursor-pointer"
+                                >
+                                  ⏳ Isi Harga
+                                </button>
+                              ) : (
+                                <span
+                                  className="text-[11.5px] font-semibold"
+                                  title={
+                                    m.totalAgentFeePerKg > 0
+                                      ? `Harga ${formatRupiah(tobacco.pricePerKgPurchase)} + Fee ${formatRupiah(m.totalAgentFeePerKg)}/kg`
+                                      : `Harga Beli ${formatRupiah(tobacco.pricePerKgPurchase)}/kg`
+                                  }
+                                >
+                                  {formatRupiah(tobacco.pricePerKgPurchase)}/kg
+                                  {m.totalAgentFeePerKg > 0 && (
+                                    <span className="text-amber-300">
+                                      {' '}
+                                      +{formatRupiah(m.totalAgentFeePerKg)}
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono whitespace-nowrap overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() => openRowCalc('WEIGHT_PROFIT')}
+                                title="Lihat rincian Weight Profit (KG)"
+                                className={`font-bold text-[11.5px] cursor-pointer ${
+                                  m.weightProfitKg >= 0
+                                    ? 'text-emerald-400 hover:text-emerald-300'
+                                    : 'text-rose-400 hover:text-rose-300'
+                                }`}
+                              >
+                                {m.weightProfitKg >= 0 ? '+' : ''}
+                                {m.weightProfitKg} kg
+                              </button>
+                            </td>
+                            <td className="py-1.5 px-2 border-r border-zinc-800 align-middle overflow-hidden">
+                              <div className="flex items-center justify-between gap-1.5 min-w-0">
+                                <span
+                                  className="text-zinc-300 truncate"
+                                  title={tobacco.characterNotes || 'Tidak ada catatan'}
+                                >
+                                  {tobacco.characterNotes?.trim()
+                                    ? tobacco.characterNotes
+                                    : '—'}
+                                </span>
+                                {missingFlags.isIncomplete && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setQuickEditState({
+                                        tobacco,
+                                        section: missingFlags.missingWeight
+                                          ? 'timbangan'
+                                          : missingFlags.missingPrice
+                                            ? 'harga'
+                                            : missingFlags.missingAttributes
+                                              ? 'grade_attr'
+                                              : 'info',
+                                      })
+                                    }
+                                    className="px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/80 text-[10.5px] font-black text-rose-300 shrink-0 cursor-pointer"
+                                  >
+                                    Lengkapi
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      );
+                    })}
+                  </table>
+                </div>
+              </div>
+
+              {/* MOBILE (<768px): Compact Expandable Cards */}
+              <div className="md:hidden grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 items-start">
                 {visibleRawItems.map((tobacco, idx) => {
                 const gradeInfo = GRADE_LABELS[tobacco.colorGrade] || GRADE_LABELS['D'];
                 const power5 = clampRating5(tobacco.powerRating);
@@ -1003,7 +1696,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       isBeingHeld
                         ? 'border-amber-400 scale-[0.985] ring-2 ring-amber-400/60'
                         : missingFlags.isIncomplete
-                          ? 'border-amber-500/50 hover:border-amber-400/90'
+                          ? 'border-rose-500/65 hover:border-rose-400'
                           : 'border-zinc-800/90 hover:border-amber-500/70'
                     }`}
                   >
@@ -1018,18 +1711,36 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       <div className="flex items-center justify-between gap-1.5">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span
-                            className={`px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-black border shrink-0 ${gradeInfo.color}`}
+                            className={`px-2 py-0.5 rounded-md text-[11px] sm:text-xs font-black border shrink-0 ${gradeInfo.color}`}
                           >
                             Grade {tobacco.colorGrade}
                           </span>
-                          <span className="text-[10px] text-zinc-400 truncate flex items-center gap-0.5 min-w-0">
-                            <MapPin className="w-2.5 h-2.5 text-zinc-300 shrink-0" />
-                            <span className="truncate">{tobacco.origin.split(' ')[0]}</span>
+                          <span
+                            className={`text-[11px] truncate flex items-center gap-0.5 min-w-0 ${
+                              missingFlags.missingOrigin
+                                ? 'text-rose-400 font-bold'
+                                : 'text-zinc-400'
+                            }`}
+                          >
+                            <MapPin
+                              className={`w-3 h-3 shrink-0 ${
+                                missingFlags.missingOrigin ? 'text-rose-400' : 'text-zinc-300'
+                              }`}
+                            />
+                            <span className="truncate">
+                              {missingFlags.missingOrigin
+                                ? 'Asal kosong'
+                                : tobacco.origin.split(' ')[0]}
+                            </span>
                           </span>
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0" data-no-card-hold="true">
-                          <span className="font-mono font-black text-[10px] sm:text-[11px] text-white tabular-nums whitespace-nowrap">
+                          <span
+                            className={`font-mono font-black text-xs tabular-nums whitespace-nowrap ${
+                              missingFlags.missingWeight ? 'text-rose-400' : 'text-white'
+                            }`}
+                          >
                             {m.currentStockKg} kg
                           </span>
                           <button
@@ -1046,7 +1757,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                               e.stopPropagation();
                               setExpandedCardIds((prev) => toggleCardExpanded(prev, tobacco.id));
                             }}
-                            className={`h-6 px-2 rounded-lg border text-[10px] font-bold inline-flex items-center gap-0.5 cursor-pointer shrink-0 transition-colors ${
+                            className={`h-6 px-2 rounded-lg border text-[10.5px] font-bold inline-flex items-center gap-0.5 cursor-pointer shrink-0 transition-colors ${
                               isExpanded
                                 ? 'bg-amber-500/12 text-amber-300 border-amber-500/70'
                                 : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border-zinc-800 hover:border-zinc-700'
@@ -1063,22 +1774,28 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       </div>
 
                       <div>
-                        <h3 className="font-extrabold text-white text-xs sm:text-sm line-clamp-2 leading-snug group-hover:text-white transition-colors">
-                          {tobacco.name}
+                        <h3
+                          className={`font-extrabold text-sm line-clamp-2 leading-snug transition-colors ${
+                            missingFlags.missingName
+                              ? 'text-rose-400'
+                              : 'text-white group-hover:text-white'
+                          }`}
+                        >
+                          {missingFlags.missingName ? '⏳ Nama Belum Diisi' : tobacco.name}
                         </h3>
                         {(tobacco.sellerName || tobacco.graderName) && (
-                          <div className="text-[10px] text-zinc-400 flex items-center justify-between gap-1.5 mt-0.5">
+                          <div className="text-[11px] text-zinc-400 flex items-center justify-between gap-1.5 mt-0.5">
                             {tobacco.sellerName ? (
                               <span className="truncate">
                                 Penjual: <b className="text-zinc-200">{tobacco.sellerName}</b>
                               </span>
                             ) : (
-                              <span />
+                              <span className="text-rose-400 font-bold">Penjual kosong</span>
                             )}
                             {tobacco.graderName && (
                               <span
                                 data-testid="card-grader-badge"
-                                className="px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-[9px] font-bold text-amber-300 shrink-0 truncate max-w-[110px]"
+                                className="px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-[10px] font-bold text-amber-300 shrink-0 truncate max-w-[110px]"
                               >
                                 Grd: {tobacco.graderName}
                               </span>
@@ -1087,7 +1804,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         )}
                       </div>
 
-                      {/* Unfilled Marks Strip (Shows clearly which data is still menyusul / empty) */}
+                      {/* Unfilled Marks Strip (Red highlights so missing fields stand out immediately) */}
                       {missingFlags.isIncomplete && (
                         <div className="flex items-center gap-1 flex-wrap" data-no-card-hold="true">
                           {missingFlags.missingWeight && (
@@ -1097,7 +1814,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                                 e.stopPropagation();
                                 setQuickEditState({ tobacco, section: 'timbangan' });
                               }}
-                              className="px-1.5 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 border border-dashed border-amber-500/70 text-[9px] font-black text-amber-300 cursor-pointer"
+                              className="px-1.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/80 text-[10px] font-black text-rose-300 cursor-pointer"
                             >
                               ⏳ Timbangan
                             </button>
@@ -1109,7 +1826,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                                 e.stopPropagation();
                                 setQuickEditState({ tobacco, section: 'harga' });
                               }}
-                              className="px-1.5 py-0.5 rounded bg-amber-500/15 hover:bg-amber-500/30 border border-dashed border-amber-500/70 text-[9px] font-black text-amber-300 cursor-pointer"
+                              className="px-1.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/80 text-[10px] font-black text-rose-300 cursor-pointer"
                             >
                               ⏳ Harga
                             </button>
@@ -1121,33 +1838,47 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                                 e.stopPropagation();
                                 setQuickEditState({ tobacco, section: 'grade_attr' });
                               }}
-                              className="px-1.5 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/25 border border-dashed border-amber-500/50 text-[9px] font-bold text-amber-200 cursor-pointer"
+                              className="px-1.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/80 text-[10px] font-black text-rose-300 cursor-pointer"
                             >
                               ⏳ Atribut
                             </button>
                           )}
-                          {(missingFlags.missingSeller || missingFlags.missingPackaging) && (
+                          {(missingFlags.missingSeller ||
+                            missingFlags.missingPackaging ||
+                            missingFlags.missingOrigin ||
+                            missingFlags.missingName) && (
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setQuickEditState({ tobacco, section: 'info' });
                               }}
-                              className="px-1.5 py-0.5 rounded bg-zinc-900 hover:bg-zinc-800 border border-dashed border-zinc-600 text-[9px] font-bold text-zinc-300 cursor-pointer"
+                              className="px-1.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/35 border border-rose-500/80 text-[10px] font-black text-rose-300 cursor-pointer"
                             >
-                              ⏳ {missingFlags.missingSeller ? 'Penjual' : 'Kemasan'}
+                              ⏳{' '}
+                              {missingFlags.missingSeller
+                                ? 'Penjual'
+                                : missingFlags.missingPackaging
+                                  ? 'Kemasan'
+                                  : missingFlags.missingOrigin
+                                    ? 'Asal'
+                                    : 'Nama'}
                             </button>
                           )}
                         </div>
                       )}
 
                       {!isExpanded ? (
-                        <div className="bg-zinc-950/90 border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2 text-[10px] font-mono tabular-nums">
+                        <div className="bg-zinc-950/90 border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2 text-[11px] font-mono tabular-nums">
                           <span className="text-zinc-400 truncate">
                             Modal:{' '}
-                            <b className="text-amber-400">
+                            <b
+                              className={
+                                missingFlags.missingPrice ? 'text-rose-400' : 'text-amber-400'
+                              }
+                            >
                               {missingFlags.missingPrice
-                                ? 'Menyusul'
+                                ? '⏳ Menyusul'
                                 : formatRupiah(m.totalModalAsal)}
                             </b>
                           </span>
@@ -1173,29 +1904,33 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                             {/* Full Summary Box: Total Modal, Weight Profit (Rp), Weight Profit (KG) */}
                             <div className="bg-zinc-950/95 border border-zinc-800/90 rounded-xl px-2.5 py-2 space-y-1">
                               <div className="flex items-center justify-between gap-1">
-                                <span className="text-[9px] font-black uppercase text-amber-400">
+                                <span className="text-[10px] font-black uppercase text-amber-400">
                                   Total Modal ({m.netWeightKg} kg)
                                 </span>
-                                <span className="font-mono font-black text-[11px] sm:text-xs text-amber-400 whitespace-nowrap tabular-nums">
+                                <span
+                                  className={`font-mono font-black text-xs whitespace-nowrap tabular-nums ${
+                                    missingFlags.missingPrice ? 'text-rose-400' : 'text-amber-400'
+                                  }`}
+                                >
                                   {missingFlags.missingPrice
-                                    ? 'Menyusul'
+                                    ? '⏳ Menyusul'
                                     : formatRupiah(m.totalModalAsal)}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-                                <span className="text-[9px] font-bold uppercase text-zinc-300">
+                                <span className="text-[10px] font-bold uppercase text-zinc-300">
                                   Weight Profit (Rp)
                                 </span>
-                                <span className="font-mono font-black text-[11px] text-white whitespace-nowrap tabular-nums">
+                                <span className="font-mono font-black text-xs text-white whitespace-nowrap tabular-nums">
                                   {m.weightProfitRp >= 0 ? '+' : ''}
                                   {formatRupiah(m.weightProfitRp)}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-                                <span className="text-[9px] font-bold uppercase text-zinc-400">
+                                <span className="text-[10px] font-bold uppercase text-zinc-400">
                                   Weight Profit (KG)
                                 </span>
-                                <span className="font-mono font-bold text-[10px] text-amber-300 whitespace-nowrap tabular-nums">
+                                <span className="font-mono font-bold text-[11px] text-amber-300 whitespace-nowrap tabular-nums">
                                   {m.weightProfitKg >= 0 ? '+' : ''}
                                   {m.weightProfitKg} kg{' '}
                                   <span className="text-zinc-400">
@@ -1235,13 +1970,13 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                           });
                         }}
                         aria-label={`Edit Cepat ${tobacco.name}`}
-                        className={`h-8 px-2.5 rounded-lg border text-[10px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                        className={`h-8 px-2.5 rounded-lg border text-[11px] font-extrabold inline-flex items-center gap-1 cursor-pointer transition-colors ${
                           missingFlags.isIncomplete
-                            ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/60'
+                            ? 'bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 border-rose-500/80'
                             : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800'
                         }`}
                       >
-                        <Hand className="w-3 h-3 shrink-0" />
+                        <Hand className="w-3.5 h-3.5 shrink-0" />
                         <span>{missingFlags.isIncomplete ? `Lengkapi (${missingFlags.missingCount})` : 'Menu Edit'}</span>
                       </button>
 
@@ -1566,6 +2301,9 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
             {(() => {
               const t = selectedRawDetail;
               const m = getRawWeightMetrics(t);
+              const missingFlags = getRawTobaccoMissingFlags(t);
+              const sellerLabel = t.sellerName || t.taraFormula.sellerName;
+              const pkgLabel = t.taraFormula.packagingType;
 
               return (
                 <motion.div
@@ -1599,18 +2337,27 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                   <div className="p-5 overflow-y-auto space-y-4 text-xs">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-zinc-300 bg-black p-3 rounded-xl border border-zinc-800">
                       <span className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-zinc-300" />
-                        Asal: <b className="text-white">{t.origin}</b>
+                        <MapPin
+                          className={`w-3.5 h-3.5 ${
+                            missingFlags.missingOrigin ? 'text-rose-400' : 'text-zinc-300'
+                          }`}
+                        />
+                        Asal:{' '}
+                        <b className={missingFlags.missingOrigin ? 'text-rose-400' : 'text-white'}>
+                          {missingFlags.missingOrigin ? 'Belum Diisi' : t.origin}
+                        </b>
                       </span>
-                      {(t.sellerName || t.taraFormula.sellerName) && (
-                        <span className="flex items-center gap-1.5">
-                          <UserCheck className="w-3.5 h-3.5 text-zinc-300" />
-                          Penjual:{' '}
-                          <b className="text-white">
-                            {t.sellerName || t.taraFormula.sellerName}
-                          </b>
-                        </span>
-                      )}
+                      <span className="flex items-center gap-1.5">
+                        <UserCheck
+                          className={`w-3.5 h-3.5 ${
+                            missingFlags.missingSeller ? 'text-rose-400' : 'text-zinc-300'
+                          }`}
+                        />
+                        Penjual:{' '}
+                        <b className={missingFlags.missingSeller ? 'text-rose-400' : 'text-white'}>
+                          {sellerLabel || 'Belum Diisi'}
+                        </b>
+                      </span>
                       {t.graderName && (
                         <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-950 border border-amber-500/40 text-amber-300">
                           Grader: <b className="text-white">{t.graderName}</b>
@@ -1652,8 +2399,20 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2.5">
                       <div className="flex items-center justify-between flex-wrap gap-1.5 text-zinc-400">
                         <span>
-                          Kemasan: <b className="text-white">{t.taraFormula.packagingType || 'Standar'}</b> • Sisa Stok:{' '}
-                          <b className="text-amber-400 font-mono">
+                          Kemasan:{' '}
+                          <b
+                            className={
+                              missingFlags.missingPackaging ? 'text-rose-400' : 'text-white'
+                            }
+                          >
+                            {pkgLabel || 'Belum Dipilih'}
+                          </b>{' '}
+                          • Sisa Stok:{' '}
+                          <b
+                            className={`font-mono ${
+                              missingFlags.missingWeight ? 'text-rose-400' : 'text-amber-400'
+                            }`}
+                          >
                             {m.currentStockKg} kg
                           </b>
                         </span>
@@ -1679,21 +2438,47 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                               })
                             )
                           }
-                          className="text-left group bg-zinc-950 p-3 rounded-lg border border-amber-500/40 hover:border-amber-500 transition-all cursor-pointer flex flex-col justify-between h-full space-y-1.5"
+                          className={`text-left group bg-zinc-950 p-3 rounded-lg border transition-all cursor-pointer flex flex-col justify-between h-full space-y-1.5 ${
+                            missingFlags.missingPrice || missingFlags.missingWeight
+                              ? 'border-rose-500/70 hover:border-rose-400'
+                              : 'border-amber-500/40 hover:border-amber-500'
+                          }`}
                         >
                           <div className="space-y-1 w-full">
                             <div className="flex items-center justify-between gap-1">
-                              <span className="text-[10px] text-amber-400 font-black uppercase block truncate">
+                              <span
+                                className={`text-[10px] font-black uppercase block truncate ${
+                                  missingFlags.missingPrice || missingFlags.missingWeight
+                                    ? 'text-rose-400'
+                                    : 'text-amber-400'
+                                }`}
+                              >
                                 1. Total Modal / Inventori
                               </span>
                               <CalcSymbolBadge />
                             </div>
-                            <div className="font-mono font-black text-amber-400 text-sm">
-                              {formatRupiah(m.totalModalAsal)}
+                            <div
+                              className={`font-mono font-black text-sm ${
+                                missingFlags.missingPrice || missingFlags.missingWeight
+                                  ? 'text-rose-400'
+                                  : 'text-amber-400'
+                              }`}
+                            >
+                              {missingFlags.missingPrice
+                                ? 'Menyusul (Rp 0)'
+                                : missingFlags.missingWeight
+                                  ? 'Menyusul (0 kg)'
+                                  : formatRupiah(m.totalModalAsal)}
                             </div>
                           </div>
                           <div className="pt-1.5 border-t border-zinc-900 text-[10px] font-mono text-zinc-400">
-                            {m.netWeightKg} kg × {formatRupiah(m.effectivePricePerKgWithFee)}/kg
+                            <span className={missingFlags.missingWeight ? 'text-rose-400 font-bold' : ''}>
+                              {m.netWeightKg} kg
+                            </span>{' '}
+                            ×{' '}
+                            <span className={missingFlags.missingPrice ? 'text-rose-400 font-bold' : ''}>
+                              {formatRupiah(m.effectivePricePerKgWithFee)}/kg
+                            </span>
                           </div>
                         </button>
 
@@ -1724,7 +2509,13 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                               </span>
                               <CalcSymbolBadge />
                             </div>
-                            <div className="font-mono font-black text-white text-sm">
+                            <div
+                              className={`font-mono font-black text-sm ${
+                                missingFlags.missingPrice || missingFlags.missingWeight
+                                  ? 'text-rose-400'
+                                  : 'text-white'
+                              }`}
+                            >
                               {m.weightProfitRp >= 0 ? '+' : ''}
                               {formatRupiah(m.weightProfitRp)}
                             </div>
@@ -1762,7 +2553,11 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                               </span>
                               <CalcSymbolBadge />
                             </div>
-                            <div className="font-mono font-black text-amber-300 text-sm">
+                            <div
+                              className={`font-mono font-black text-sm ${
+                                missingFlags.missingWeight ? 'text-rose-400' : 'text-amber-300'
+                              }`}
+                            >
                               {m.weightProfitKg >= 0 ? '+' : ''}
                               {m.weightProfitKg} kg
                             </div>
@@ -1775,27 +2570,48 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     </div>
 
                     {/* 6 Sensory Ratings (/5) */}
-                    <div className="bg-black p-3.5 rounded-xl border border-zinc-800">
-                      <div className="text-[10px] text-zinc-200 uppercase font-extrabold mb-2">
-                        Parameter Karakteristik (/5)
+                    <div
+                      className={`bg-black p-3.5 rounded-xl border ${
+                        missingFlags.missingAttributes ? 'border-rose-500/60' : 'border-zinc-800'
+                      }`}
+                    >
+                      <div
+                        className={`text-[10px] uppercase font-extrabold mb-2 flex items-center justify-between ${
+                          missingFlags.missingAttributes ? 'text-rose-400' : 'text-zinc-200'
+                        }`}
+                      >
+                        <span>Parameter Karakteristik (/5)</span>
+                        {missingFlags.missingAttributes && (
+                          <span className="font-mono">Belum Diisi</span>
+                        )}
                       </div>
                       <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center">
                         {[
                           { lbl: 'Power', val: clampRating5(t.powerRating) },
                           { lbl: 'Impact', val: clampRating5(t.impactRating) },
                           { lbl: 'Bitter', val: clampRating5(t.bitterRating) },
-                          { lbl: 'Burn', val: clampRating5(t.burnRating ?? 4.5) },
-                          { lbl: 'Sugar', val: clampRating5(t.sugarRating ?? 4.0) },
-                          { lbl: 'Aroma', val: clampRating5(t.aromaRating ?? 4.2) },
+                          { lbl: 'Burn', val: clampRating5(t.burnRating ?? 0) },
+                          { lbl: 'Sugar', val: clampRating5(t.sugarRating ?? 0) },
+                          { lbl: 'Aroma', val: clampRating5(t.aromaRating ?? 0) },
                         ].map((r) => (
                           <div
                             key={r.lbl}
-                            className="bg-zinc-950 py-2 px-1.5 rounded-lg border border-zinc-800"
+                            className={`bg-zinc-950 py-2 px-1.5 rounded-lg border ${
+                              r.val <= 0 ? 'border-rose-500/60' : 'border-zinc-800'
+                            }`}
                           >
-                            <div className="text-[9px] text-zinc-400 uppercase font-bold">
+                            <div
+                              className={`text-[9px] uppercase font-bold ${
+                                r.val <= 0 ? 'text-rose-400' : 'text-zinc-400'
+                              }`}
+                            >
                               {r.lbl}
                             </div>
-                            <div className="font-mono font-black text-amber-400 text-base sm:text-lg mt-0.5">
+                            <div
+                              className={`font-mono font-black text-base sm:text-lg mt-0.5 ${
+                                r.val <= 0 ? 'text-rose-400' : 'text-amber-400'
+                              }`}
+                            >
                               {formatRating5(r.val)}
                             </div>
                           </div>

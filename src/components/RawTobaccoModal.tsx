@@ -597,17 +597,34 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
   const emptyCount = trackableKeys.filter((k) => isFieldEmpty(k)).length;
   const filledCount = trackableKeys.length - emptyCount;
 
+  const OPTIONAL_HIGHLIGHT_KEYS = new Set<RawLockableFieldKey>([
+    'graderName',
+    'characterNotes',
+    'lotNumber',
+    'purchaseDate',
+    'agentFees',
+    'packagingMassKg',
+    'flatKgTara',
+    'percentTara',
+  ]);
+
   const renderFieldLabel = (
     labelText: string,
     key: RawLockableFieldKey,
     icon?: React.ReactNode
   ) => {
     const locked = isLocked(key);
+    const emptyRequired = isFieldEmpty(key) && !locked && !OPTIONAL_HIGHLIGHT_KEYS.has(key);
     return (
       <div className="flex items-center justify-between gap-1.5 mb-1">
-        <label className="text-[11px] font-bold text-zinc-200 flex items-center gap-1 truncate">
+        <label
+          className={`text-[11px] font-bold flex items-center gap-1 truncate ${
+            emptyRequired ? 'text-rose-400' : 'text-zinc-200'
+          }`}
+        >
           {icon}
           <span className="truncate">{labelText}</span>
+          {emptyRequired && <span className="font-black text-[10px]">*</span>}
         </label>
         {(showLockControls || locked) && (
           <button
@@ -640,8 +657,8 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
     if (locked) {
       return `w-full h-9 px-3 bg-zinc-900/60 border border-amber-500/40 rounded-lg text-zinc-300 placeholder-zinc-600 cursor-not-allowed opacity-80 text-xs ${extra}`;
     }
-    if (empty) {
-      return `w-full h-9 px-3 bg-black border border-dashed border-amber-500/45 focus:border-solid focus:border-amber-400 rounded-lg text-white placeholder-zinc-500 focus:outline-hidden text-xs ${extra}`;
+    if (empty && !OPTIONAL_HIGHLIGHT_KEYS.has(key)) {
+      return `w-full h-9 px-3 bg-black border border-dashed border-rose-500/75 focus:border-solid focus:border-rose-400 rounded-lg text-white placeholder-rose-400/70 focus:outline-hidden text-xs ${extra}`;
     }
     return `w-full h-9 px-3 bg-zinc-950 border border-zinc-700 focus:border-amber-400 rounded-lg text-white placeholder-zinc-500 focus:outline-hidden text-xs ${extra}`;
   };
@@ -922,7 +939,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 {emptyCount > 0 && (
                   <>
                     <span>·</span>
-                    <span className="text-amber-300">Opsional/Menyusul: {emptyCount}</span>
+                    <span className="text-rose-400 font-bold">Kosong/Menyusul: {emptyCount}</span>
                   </>
                 )}
               </div>
@@ -1224,7 +1241,13 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                     <Clock className="w-3.5 h-3.5 text-amber-400" />
                     5. Timbangan &amp; Harga (Kosongkan / 0 Jika Menyusul)
                   </span>
-                  <span className="text-[10px] font-mono text-amber-300">
+                  <span
+                    className={`text-[10px] font-mono font-bold ${
+                      grossWeightKg <= 0 || pricePerKgPurchase <= 0
+                        ? 'text-rose-400'
+                        : 'text-amber-300'
+                    }`}
+                  >
                     {grossWeightKg <= 0 && pricePerKgPurchase <= 0
                       ? '⏳ Ditandai: Butuh Timbangan & Harga'
                       : grossWeightKg <= 0
@@ -1305,7 +1328,13 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                     </span>
                     <div className="h-9 px-3 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-between font-mono text-xs">
                       <span className="text-[10px] text-zinc-400">Netto Nota:</span>
-                      <b className="text-amber-400 text-xs">{calculation.netWeightKg} kg</b>
+                      <b
+                        className={`text-xs ${
+                          calculation.netWeightKg <= 0 ? 'text-rose-400' : 'text-amber-400'
+                        }`}
+                      >
+                        {calculation.netWeightKg} kg
+                      </b>
                     </div>
                   </div>
                 </div>

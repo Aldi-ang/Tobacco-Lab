@@ -43,16 +43,22 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
         disabled
           ? 'border-zinc-800/70 opacity-75'
           : isEmptyZero
-            ? 'border-dashed border-amber-500/40 hover:border-amber-500/70'
+            ? 'border-dashed border-rose-500/75 hover:border-rose-400'
             : 'border-zinc-800 hover:border-zinc-600'
       }`}
     >
       <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-zinc-800/90">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-bold text-white truncate">{label}</span>
+            <span
+              className={`text-xs font-bold truncate ${
+                isEmptyZero ? 'text-rose-400' : 'text-white'
+              }`}
+            >
+              {label}
+            </span>
             {isEmptyZero && (
-              <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/40 text-[9px] font-mono font-bold">
+              <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/75 text-[9px] font-mono font-bold">
                 Kosong (0)
               </span>
             )}
@@ -74,11 +80,12 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
           <div
             className={`px-2.5 py-1 rounded-lg bg-black border font-mono font-extrabold text-xs min-w-[56px] text-center ${
               isEmptyZero
-                ? 'text-zinc-500 border-zinc-800'
+                ? 'text-rose-400 border-rose-500/70'
                 : 'text-white border-zinc-700'
             }`}
           >
-            {formatRating5(safeVal)}<span className="text-amber-400">/5</span>
+            {formatRating5(safeVal)}
+            <span className={isEmptyZero ? 'text-rose-300' : 'text-amber-400'}>/5</span>
           </div>
           <button
             type="button"
@@ -129,7 +136,9 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
                 }}
                 className={`py-1 rounded-md font-mono text-[10px] font-bold transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                   isActive
-                    ? 'bg-black text-amber-400 border border-amber-500/80'
+                    ? step === 0
+                      ? 'bg-rose-950/60 text-rose-300 border border-rose-500/85'
+                      : 'bg-black text-amber-400 border border-amber-500/80'
                     : 'bg-zinc-950 text-zinc-400 hover:text-white hover:border-zinc-600 border border-zinc-800/80'
                 }`}
               >

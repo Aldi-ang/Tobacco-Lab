@@ -370,14 +370,21 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                 Edit Cepat
               </span>
               <span className="text-[11px] font-mono text-zinc-400">
-                Grade {colorGrade} · {origin || 'Belum Diisi'}
+                Grade {colorGrade} ·{' '}
+                {origin.trim() ? (
+                  origin
+                ) : (
+                  <span className="text-rose-400 font-bold">Asal Kosong</span>
+                )}
               </span>
             </div>
             <h3 className="font-black text-sm text-white truncate mt-0.5">
               {name || tobacco.name}
-              {sellerName ? (
+              {sellerName.trim() ? (
                 <span className="text-zinc-400 font-semibold"> — {sellerName}</span>
-              ) : null}
+              ) : (
+                <span className="text-rose-400 font-bold"> — Penjual Kosong</span>
+              )}
             </h3>
           </div>
           <button
@@ -430,9 +437,11 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                 onClick={() => setSection(tab.id)}
                 className={`relative px-2.5 py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 border transition-colors cursor-pointer ${
                   active
-                    ? 'bg-[#0e1015] text-amber-300 border-amber-500/85 font-black'
+                    ? tab.isMissing
+                      ? 'bg-rose-950/50 text-rose-300 border-rose-500 ring-1 ring-rose-500/40 font-black'
+                      : 'bg-[#0e1015] text-amber-300 border-amber-500/85 font-black'
                     : tab.isMissing
-                      ? 'bg-black text-amber-300 border-amber-500/50 hover:border-amber-400'
+                      ? 'bg-rose-950/20 text-rose-400 border-rose-500/70 hover:border-rose-400'
                       : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-700'
                 }`}
               >
@@ -441,7 +450,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                 {tab.isMissing && (
                   <span
                     title="Belum diisi"
-                    className="w-2 h-2 rounded-full shrink-0 bg-amber-400 animate-pulse"
+                    className="w-2 h-2 rounded-full shrink-0 bg-rose-500 animate-pulse"
                   />
                 )}
               </button>
@@ -462,8 +471,13 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-bold text-amber-400 mb-1">
+                  <label
+                    className={`block text-[11px] font-bold mb-1 ${
+                      grossWeightKg <= 0 ? 'text-rose-400' : 'text-amber-400'
+                    }`}
+                  >
                     Bruto Timbangan (KG)
+                    {grossWeightKg <= 0 && <span className="font-black"> · Belum Diisi</span>}
                   </label>
                   <NumericInput
                     ref={grossRef}
@@ -480,13 +494,22 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                       )
                     }
                     placeholder="Contoh: 45"
-                    className="w-full h-11 px-3 bg-black border-2 border-amber-500/75 focus:border-amber-400 rounded-xl font-mono font-black text-base text-white placeholder-zinc-500 focus:outline-hidden"
+                    className={`w-full h-11 px-3 bg-black border-2 rounded-xl font-mono font-black text-base text-white focus:outline-hidden ${
+                      grossWeightKg <= 0
+                        ? 'border-rose-500/80 focus:border-rose-400 placeholder-rose-400/70'
+                        : 'border-amber-500/75 focus:border-amber-400 placeholder-zinc-500'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-zinc-200 mb-1">
-                    Harga / KG (Rp) {pricePerKgPurchase <= 0 && <span className="text-amber-400">· Menyusul</span>}
+                  <label
+                    className={`block text-[11px] font-bold mb-1 ${
+                      pricePerKgPurchase <= 0 ? 'text-rose-400' : 'text-zinc-200'
+                    }`}
+                  >
+                    Harga / KG (Rp)
+                    {pricePerKgPurchase <= 0 && <span className="font-black"> · Menyusul</span>}
                   </label>
                   <NumericInput
                     ref={priceRef}
@@ -503,7 +526,11 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                       )
                     }
                     placeholder="Isi atau 0"
-                    className="w-full h-11 px-3 bg-black border border-zinc-700 focus:border-amber-400 rounded-xl font-mono font-black text-base text-white placeholder-zinc-500 focus:outline-hidden"
+                    className={`w-full h-11 px-3 bg-black border rounded-xl font-mono font-black text-base text-white focus:outline-hidden ${
+                      pricePerKgPurchase <= 0
+                        ? 'border-rose-500/80 focus:border-rose-400 placeholder-rose-400/70'
+                        : 'border-zinc-700 focus:border-amber-400 placeholder-zinc-500'
+                    }`}
                   />
                 </div>
               </div>
@@ -540,14 +567,22 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
 
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-[10px] font-bold text-zinc-400 mb-1">
-                    Kemasan
+                  <label
+                    className={`block text-[10px] font-bold mb-1 ${
+                      !packagingType ? 'text-rose-400' : 'text-zinc-400'
+                    }`}
+                  >
+                    Kemasan {!packagingType && '(Kosong)'}
                   </label>
                   <select
                     ref={pkgRef}
                     value={packagingType}
                     onChange={(e) => handleSelectPackaging(e.target.value)}
-                    className="w-full h-9 px-2 bg-black border border-zinc-800 focus:border-amber-400 rounded-lg text-xs font-bold text-white focus:outline-hidden"
+                    className={`w-full h-9 px-2 bg-black border rounded-lg text-xs font-bold focus:outline-hidden ${
+                      !packagingType
+                        ? 'border-rose-500/75 focus:border-rose-400 text-rose-300'
+                        : 'border-zinc-800 focus:border-amber-400 text-white'
+                    }`}
                   >
                     <option value="">-- Kemasan --</option>
                     {packagingList.map((pkg) => (
@@ -589,10 +624,19 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
 
               <div className="bg-black border border-zinc-800 rounded-xl p-2.5 flex items-center justify-between text-[11px] font-mono">
                 <span className="text-zinc-300">
-                  Netto Bayar: <b className="text-white">{previewUpdated.netWeightKg} kg</b>{' '}
+                  Netto Bayar:{' '}
+                  <b className={previewUpdated.netWeightKg <= 0 ? 'text-rose-400' : 'text-white'}>
+                    {previewUpdated.netWeightKg} kg
+                  </b>{' '}
                   <span className="text-zinc-500">(Tarra −{previewUpdated.deductionKg} kg)</span>
                 </span>
-                <span className="text-amber-400 font-black">
+                <span
+                  className={`font-black ${
+                    missingFlags.missingPrice || missingFlags.missingWeight
+                      ? 'text-rose-400'
+                      : 'text-amber-400'
+                  }`}
+                >
                   Modal: {formatRupiah(previewUpdated.totalModalAsal || 0)}
                 </span>
               </div>
@@ -603,8 +647,13 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
           {section === 'harga' && (
             <div className="space-y-3">
               <div>
-                <label className="block text-[11px] font-bold text-amber-400 mb-1">
+                <label
+                  className={`block text-[11px] font-bold mb-1 ${
+                    pricePerKgPurchase <= 0 ? 'text-rose-400' : 'text-amber-400'
+                  }`}
+                >
                   Harga Tembakau / KG (Rp)
+                  {pricePerKgPurchase <= 0 && <span className="font-black"> · Belum Diisi</span>}
                 </label>
                 <NumericInput
                   ref={priceRef}
@@ -619,7 +668,11 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                     }
                   }}
                   placeholder="Contoh: 85000"
-                  className="w-full h-12 px-3.5 bg-black border-2 border-amber-500/80 focus:border-amber-400 rounded-xl font-mono font-black text-lg text-white placeholder-zinc-500 focus:outline-hidden"
+                  className={`w-full h-12 px-3.5 bg-black border-2 rounded-xl font-mono font-black text-lg text-white focus:outline-hidden ${
+                    pricePerKgPurchase <= 0
+                      ? 'border-rose-500/80 focus:border-rose-400 placeholder-rose-400/70'
+                      : 'border-amber-500/80 focus:border-amber-400 placeholder-zinc-500'
+                  }`}
                 />
                 {priceGuard && (
                   <div className="mt-2 p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/60 text-[11px] text-amber-200 flex items-center justify-between gap-2 flex-wrap">
@@ -663,12 +716,21 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
 
               <div className="bg-black border border-zinc-800 rounded-xl p-3 flex items-center justify-between text-xs font-mono">
                 <span className="text-zinc-400">
-                  Netto: <b className="text-white">{previewUpdated.netWeightKg} kg</b>
+                  Netto:{' '}
+                  <b className={previewUpdated.netWeightKg === 0 ? 'text-rose-400' : 'text-white'}>
+                    {previewUpdated.netWeightKg} kg
+                  </b>
                   {previewUpdated.netWeightKg === 0 && (
-                    <span className="text-amber-400 ml-1.5">(Timbangan menyusul)</span>
+                    <span className="text-rose-400 font-bold ml-1.5">(Timbangan menyusul)</span>
                   )}
                 </span>
-                <span className="font-black text-amber-400 text-sm">
+                <span
+                  className={`font-black text-sm ${
+                    missingFlags.missingPrice || missingFlags.missingWeight
+                      ? 'text-rose-400'
+                      : 'text-amber-400'
+                  }`}
+                >
                   {formatRupiah(previewUpdated.totalModalAsal || 0)}
                 </span>
               </div>
@@ -752,8 +814,12 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-zinc-200 mb-1">
-                  Penjual / Petani {!sellerName.trim() && <span className="text-amber-400">(Kosong)</span>}
+                <label
+                  className={`block text-[11px] font-bold mb-1 ${
+                    !sellerName.trim() ? 'text-rose-400' : 'text-zinc-200'
+                  }`}
+                >
+                  Penjual / Petani {!sellerName.trim() && <span className="font-black">(Kosong)</span>}
                 </label>
                 <input
                   ref={sellerRef}
@@ -770,13 +836,21 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                     )
                   }
                   placeholder="Nama penjual..."
-                  className="w-full h-10 px-3 bg-black border border-zinc-700 focus:border-amber-400 rounded-xl text-xs font-bold text-white"
+                  className={`w-full h-10 px-3 bg-black border rounded-xl text-xs font-bold text-white ${
+                    !sellerName.trim()
+                      ? 'border-rose-500/80 focus:border-rose-400 placeholder-rose-400/70'
+                      : 'border-zinc-700 focus:border-amber-400'
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-zinc-200 mb-1">
-                  Jenis / Nama Tembakau
+                <label
+                  className={`block text-[11px] font-bold mb-1 ${
+                    !name.trim() ? 'text-rose-400' : 'text-zinc-200'
+                  }`}
+                >
+                  Jenis / Nama Tembakau {!name.trim() && <span className="font-black">(Kosong)</span>}
                 </label>
                 <input
                   ref={nameRef}
@@ -793,14 +867,22 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                     )
                   }
                   placeholder="Wetan Kali / Windusari..."
-                  className="w-full h-10 px-3 bg-black border border-zinc-700 focus:border-amber-400 rounded-xl text-xs font-bold text-white"
+                  className={`w-full h-10 px-3 bg-black border rounded-xl text-xs font-bold text-white ${
+                    !name.trim()
+                      ? 'border-rose-500/80 focus:border-rose-400 placeholder-rose-400/70'
+                      : 'border-zinc-700 focus:border-amber-400'
+                  }`}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-bold text-zinc-200 mb-1">
-                    Daerah Asal
+                  <label
+                    className={`block text-[11px] font-bold mb-1 ${
+                      !origin.trim() ? 'text-rose-400' : 'text-zinc-200'
+                    }`}
+                  >
+                    Daerah Asal {!origin.trim() && <span className="font-black">(Kosong)</span>}
                   </label>
                   <input
                     ref={originRef}
@@ -817,13 +899,21 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                       )
                     }
                     placeholder="Muntilan / Temanggung"
-                    className="w-full h-10 px-3 bg-black border border-zinc-700 focus:border-amber-400 rounded-xl text-xs font-bold text-white"
+                    className={`w-full h-10 px-3 bg-black border rounded-xl text-xs font-bold text-white ${
+                      !origin.trim()
+                        ? 'border-rose-500/80 focus:border-rose-400 placeholder-rose-400/70'
+                        : 'border-zinc-700 focus:border-amber-400'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-zinc-200 mb-1">
-                    Jenis Kemasan
+                  <label
+                    className={`block text-[11px] font-bold mb-1 ${
+                      !packagingType ? 'text-rose-400' : 'text-zinc-200'
+                    }`}
+                  >
+                    Jenis Kemasan {!packagingType && <span className="font-black">(Kosong)</span>}
                   </label>
                   <select
                     ref={pkgRef}
@@ -837,7 +927,11 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                         { seller: sellerRef, name: nameRef, origin: originRef, pkg: pkgRef }
                       )
                     }
-                    className="w-full h-10 px-2.5 bg-black border border-zinc-700 focus:border-amber-400 rounded-xl text-xs font-bold text-white"
+                    className={`w-full h-10 px-2.5 bg-black border rounded-xl text-xs font-bold ${
+                      !packagingType
+                        ? 'border-rose-500/80 focus:border-rose-400 text-rose-300'
+                        : 'border-zinc-700 focus:border-amber-400 text-white'
+                    }`}
                   >
                     <option value="">-- Pilih Kemasan --</option>
                     {packagingList.map((pkg) => (
@@ -891,8 +985,8 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
           {/* Unfilled status summary + Footer */}
           <div className="pt-3 border-t border-zinc-800 flex items-center justify-between gap-2 flex-wrap">
             {missingFlags.isIncomplete ? (
-              <div className="inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-300">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-400">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                 <span>Masih kosong: {missingFlags.missingLabels.join(', ')}</span>
               </div>
             ) : (

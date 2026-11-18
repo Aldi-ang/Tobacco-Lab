@@ -22,12 +22,18 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
+  Eye,
 } from 'lucide-react';
 import {
   areAllCardsExpanded,
   toggleAllCardsExpanded,
   toggleCardExpanded,
 } from '../utils/cardExpandState';
+import {
+  calcProfitMarginPct,
+  formatExcelIngredientsSummary,
+  formatExcelSensoryRow,
+} from '../utils/excelStockView';
 import {
   FinishedTobaccoSerial,
   TobaccoRollSample,
@@ -54,6 +60,7 @@ import {
   buildSerialFactoryCalcDetail,
 } from './CalculationDetailModal';
 import { EditFinishedSerialModal } from './EditFinishedSerialModal';
+import { getSerialMissingFlags } from '../utils/tobaccoCompleteness';
 
 interface FinishedTobaccoListProps {
   finishedBatches: FinishedTobaccoSerial[];
@@ -247,6 +254,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
     ];
 
     const isExpanded = Boolean(expandedCardIds[batch.id]);
+    const missingFlags = getSerialMissingFlags(batch);
 
     return (
       <motion.div
@@ -256,16 +264,20 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
         whileHover={{ y: -2 }}
         transition={{ duration: 0.16, delay: Math.min(idx * 0.015, 0.12), ease: [0.23, 1, 0.32, 1] }}
         onClick={() => setActiveSerial(batch)}
-        className="text-left group relative requiem-card border border-zinc-800/90 hover:border-amber-500/70 rounded-2xl p-3 sm:p-3.5 transition-[border-color,box-shadow,transform] duration-200 cursor-pointer flex flex-col justify-between"
+        className={`text-left group relative requiem-card border rounded-2xl p-3 sm:p-3.5 transition-[border-color,box-shadow,transform] duration-200 cursor-pointer flex flex-col justify-between ${
+          missingFlags.isIncomplete
+            ? 'border-rose-500/65 hover:border-rose-400'
+            : 'border-zinc-800/90 hover:border-amber-500/70'
+        }`}
       >
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-1.5">
-            <span className="px-2 py-0.5 rounded-lg bg-black text-amber-400 border border-zinc-700 font-mono font-black text-[11px] sm:text-xs tracking-wide truncate min-w-0">
+            <span className="px-2 py-0.5 rounded-lg bg-black text-amber-400 border border-zinc-700 font-mono font-black text-xs tracking-wide truncate min-w-0">
               SERI {formatSerialLineage(batch)}
             </span>
             <div className="flex items-center gap-1 shrink-0">
               <span
-                className={`px-1.5 py-0.5 rounded-md text-[10px] font-black border shrink-0 ${gradeInfo.color}`}
+                className={`px-1.5 py-0.5 rounded-md text-[11px] font-black border shrink-0 ${gradeInfo.color}`}
               >
                 Grade {batch.compositeColorGrade}
               </span>
@@ -282,7 +294,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                   e.stopPropagation();
                   setExpandedCardIds((prev) => toggleCardExpanded(prev, batch.id));
                 }}
-                className={`h-6 px-2 rounded-lg border text-[10px] font-bold inline-flex items-center gap-0.5 cursor-pointer shrink-0 transition-colors ${
+                className={`h-6 px-2 rounded-lg border text-[10.5px] font-bold inline-flex items-center gap-0.5 cursor-pointer shrink-0 transition-colors ${
                   isExpanded
                     ? 'bg-amber-500/12 text-amber-300 border-amber-500/70'
                     : 'bg-zinc-950 hover:bg-zinc-900 text-zinc-300 hover:text-white border-zinc-800 hover:border-zinc-700'
@@ -298,35 +310,66 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1 text-[11px] sm:text-xs text-white font-bold truncate">
-            <Building2 className="w-3 h-3 text-zinc-300 shrink-0" />
+          <div className="flex items-center gap-1 text-xs text-white font-bold truncate">
+            <Building2 className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
             <span className="truncate">{batch.targetFactory}</span>
           </div>
 
-          <div className="flex items-center justify-between gap-1 text-[10px]">
+          <div className="flex items-center justify-between gap-1 text-[11px]">
             <span className="inline-flex items-center gap-1 text-amber-400 font-mono font-bold truncate">
-              <Scroll className="w-2.5 h-2.5 shrink-0" /> {rollCode}
+              <Scroll className="w-3 h-3 shrink-0" /> {rollCode}
             </span>
             {status === 'ACCEPTED_CAIR' && (
-              <span className="inline-flex items-center gap-0.5 text-amber-400 font-black text-[9px] shrink-0">
-                <Check className="w-2.5 h-2.5" /> Diterima
+              <span className="inline-flex items-center gap-0.5 text-amber-400 font-black text-[10px] shrink-0">
+                <Check className="w-3 h-3" /> Diterima
               </span>
             )}
             {status === 'REJECTED_STOCK' && (
-              <span className="inline-flex items-center gap-0.5 text-red-400 font-bold text-[9px] shrink-0">
-                <RotateCcw className="w-2.5 h-2.5 text-red-400" /> Reject
+              <span className="inline-flex items-center gap-0.5 text-red-400 font-bold text-[10px] shrink-0">
+                <RotateCcw className="w-3 h-3 text-red-400" /> Reject
               </span>
             )}
           </div>
 
+          {missingFlags.isIncomplete && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {missingFlags.missingWeight && (
+                <span className="px-1.5 py-0.5 rounded bg-rose-500/20 border border-rose-500/80 text-[10px] font-black text-rose-300">
+                  ⏳ Timbangan
+                </span>
+              )}
+              {missingFlags.missingFactoryPrice && (
+                <span className="px-1.5 py-0.5 rounded bg-rose-500/20 border border-rose-500/80 text-[10px] font-black text-rose-300">
+                  ⏳ Harga Pabrik
+                </span>
+              )}
+              {missingFlags.missingAttributes && (
+                <span className="px-1.5 py-0.5 rounded bg-rose-500/20 border border-rose-500/80 text-[10px] font-black text-rose-300">
+                  ⏳ Atribut
+                </span>
+              )}
+            </div>
+          )}
+
           {!isExpanded ? (
-            <div className="bg-zinc-950/90 border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2 text-[10px] font-mono tabular-nums">
+            <div className="bg-zinc-950/90 border border-zinc-800/80 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2 text-[11px] font-mono tabular-nums">
               <span className="text-zinc-400 truncate">
-                <b className="text-white">{realTobaccoNetKg}</b> /{' '}
-                <b className="text-amber-400">{nettoKg} kg</b>
+                <b className={missingFlags.missingWeight ? 'text-rose-400' : 'text-white'}>
+                  {realTobaccoNetKg}
+                </b>{' '}
+                /{' '}
+                <b className={missingFlags.missingWeight ? 'text-rose-400' : 'text-amber-400'}>
+                  {nettoKg} kg
+                </b>
               </span>
-              <span className="text-zinc-200 font-bold whitespace-nowrap shrink-0">
-                {formatRupiah(batch.factoryTargetPricePerKg)}
+              <span
+                className={`font-bold whitespace-nowrap shrink-0 ${
+                  missingFlags.missingFactoryPrice ? 'text-rose-400' : 'text-zinc-200'
+                }`}
+              >
+                {missingFlags.missingFactoryPrice
+                  ? '⏳ Menyusul'
+                  : formatRupiah(batch.factoryTargetPricePerKg)}
               </span>
             </div>
           ) : (
@@ -342,28 +385,42 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                 {/* Permanent Summary Box with Real vs Billable Net Weight & Factory Weight Profit/Loss */}
                 <div className="bg-zinc-950/95 border border-zinc-800/90 rounded-xl px-2.5 py-2 space-y-1">
                   <div className="flex items-center justify-between gap-1">
-                    <span className="text-[9px] font-bold uppercase text-zinc-400">
+                    <span className="text-[10px] font-bold uppercase text-zinc-400">
                       Riil / Tagih
                     </span>
-                    <span className="font-mono font-black text-[11px] sm:text-xs text-white whitespace-nowrap tabular-nums">
-                      {realTobaccoNetKg} kg / <span className="text-amber-400">{nettoKg} kg</span>
+                    <span className="font-mono font-black text-xs text-white whitespace-nowrap tabular-nums">
+                      <span className={missingFlags.missingWeight ? 'text-rose-400' : 'text-white'}>
+                        {realTobaccoNetKg} kg
+                      </span>{' '}
+                      /{' '}
+                      <span
+                        className={missingFlags.missingWeight ? 'text-rose-400' : 'text-amber-400'}
+                      >
+                        {nettoKg} kg
+                      </span>
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-                    <span className="text-[9px] font-bold uppercase text-zinc-400">
+                    <span className="text-[10px] font-bold uppercase text-zinc-400">
                       Harga Pabrik
                     </span>
-                    <span className="font-mono font-black text-[11px] sm:text-xs text-zinc-200 whitespace-nowrap tabular-nums">
-                      {formatRupiah(batch.factoryTargetPricePerKg)}
+                    <span
+                      className={`font-mono font-black text-xs whitespace-nowrap tabular-nums ${
+                        missingFlags.missingFactoryPrice ? 'text-rose-400' : 'text-zinc-200'
+                      }`}
+                    >
+                      {missingFlags.missingFactoryPrice
+                        ? '⏳ Menyusul'
+                        : formatRupiah(batch.factoryTargetPricePerKg)}
                     </span>
                   </div>
                   {factoryWeightProfitKg !== 0 && (
                     <div className="flex items-center justify-between gap-1 pt-1 border-t border-zinc-900">
-                      <span className="text-[9px] font-black uppercase text-zinc-200">
+                      <span className="text-[10px] font-black uppercase text-zinc-200">
                         Selisih Timbangan
                       </span>
                       <span
-                        className={`font-mono font-black text-[10px] sm:text-[11px] whitespace-nowrap tabular-nums ${
+                        className={`font-mono font-black text-[11px] whitespace-nowrap tabular-nums ${
                           factoryWeightProfitKg > 0 ? 'text-zinc-200' : 'text-red-400'
                         }`}
                       >
@@ -382,7 +439,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
           )}
         </div>
 
-        <div className="mt-2.5 pt-2 border-t border-zinc-900 flex items-center justify-between gap-2 text-[10px] text-zinc-400 group-hover:text-white transition-colors">
+        <div className="mt-2.5 pt-2 border-t border-zinc-900 flex items-center justify-between gap-2 text-[11px] text-zinc-400 group-hover:text-white transition-colors">
           <span className="truncate max-w-[90px]">{batch.packaging.packagingType}</span>
           <div className="flex items-center gap-1.5 shrink-0">
             {onUpdateSerial && (
@@ -392,11 +449,15 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                   e.stopPropagation();
                   setEditingSerial(batch);
                 }}
-                className="px-2 py-0.5 rounded-md bg-black hover:bg-zinc-900 text-amber-400 border border-zinc-700 hover:border-amber-500/70 font-black text-[10px] inline-flex items-center gap-1 cursor-pointer transition-colors"
+                className={`px-2 py-0.5 rounded-md border font-black text-[10.5px] inline-flex items-center gap-1 cursor-pointer transition-colors ${
+                  missingFlags.isIncomplete
+                    ? 'bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 border-rose-500/80'
+                    : 'bg-black hover:bg-zinc-900 text-amber-400 border-zinc-700 hover:border-amber-500/70'
+                }`}
                 title={`Edit Seri ${batch.serialNumber}`}
               >
-                <Edit3 className="w-2.5 h-2.5" />
-                <span>Edit</span>
+                <Edit3 className="w-3 h-3" />
+                <span>{missingFlags.isIncomplete ? 'Lengkapi' : 'Edit'}</span>
               </button>
             )}
             <button
@@ -427,6 +488,379 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
       items: filtered.filter((b) => b.rollId === roll.id || b.rollNumber === roll.rollNumber),
     }))
     .filter((g) => g.items.length > 0);
+
+  // PC ONLY: 2-Line Microsoft Excel Table for Seri Jadi
+  const renderPcExcelTable = (batchesToRender: FinishedTobaccoSerial[]) => (
+    <div
+      data-testid="pc-finished-excel-table"
+      className="hidden md:block requiem-card border border-zinc-800/95 rounded-xl overflow-hidden shadow-2xl"
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1140px] table-fixed border-collapse text-left tabular-nums">
+          <colgroup>
+            <col className="w-[2.5%]" />
+            <col className="w-[9.5%]" />
+            <col className="w-[15%]" />
+            <col className="w-[12%]" />
+            <col className="w-[8.5%]" />
+            <col className="w-[8%]" />
+            <col className="w-[10.5%]" />
+            <col className="w-[8.5%]" />
+            <col className="w-[17.5%]" />
+            <col className="w-[8%]" />
+          </colgroup>
+          <thead>
+            <tr className="bg-[#0c0f17] border-b-2 border-zinc-700 text-[11px] font-black uppercase tracking-wider text-zinc-200 select-none">
+              <th className="py-2 px-1 border-r border-zinc-800 text-center text-zinc-400">
+                #
+              </th>
+              <th className="py-2 px-2 border-r border-zinc-800">
+                <div>Seri</div>
+                <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                  Status · Tanggal
+                </div>
+              </th>
+              <th className="py-2 px-2 border-r border-zinc-800">
+                <div>Pabrik Tujuan</div>
+                <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                  Gulungan · Racikan
+                </div>
+              </th>
+              <th className="py-2 px-2 border-r border-zinc-800">
+                <div>Grade · Kemasan</div>
+                <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                  Bruto · Pot. Tarra
+                </div>
+              </th>
+              <th className="py-2 px-2 border-r border-zinc-800 text-right">
+                <div>Netto Tagih</div>
+                <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                  Riil · Wadah
+                </div>
+              </th>
+              <th className="py-2 px-2 border-r border-zinc-800 text-right">
+                <div>Selisih (Rp)</div>
+                <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                  Selisih (KG)
+                </div>
+              </th>
+              <th className="py-2 px-2 border-r border-zinc-800 text-right">
+                <div>Nota Pabrik</div>
+                <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                  Modal Total
+                </div>
+              </th>
+              <th className="py-2 px-2 border-r border-zinc-800 text-right">
+                <div>Profit Seri</div>
+                <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                  Margin %
+                </div>
+              </th>
+              <th className="py-2 px-2 border-r border-zinc-800">
+                <div>Atribut Rasa (/5)</div>
+                <div className="text-[10px] font-semibold text-zinc-400 normal-case tracking-normal">
+                  Komposisi Bahan
+                </div>
+              </th>
+              <th className="py-2 px-1.5 text-center">Aksi</th>
+            </tr>
+          </thead>
+
+          {batchesToRender.map((batch, idx) => {
+            const gradeInfo = GRADE_LABELS[batch.compositeColorGrade] || GRADE_LABELS['D'];
+            const linkedRoll = rollSamples.find((r) => r.id === batch.rollId);
+            const rollCode = batch.rollNumber || linkedRoll?.rollNumber || 'GUL-2026-001';
+            const brutoKg =
+              batch.packaging.grossWeightPerPackage * (batch.packaging.packageCount || 1);
+            const nettoKg = batch.factoryNetBillableKg;
+            const realTobaccoNetKg =
+              batch.packaging.netTobaccoWeightKg ??
+              batch.totalBlendNetKg ??
+              Math.max(
+                0,
+                brutoKg - (batch.packaging.packagingMassKg ?? batch.factoryDeductionKg)
+              );
+            const realPkgMassKg =
+              batch.packaging.packagingMassKg ??
+              Number(Math.max(0, brutoKg - realTobaccoNetKg).toFixed(2));
+            const factoryWeightProfitKg =
+              batch.factoryWeightProfitKg ?? Number((nettoKg - realTobaccoNetKg).toFixed(2));
+            const factoryWeightProfitRp =
+              batch.factoryWeightProfitRp ??
+              Math.round(factoryWeightProfitKg * (batch.factoryTargetPricePerKg || 0));
+            const status = batch.factoryStatus || 'PENDING';
+            const profitRp = batch.projectedRevenue - batch.totalProductionCost;
+            const marginText = calcProfitMarginPct(profitRp, batch.projectedRevenue);
+            const sensoryCells = formatExcelSensoryRow({
+              power: batch.weightedPower,
+              impact: batch.weightedImpact,
+              bitter: batch.weightedBitter,
+              burn: batch.weightedBurn,
+              sugar: batch.weightedSugar,
+              aroma: batch.weightedAroma,
+            });
+            const ingredientsSummary = formatExcelIngredientsSummary(batch.ingredients);
+            const missingFlags = getSerialMissingFlags(batch);
+            const rowBand = idx % 2 === 0 ? 'bg-[#07080b]' : 'bg-[#0b0d14]';
+
+            return (
+              <tbody
+                key={batch.id}
+                className={`${rowBand} hover:bg-[#121622] transition-colors border-b border-zinc-700/90`}
+              >
+                {/* BARIS 1 */}
+                <tr className="border-b border-dashed border-zinc-800/75">
+                  <td
+                    rowSpan={2}
+                    className="py-2 px-1 border-r border-zinc-800 bg-[#090b10] text-center align-middle font-mono text-xs font-bold text-zinc-400"
+                  >
+                    {idx + 1}
+                  </td>
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle overflow-hidden">
+                    <div className="flex items-center justify-between gap-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => setActiveSerial(batch)}
+                        className="font-mono font-black text-[11.5px] text-amber-400 hover:text-amber-300 truncate text-left cursor-pointer"
+                        title={`SERI ${formatSerialLineage(batch)}`}
+                      >
+                        SERI {formatSerialLineage(batch)}
+                      </button>
+                      {missingFlags.isIncomplete && (
+                        <span
+                          title={`Kurang: ${missingFlags.missingLabels.join(', ')}`}
+                          className="px-1 py-0.5 rounded bg-rose-500/20 border border-rose-500/80 text-[9.5px] font-black text-rose-300 shrink-0 leading-none"
+                        >
+                          ⏳{missingFlags.missingCount}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setActiveSerial(batch)}
+                      className="font-extrabold text-[13px] text-white hover:text-amber-300 truncate block max-w-full text-left cursor-pointer"
+                      title={batch.targetFactory}
+                    >
+                      {batch.targetFactory}
+                    </button>
+                  </td>
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle overflow-hidden">
+                    <div className="flex items-center justify-between gap-1 min-w-0">
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[11px] font-black border whitespace-nowrap shrink-0 ${gradeInfo.color}`}
+                      >
+                        Grd {batch.compositeColorGrade}
+                      </span>
+                      <span
+                        className="text-[10.5px] font-bold text-zinc-200 uppercase truncate"
+                        title={batch.packaging.packagingType}
+                      >
+                        {batch.packaging.packagingType}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono overflow-hidden">
+                    <span
+                      className={`text-[13px] font-black whitespace-nowrap ${
+                        missingFlags.missingWeight ? 'text-rose-400' : 'text-amber-400'
+                      }`}
+                    >
+                      {missingFlags.missingWeight ? '⏳ 0 kg' : `${nettoKg} kg`}
+                    </span>
+                  </td>
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono overflow-hidden">
+                    <span
+                      className={`text-[12px] font-black whitespace-nowrap ${
+                        factoryWeightProfitRp >= 0 ? 'text-white' : 'text-rose-400'
+                      }`}
+                    >
+                      {factoryWeightProfitRp > 0 ? '+' : ''}
+                      {formatRupiah(factoryWeightProfitRp)}
+                    </span>
+                  </td>
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono overflow-hidden">
+                    {missingFlags.missingFactoryPrice ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onUpdateSerial ? setEditingSerial(batch) : setActiveSerial(batch)
+                        }
+                        title="Harga target pabrik belum diisi — klik untuk melengkapi"
+                        className="text-[12.5px] font-black text-rose-400 hover:text-rose-300 whitespace-nowrap cursor-pointer underline decoration-rose-500/60 underline-offset-2"
+                      >
+                        ⏳ Isi Harga
+                      </button>
+                    ) : (
+                      <span className="text-[12.5px] font-black text-amber-300 whitespace-nowrap">
+                        {formatRupiah(batch.projectedRevenue)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono overflow-hidden">
+                    <span
+                      className={`text-[12.5px] font-black whitespace-nowrap ${
+                        missingFlags.missingFactoryPrice
+                          ? 'text-rose-400'
+                          : profitRp >= 0
+                            ? 'text-emerald-400'
+                            : 'text-rose-400'
+                      }`}
+                    >
+                      {profitRp > 0 ? '+' : ''}
+                      {formatRupiah(profitRp)}
+                    </span>
+                  </td>
+                  <td className="py-1.5 px-1.5 border-r border-zinc-800 align-middle overflow-hidden">
+                    <div
+                      className={`grid grid-cols-6 divide-x rounded text-center font-mono border ${
+                        missingFlags.missingAttributes
+                          ? 'divide-rose-500/40 bg-rose-950/35 border-rose-500/80'
+                          : 'divide-zinc-800 bg-black/70 border-zinc-800/90'
+                      }`}
+                    >
+                      {sensoryCells.map((cell) => (
+                        <div
+                          key={cell.code}
+                          title={`${cell.fullLabel}: ${cell.formatted} / 5`}
+                          className="px-0.5 py-1 leading-none"
+                        >
+                          <span
+                            className={`block text-[8.5px] uppercase font-bold ${
+                              missingFlags.missingAttributes ? 'text-rose-300/90' : 'text-zinc-400'
+                            }`}
+                          >
+                            {cell.code}
+                          </span>
+                          <span
+                            className={`block text-xs font-black mt-0.5 ${
+                              missingFlags.missingAttributes ? 'text-rose-400' : 'text-amber-300'
+                            }`}
+                          >
+                            {cell.formatted}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </td>
+                  <td rowSpan={2} className="py-1.5 px-1.5 align-middle text-center bg-[#080a10]">
+                    <div className="flex flex-col gap-1.5 items-stretch">
+                      <button
+                        type="button"
+                        onClick={() => setActiveSerial(batch)}
+                        className="alucard-edge-btn-quiet h-7 px-2 rounded text-[11px] font-black inline-flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>Detail</span>
+                      </button>
+                      <div className="grid grid-cols-2 gap-1">
+                        {onUpdateSerial && (
+                          <button
+                            type="button"
+                            aria-label={`Edit Seri ${batch.serialNumber}`}
+                            title={
+                              missingFlags.isIncomplete
+                                ? `Lengkapi: ${missingFlags.missingLabels.join(', ')}`
+                                : `Edit Seri ${batch.serialNumber}`
+                            }
+                            onClick={() => setEditingSerial(batch)}
+                            className={`h-7 rounded border flex items-center justify-center cursor-pointer ${
+                              missingFlags.isIncomplete
+                                ? 'bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 border-rose-500/80'
+                                : 'bg-zinc-950 hover:bg-zinc-900 text-amber-400 border-zinc-800 hover:border-amber-500/60'
+                            }`}
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`Hapus Seri ${batch.serialNumber}`}
+                          title={`Hapus Seri ${batch.serialNumber}`}
+                          onClick={() => onDelete(batch.id)}
+                          className={`${
+                            onUpdateSerial ? '' : 'col-span-2'
+                          } h-7 rounded bg-black hover:bg-red-950/70 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/70 flex items-center justify-center cursor-pointer`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+
+                {/* BARIS 2 */}
+                <tr className="text-[11px]">
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle overflow-hidden">
+                    <div className="flex items-center justify-between gap-1 font-mono min-w-0">
+                      {status === 'ACCEPTED_CAIR' ? (
+                        <span className="text-amber-400 font-black shrink-0">Diterima</span>
+                      ) : status === 'REJECTED_STOCK' ? (
+                        <span className="text-rose-400 font-black shrink-0">Reject</span>
+                      ) : (
+                        <span className="text-zinc-300 shrink-0">Pending</span>
+                      )}
+                      <span className="text-[10px] text-zinc-400 truncate">{batch.createdAt}</span>
+                    </div>
+                  </td>
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle overflow-hidden">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="font-mono font-bold text-amber-300 shrink-0">{rollCode}</span>
+                      <span className="text-zinc-300 truncate" title={batch.recipeName}>
+                        · {batch.recipeName || 'Racikan'}
+                      </span>
+                    </div>
+                  </td>
+                  <td
+                    className={`py-1.5 px-2 border-r border-zinc-800 align-middle font-mono whitespace-nowrap overflow-hidden ${
+                      missingFlags.missingWeight ? 'text-rose-400 font-bold' : 'text-zinc-300'
+                    }`}
+                  >
+                    {missingFlags.missingWeight
+                      ? '⏳ Timbangan kosong'
+                      : `Br ${brutoKg}kg − Tr ${batch.factoryDeductionKg}kg`}
+                  </td>
+                  <td
+                    className={`py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono whitespace-nowrap overflow-hidden ${
+                      missingFlags.missingWeight ? 'text-rose-400 font-bold' : 'text-zinc-300'
+                    }`}
+                  >
+                    Rl {realTobaccoNetKg} · Wd {realPkgMassKg}
+                  </td>
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono overflow-hidden">
+                    <span
+                      className={`font-bold text-[11.5px] whitespace-nowrap ${
+                        factoryWeightProfitKg >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      }`}
+                    >
+                      {factoryWeightProfitKg > 0 ? '+' : ''}
+                      {factoryWeightProfitKg} kg
+                    </span>
+                  </td>
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono text-zinc-300 whitespace-nowrap overflow-hidden">
+                    Mdl {formatRupiah(batch.totalProductionCost)}
+                  </td>
+                  <td
+                    className={`py-1.5 px-2 border-r border-zinc-800 align-middle text-right font-mono whitespace-nowrap overflow-hidden ${
+                      missingFlags.missingFactoryPrice ? 'text-rose-400 font-bold' : 'text-zinc-200'
+                    }`}
+                  >
+                    {missingFlags.missingFactoryPrice ? '⏳ —' : marginText}
+                  </td>
+                  <td className="py-1.5 px-2 border-r border-zinc-800 align-middle overflow-hidden">
+                    <span className="text-zinc-300 truncate block" title={ingredientsSummary}>
+                      {ingredientsSummary}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            );
+          })}
+        </table>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-3 pb-20 md:pb-4">
@@ -466,22 +900,29 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
           </div>
 
           {viewMode !== 'csv-sync' && visibleSerialIds.length > 0 && (
-            <button
-              type="button"
-              aria-pressed={allSerialsExpanded}
-              onClick={() =>
-                setExpandedCardIds((prev) => toggleAllCardsExpanded(prev, visibleSerialIds))
-              }
-              className="alucard-edge-btn-quiet min-h-9 sm:min-h-10 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
-            >
-              <ChevronsUpDown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="hidden sm:inline">
-                {allSerialsExpanded ? 'Ringkas Semua' : 'Buka Semua'}
+            <>
+              <button
+                type="button"
+                aria-pressed={allSerialsExpanded}
+                onClick={() =>
+                  setExpandedCardIds((prev) => toggleAllCardsExpanded(prev, visibleSerialIds))
+                }
+                className="md:hidden alucard-edge-btn-quiet min-h-9 sm:min-h-10 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+              >
+                <ChevronsUpDown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="hidden sm:inline">
+                  {allSerialsExpanded ? 'Ringkas Semua' : 'Buka Semua'}
+                </span>
+                <span className="sm:hidden">
+                  {allSerialsExpanded ? 'Ringkas' : 'Buka'}
+                </span>
+              </button>
+
+              <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-black border border-zinc-800 text-[10px] font-semibold text-zinc-400 shrink-0">
+                <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>Excel 2-Baris (PC)</span>
               </span>
-              <span className="sm:hidden">
-                {allSerialsExpanded ? 'Ringkas' : 'Buka'}
-              </span>
-            </button>
+            </>
           )}
 
           <button
@@ -759,10 +1200,13 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
           </div>
         </motion.div>
       ) : viewMode === 'grid-3d' ? (
-        /* Dynamic CSS Grid: 1 card per row on small phones (<420px), 2 per row when space permits (>=420px), 3-4 on larger screens */
-        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
-          {filtered.map((batch, idx) => render3DCard(batch, idx))}
-        </div>
+        <>
+          {renderPcExcelTable(filtered)}
+          {/* Mobile (<768px): Compact Expandable Cards */}
+          <div className="md:hidden grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 items-start">
+            {filtered.map((batch, idx) => render3DCard(batch, idx))}
+          </div>
+        </>
       ) : (
         <div className="space-y-4">
           {groupedByRoll.map(({ roll, items }) => (
@@ -813,7 +1257,8 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 items-start">
+              {renderPcExcelTable(items)}
+              <div className="md:hidden grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 items-start">
                 {items.map((batch, idx) => render3DCard(batch, idx))}
               </div>
             </div>

@@ -28,12 +28,13 @@ export function parseSafeApiResponseText<T = Record<string, unknown>>(params: {
   }
 
   if (!ok) {
+    const parsedObj =
+      parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
     const serverErr =
-      parsed &&
-      typeof parsed === 'object' &&
-      'error' in parsed &&
-      typeof (parsed as { error?: unknown }).error === 'string'
-        ? (parsed as { error: string }).error
+      parsedObj && typeof parsedObj.error === 'string' && parsedObj.error.trim()
+        ? parsedObj.error.trim()
+        : parsedObj && typeof parsedObj.message === 'string' && parsedObj.message.trim()
+        ? parsedObj.message.trim()
         : '';
 
     if (serverErr) {
@@ -55,10 +56,17 @@ export function parseSafeApiResponseText<T = Record<string, unknown>>(params: {
           'Server AI terlalu lama merespons (Timeout). Silakan coba scan ulang dalam beberapa detik.',
       };
     }
+    const plainSnippet = trimmed
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120);
     return {
       ok: false,
       data: null,
-      errorMessage: `${fallbackError} (HTTP ${status})`,
+      errorMessage: plainSnippet
+        ? `${fallbackError} (HTTP ${status}: ${plainSnippet})`
+        : `${fallbackError} (HTTP ${status})`,
     };
   }
 

@@ -98,7 +98,11 @@ async function generateWith24x7Fallback(params: {
   modelCascade?: readonly string[];
 }): Promise<{ text: string; modelUsed: string }> {
   const apiKeys = getGeminiApiKeys();
-  const keysToTry = apiKeys.length > 0 ? apiKeys : [undefined];
+  if (apiKeys.length === 0) {
+    throw new Error(
+      'Konfigurasi GEMINI_API_KEY di server belum aktif. Pastikan Environment Variable / Secrets GEMINI_API_KEY terpasang di server.'
+    );
+  }
   const maxTotalWaitMs = params.maxTotalWaitMs ?? 14000;
   const perModelTimeoutMs = params.perModelTimeoutMs ?? 7000;
   const cascade =
@@ -108,7 +112,7 @@ async function generateWith24x7Fallback(params: {
   const startAll = Date.now();
   let lastError: unknown = null;
 
-  for (const key of keysToTry) {
+  for (const key of apiKeys) {
     const ai = getGeminiClient(key);
     for (let i = 0; i < cascade.length; i++) {
       if (Date.now() - startAll >= maxTotalWaitMs) {
@@ -137,6 +141,7 @@ async function generateWith24x7Fallback(params: {
         if (text) {
           return { text, modelUsed: modelName };
         }
+        lastError = new Error(`Model ${modelName} mengembalikan respons kosong.`);
       } catch (err: any) {
         console.warn(`[Gemini Cascade] ${modelName} failed:`, err?.message || err);
         lastError = err;
@@ -1442,7 +1447,34 @@ async function upsertGitHubFile(params: {
 }
 
 export const app = express();
-app.use(express.json({ limit: '10mb' }));
+const jsonBodyParser = express.json({ limit: '10mb' });
+app.use((req, res, next) => {
+  // Serverless runtimes (e.g. Vercel) may pre-parse req.body and drain the stream.
+  if (req.body !== undefined && req.body !== null) {
+    if (typeof req.body === 'string' && req.body.trim().startsWith('{')) {
+      try {
+        req.body = JSON.parse(req.body);
+      } catch {
+        // leave as string; route handlers check typeof
+      }
+    }
+    if (typeof req.body === 'object' && !Buffer.isBuffer(req.body) && Object.keys(req.body).length > 0) {
+      return next();
+    }
+    if (req.readableEnded) {
+      return next();
+    }
+  }
+  return jsonBodyParser(req, res, next);
+});
+
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.json({
+    ok: true,
+    geminiConfigured: getGeminiApiKeys().length > 0,
+    timestamp: new Date().toISOString(),
+  });
+});
 
   // ============================================================================
   // 1. LOCAL SERVER BRAIN PERSISTENCE (/api/nolan/brain)
@@ -2319,20 +2351,31 @@ Aturan Saat Ini: ${JSON.stringify(currentMemory?.learnedRules || [])}`,
   // ============================================================================
   app.post('/api/scan-grade-card', async (req: Request, res: Response) => {
     try {
+      let parsedBody: any = req.body;
+      if (typeof parsedBody === 'string') {
+        try {
+          parsedBody = JSON.parse(parsedBody);
+        } catch {
+          parsedBody = {};
+        }
+      }
       const {
         imageBase64,
         mimeType = 'image/jpeg',
         masterContext = {},
         scanMode = 'NEW_STOCK',
-      } = req.body || {};
+      } = parsedBody || {};
       if (!imageBase64 || typeof imageBase64 !== 'string') {
         res.status(400).json({ error: 'Foto Kartu Grade tidak ditemukan atau kosong.' });
         return;
       }
 
-      const cleanBase64 = imageBase64.includes('base64,')
-        ? imageBase64.split('base64,').pop() || ''
-        : imageBase64.trim();
+      const dataUrlMimeMatch = imageBase64.match(/^data:(image\/[a-z0-9.+-]+);base64,/i);
+      const cleanBase64 = (
+        imageBase64.includes('base64,')
+          ? imageBase64.split('base64,').pop() || ''
+          : imageBase64
+      ).replace(/\s+/g, '');
 
       if (!cleanBase64 || cleanBase64.length < 100) {
         res.status(400).json({ error: 'Data gambar tidak valid atau terlalu kecil.' });
@@ -2388,10 +2431,10 @@ ATURAN PEMBACAAN KETAT:
    - Jika ada kotak/tulisan yang buram, miring, dua angka tercoret ragu, atau kurang jelas, WAJIB masukkan nama field-nya ke array uncertainFields (pilih dari: lotNumber, purchaseDate, graderName, name, origin, sellerName, colorGrade, packagingType, grossWeightKg, pricePerKgPurchase, powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating) dan turunkan confidenceScore (10-100).
    - Jika foto terlalu gelap/buram atau bukan foto Kartu Grade maupun Barcode, isi cards = [], detectedCount = 0, dan jelaskan di imageQualityWarning.`;
 
-      const safeMimeType =
-        typeof mimeType === 'string' && /^image\/(jpeg|png|webp|gif)$/i.test(mimeType.trim())
-          ? mimeType.trim().toLowerCase()
-          : 'image/jpeg';
+      const rawMime = dataUrlMimeMatch?.[1] || (typeof mimeType === 'string' ? mimeType.trim() : '');
+      const safeMimeType = /^image\/(jpeg|png|webp|gif)$/i.test(rawMime)
+        ? rawMime.toLowerCase()
+        : 'image/jpeg';
 
       const result = await generateWith24x7Fallback({
         contents: {
@@ -2405,8 +2448,8 @@ ATURAN PEMBACAAN KETAT:
             { text: visionPrompt },
           ],
         },
-        maxTotalWaitMs: 22000,
-        perModelTimeoutMs: 10000,
+        maxTotalWaitMs: 48000,
+        perModelTimeoutMs: 22000,
         modelCascade: ['gemini-3.1-flash-lite', 'gemini-4-hydrogen'],
         config: {
           responseMimeType: 'application/json',
@@ -2469,13 +2512,39 @@ ATURAN PEMBACAAN KETAT:
       });
     } catch (error) {
       console.error('Grade card scan error:', error);
-      res.status(500).json({
-        error:
-          error instanceof Error
-            ? `Gagal membaca foto Kartu Grade: ${error.message}`
-            : 'Gagal memproses foto Kartu Grade dengan Scanner AI.',
-      });
+      const rawMsg = error instanceof Error ? error.message : String(error || '');
+      let friendlyMsg = rawMsg
+        ? `Gagal membaca foto Kartu Grade: ${rawMsg}`
+        : 'Gagal memproses foto Kartu Grade dengan Scanner AI.';
+      if (/Unable to process input image|INVALID_ARGUMENT/i.test(rawMsg)) {
+        friendlyMsg =
+          'Format foto tidak dapat dibaca oleh server AI. Coba ambil ulang foto tegak lurus yang terang atau unggah JPEG/PNG dari galeri.';
+      } else if (/RESOURCE_EXHAUSTED|429|quota/i.test(rawMsg)) {
+        friendlyMsg =
+          'Server AI sedang padat sementara (batas antrean). Tunggu beberapa detik lalu coba scan ulang.';
+      } else if (/Timeout|Exceeded max wait/i.test(rawMsg)) {
+        friendlyMsg =
+          'Server AI melebihi batas waktu membaca foto. Coba dekatkan kamera ke kartu dan pastikan jaringan stabil.';
+      } else if (/PERMISSION_DENIED|API_KEY|GEMINI_API_KEY/i.test(rawMsg)) {
+        friendlyMsg =
+          'Konfigurasi GEMINI_API_KEY pada server belum valid/aktif. Periksa Secrets / Environment Variable server.';
+      }
+      res.status(500).json({ error: friendlyMsg });
     }
+  });
+
+  // Ensure any Express middleware / body-parser errors on /api/* return JSON, never HTML 500
+  app.use('/api', (err: any, _req: Request, res: Response, _next: any) => {
+    console.error('Express API middleware error:', err);
+    if (res.headersSent) return;
+    const status = Number(err?.status || err?.statusCode) || 500;
+    const msg =
+      status === 413
+        ? 'Ukuran foto terlalu besar untuk dikirim ke server. Coba foto ulang dari jarak sedikit lebih jauh.'
+        : err instanceof Error && err.message
+        ? err.message
+        : 'Terjadi kesalahan internal pada server API.';
+    res.status(status).json({ error: msg });
   });
 
 async function startServer() {
@@ -2483,7 +2552,8 @@ async function startServer() {
   // 5. VITE DEV MIDDLEWARE / PRODUCTION STATIC ASSETS
   // ============================================================================
   if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
+    const vitePkg = 'vite';
+    const { createServer: createViteServer } = await import(/* @vite-ignore */ vitePkg);
     const vite = await createViteServer({
       server: { middlewareMode: true, allowedHosts: true },
       appType: 'spa',

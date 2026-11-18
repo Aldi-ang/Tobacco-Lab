@@ -52,3 +52,25 @@ test('formatScannerClientError translates Safari expected-pattern error into cle
   );
   assert.match(msg, /Format gambar atau respons server/i);
 });
+
+test('parseSafeApiResponseText surfaces sanitized plain-text snippet on HTTP 500', () => {
+  const res = parseSafeApiResponseText({
+    ok: false,
+    status: 500,
+    rawText: '<html><body>A server error has occurred: FUNCTION_INVOCATION_FAILED</body></html>',
+    fallbackError: 'Gagal memproses foto Kartu Grade di server AI.',
+  });
+  assert.equal(res.ok, false);
+  assert.match(res.errorMessage || '', /HTTP 500: A server error has occurred/);
+});
+
+test('parseSafeApiResponseText extracts message field when error key is absent on 500', () => {
+  const res = parseSafeApiResponseText({
+    ok: false,
+    status: 500,
+    rawText: '{"message":"Internal server error: invalid payload"}',
+    fallbackError: 'Gagal memproses foto Kartu Grade di server AI.',
+  });
+  assert.equal(res.ok, false);
+  assert.equal(res.errorMessage, 'Internal server error: invalid payload');
+});

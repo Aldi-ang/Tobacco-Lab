@@ -331,10 +331,16 @@ export const CategorizedStockPicker: React.FC<CategorizedStockPickerProps> = ({
                             </span>
                           )}
                         </div>
-                        <div className="text-[10px] text-zinc-400 truncate mt-0.5">
-                          {group.avgHppPerKg > 0
-                            ? `Rata2 HPP ${formatRupiah(group.avgHppPerKg)}/kg (${formatRupiah(group.minHppPerKg)} – ${formatRupiah(group.maxHppPerKg)})`
-                            : 'Harga beli belum diisi (Menyusul)'}
+                        <div className="text-[10px] truncate mt-0.5">
+                          {group.avgHppPerKg > 0 ? (
+                            <span className="text-zinc-400">
+                              Rata2 HPP {formatRupiah(group.avgHppPerKg)}/kg ({formatRupiah(group.minHppPerKg)} – {formatRupiah(group.maxHppPerKg)})
+                            </span>
+                          ) : (
+                            <span className="text-rose-400 font-bold">
+                              Harga beli belum diisi (Menyusul)
+                            </span>
+                          )}
                         </div>
                       </div>
                     </button>
@@ -469,10 +475,15 @@ export const CategorizedStockPicker: React.FC<CategorizedStockPickerProps> = ({
                               <div className="text-[10px] text-zinc-400 truncate">
                                 {t.origin}
                                 {t.sellerName ? ` • ${t.sellerName}` : ''} • Sisa{' '}
-                                <b className="text-zinc-200">{t.currentStockNetKg} kg</b> •{' '}
-                                {t.realCostPerNetKg > 0
-                                  ? formatRupiah(t.realCostPerNetKg)
-                                  : 'Rp 0'}
+                                <b className={t.currentStockNetKg <= 0 ? 'text-rose-400' : 'text-zinc-200'}>
+                                  {t.currentStockNetKg} kg
+                                </b>{' '}
+                                •{' '}
+                                {t.realCostPerNetKg > 0 ? (
+                                  formatRupiah(t.realCostPerNetKg)
+                                ) : (
+                                  <span className="text-rose-400 font-bold">Rp 0 (Menyusul)</span>
+                                )}
                               </div>
                             </div>
 
