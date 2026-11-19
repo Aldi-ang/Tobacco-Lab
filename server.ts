@@ -29,6 +29,8 @@ function getGeminiApiKeys(): string[] {
     process.env.GEMINI_API_KEY_2,
     process.env.GEMINI_API_KEY_3,
     process.env.GOOGLE_API_KEY,
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    process.env.API_KEY,
   ]
     .map((k) => (k || '').trim())
     .filter(Boolean);
@@ -100,7 +102,7 @@ async function generateWith24x7Fallback(params: {
   const apiKeys = getGeminiApiKeys();
   if (apiKeys.length === 0) {
     throw new Error(
-      'Konfigurasi GEMINI_API_KEY di server belum aktif. Pastikan Environment Variable / Secrets GEMINI_API_KEY terpasang di server.'
+      'GEMINI_API_KEY belum terpasang di server ini (Nolan bisa jalan lokal tanpa key, tetapi Scan Foto AI butuh GEMINI_API_KEY di Secrets / Environment Variables server).'
     );
   }
   const maxTotalWaitMs = params.maxTotalWaitMs ?? 14000;

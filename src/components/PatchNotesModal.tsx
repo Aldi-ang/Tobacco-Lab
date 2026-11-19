@@ -13,7 +13,7 @@ import {
 
 import { ALUCARD_EASE } from './AlucardMotion';
 
-export const CURRENT_APP_VERSION = 'v4.3.5';
+export const CURRENT_APP_VERSION = 'v4.3.6';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -32,11 +32,40 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v4.3.6',
+    date: '18 November 2026',
+    codename:
+      'Kamera Full-Screen dengan Kotak Transparan Kartu Grade + Dukungan Alias Key Server',
+    isLatest: true,
+    highlights:
+      'Panel kamera Scan Kartu Grade dirombak total menjadi viewfinder layar penuh (full-screen 100dvh) dengan kotak transparan seukuran fisik Kartu Grade di bagian tengah, tombol jepret satu tangan, dan dukungan tambahan nama variabel key AI di server.',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Kamera Full-Screen + Kotak Transparan Seukuran Kartu Grade',
+        description:
+          'Saat membuka Scan Kartu Grade, kamera langsung tampil layar penuh tanpa kotak modal sempit, dilengkapi jendela transparan proporsi kartu (~100:94), sudut bidik amber, switcher mode Kartu Grade / Barcode, tombol Senter, Galeri, Kamera HP, dan shutter bulat besar.',
+      },
+      {
+        type: 'fix',
+        title: 'Pesan Jelas Konfigurasi GEMINI_API_KEY & Dukungan Alias Key Server',
+        description:
+          'Server kini ikut membaca alias GEMINI_API_KEY / GOOGLE_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY / API_KEY dan menjelaskan perbedaan mode offline Nolan dengan kebutuhan Vision AI server.',
+      },
+      {
+        type: 'fix',
+        title: 'Versi Live v4.3.6 di Header & Patch Notes',
+        description:
+          'Memperbarui penanda versi aktif ke v4.3.6 pada header atas dan Patch Notes agar pembaruan langsung terkonfirmasi di HP maupun PC.',
+      },
+    ],
+  },
+  {
     version: 'v4.3.5',
     date: '18 November 2026',
     codename:
       'Perbaikan Menyeluruh Scan Kartu Grade dari HP (Anti HTTP 500, Kompresi Foto Adaptif & Serverless Handler)',
-    isLatest: true,
+    isLatest: false,
     highlights:
       'Memperbaiki error "Gagal memproses foto Kartu Grade di server AI (HTTP 500)" saat scan dari kamera maupun galeri HP: mempercepat kompresi foto kamera 12MP–48MP agar aman di jaringan seluler & serverless, memperpanjang batas waktu Vision AI, serta memastikan handler Express/Serverless selalu mengembalikan JSON valid.',
     changes: [

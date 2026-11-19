@@ -302,6 +302,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
   const [scanQualityWarning, setScanQualityWarning] = useState<string>('');
   const [scanModelUsed, setScanModelUsed] = useState<string>('');
   const [reviewedCards, setReviewedCards] = useState<ReviewedScannedGradeCard[]>([]);
+  const [showManualLotBar, setShowManualLotBar] = useState(false);
 
   // Shared printYear & Grader registry read from storage for AI scan auto-fill + remember on save
   const [printYear, setPrintYear] = useState<number>(() => loadPrintPreferences().printYear);
@@ -363,8 +364,20 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
   };
 
   useEffect(() => {
+    if (cameraActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [cameraActive]);
+
+  useEffect(() => {
     if (!isOpen) {
       stopCamera();
+      setShowManualLotBar(false);
+      return;
+    }
+    if (initialTab === 'scan' && reviewedCards.length === 0 && !isScanningAI) {
+      void startCamera('NEW_STOCK', { silent: true });
     }
     return () => {
       stopCamera();
@@ -513,16 +526,22 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
     };
   }, [cameraActive, cameraPurpose, rawTobaccos]);
 
-  const startCamera = async (purpose: 'NEW_STOCK' | 'BARCODE_UPDATE' = 'NEW_STOCK') => {
+  const startCamera = async (
+    purpose: 'NEW_STOCK' | 'BARCODE_UPDATE' = 'NEW_STOCK',
+    options?: { silent?: boolean }
+  ) => {
     setCameraPurpose(purpose);
     setCameraError(null);
     setScanError(null);
+    setShowManualLotBar(false);
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraError(
-        purpose === 'BARCODE_UPDATE'
-          ? 'Kamera live tidak tersedia di browser ini. Ketik / tembak scanner USB Kode Lot di kotak bawah, atau pakai Foto Kamera HP / Galeri.'
-          : 'Browser tidak mendukung kamera langsung. Gunakan Upload Foto / Kamera HP di bawah.'
-      );
+      if (!options?.silent) {
+        setCameraError(
+          purpose === 'BARCODE_UPDATE'
+            ? 'Kamera live tidak tersedia di browser ini. Ketik / tembak scanner USB Kode Lot di kotak bawah, atau pakai Foto Kamera HP / Galeri.'
+            : 'Browser tidak mendukung kamera langsung. Gunakan Upload Foto / Kamera Bawaan HP.'
+        );
+      }
       return;
     }
     try {
@@ -552,11 +571,13 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
         setTorchSupported(Boolean(caps?.torch));
       }
     } catch (err) {
-      setCameraError(
-        err instanceof Error
-          ? `Kamera gagal dibuka (${err.message}). Gunakan scanner USB/ketik Lot di bawah atau Upload Foto.`
-          : 'Kamera gagal dibuka. Gunakan scanner USB/ketik Lot di bawah atau Upload Foto.'
-      );
+      if (!options?.silent) {
+        setCameraError(
+          err instanceof Error
+            ? `Kamera gagal dibuka (${err.message}). Gunakan Upload Foto Galeri atau Kamera Bawaan HP.`
+            : 'Kamera gagal dibuka. Gunakan Upload Foto Galeri atau Kamera Bawaan HP.'
+        );
+      }
     }
   };
 
@@ -879,361 +900,493 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
 
   if (!isOpen) return null;
 
+  const isFullScreenCamera = cameraActive && reviewedCards.length === 0 && !isScanningAI;
+
   return (
     <>
-      <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4"
-          onClick={onClose}
+      {/* Hidden file inputs always mounted for both Full-Screen Camera & Fallback Launcher */}
+      <input
+        ref={nativeCameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(e) => handleFileSelected(e, cameraPurpose)}
+        className="hidden"
+      />
+      <input
+        ref={barcodePhotoInputRef}
+        type="file"
+        accept="image/*"
+        onChange={(e) => handleFileSelected(e, 'BARCODE_UPDATE')}
+        className="hidden"
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={(e) => handleFileSelected(e, cameraPurpose)}
+        className="hidden"
+      />
+
+      {isFullScreenCamera ? (
+        <div
+          className="fixed inset-0 z-[300] w-screen h-[100dvh] bg-black text-white overflow-hidden select-none flex flex-col justify-between"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Kamera Full-Screen Kartu Grade"
         >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 12 }}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-5xl max-h-[92vh] bg-[#070709] border border-zinc-800 rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden text-white"
-          >
-            {/* Header */}
-            <div className="px-4 py-3 sm:px-6 border-b border-zinc-800 bg-black/90 flex flex-wrap items-center justify-between gap-2 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#0d0f14] border border-amber-500/70 flex items-center justify-center text-amber-300 shrink-0">
-                  <Camera className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm sm:text-base font-black tracking-tight text-white">
-                    Scan Kartu Grade &amp; Barcode AI
-                  </h2>
-                </div>
-              </div>
+          {/* Full-Bleed Live Camera Feed */}
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            autoPlay
+            className="absolute inset-0 w-full h-full object-cover bg-black"
+          />
 
-              <div className="flex items-center gap-2">
-                {onOpenPrintPanel && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onOpenPrintPanel();
-                    }}
-                    className="h-9 px-3.5 rounded-xl bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>Buka Cetak Kartu</span>
-                  </button>
-                )}
+          {/* Center Transparent Grade-Card Square Cutout Overlay (GPU-safe 3-row flex mask) */}
+          <div className="pointer-events-none absolute inset-0 flex flex-col">
+            <div className={`flex-1 ${cameraPurpose === 'BARCODE_UPDATE' ? 'bg-black/68' : 'bg-black/62'}`} />
+            <div className="flex items-stretch">
+              <div className={`flex-1 ${cameraPurpose === 'BARCODE_UPDATE' ? 'bg-black/68' : 'bg-black/62'}`} />
+              {cameraPurpose === 'BARCODE_UPDATE' ? (
+                <div className="relative w-[min(88vw,460px)] h-36 sm:h-44 shrink-0 border-2 border-emerald-400/85 bg-transparent">
+                  <span className="absolute -top-0.5 -left-0.5 w-7 h-7 border-t-[4px] border-l-[4px] border-emerald-400" />
+                  <span className="absolute -top-0.5 -right-0.5 w-7 h-7 border-t-[4px] border-r-[4px] border-emerald-400" />
+                  <span className="absolute -bottom-0.5 -left-0.5 w-7 h-7 border-b-[4px] border-l-[4px] border-emerald-400" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-7 h-7 border-b-[4px] border-r-[4px] border-emerald-400" />
+                  <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-[2px] bg-red-500/90 shadow-[0_0_10px_rgba(239,68,68,0.95)]" />
+                  <div className="absolute -top-9 left-1/2 -translate-x-1/2 px-3 py-1 rounded-lg bg-black/80 border border-emerald-500/60 text-[11px] font-extrabold text-emerald-300 whitespace-nowrap">
+                    Arahkan Barcode Belakang Kartu ke Kotak Ini
+                  </div>
+                </div>
+              ) : (
+                <div className="relative w-[min(86vw,54vh,440px)] aspect-[100/94] shrink-0 border border-white/40 bg-transparent">
+                  <span className="absolute -top-0.5 -left-0.5 w-8 h-8 border-t-[4px] border-l-[4px] border-amber-400" />
+                  <span className="absolute -top-0.5 -right-0.5 w-8 h-8 border-t-[4px] border-r-[4px] border-amber-400" />
+                  <span className="absolute -bottom-0.5 -left-0.5 w-8 h-8 border-b-[4px] border-l-[4px] border-amber-400" />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-8 h-8 border-b-[4px] border-r-[4px] border-amber-400" />
+                  <div className="absolute -top-9 left-1/2 -translate-x-1/2 px-3 py-1 rounded-lg bg-black/80 border border-amber-500/60 text-[11px] font-extrabold text-amber-300 whitespace-nowrap">
+                    Paskan Kartu Grade di Dalam Kotak Transparan
+                  </div>
+                </div>
+              )}
+              <div className={`flex-1 ${cameraPurpose === 'BARCODE_UPDATE' ? 'bg-black/68' : 'bg-black/62'}`} />
+            </div>
+            <div className={`flex-1 ${cameraPurpose === 'BARCODE_UPDATE' ? 'bg-black/68' : 'bg-black/62'}`} />
+          </div>
 
-                <button
-                  type="button"
-                  onClick={onClose}
-                  aria-label="Tutup Scanner Kartu Grade"
-                  className="h-9 w-9 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+          {/* Minimal Top HUD */}
+          <div className="relative z-10 px-3 sm:px-5 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 flex items-center justify-between gap-2 bg-gradient-to-b from-black/75 via-black/35 to-transparent">
+            {/* Compact Mode Switcher */}
+            <div className="inline-flex items-center p-1 rounded-xl bg-black/70 backdrop-blur-md border border-white/15">
+              <button
+                type="button"
+                onClick={() => setCameraPurpose('NEW_STOCK')}
+                className={`h-8 px-2.5 sm:px-3 rounded-lg text-[11px] sm:text-xs font-black transition-colors cursor-pointer ${
+                  cameraPurpose === 'NEW_STOCK'
+                    ? 'bg-amber-500 text-black'
+                    : 'text-zinc-300 hover:text-white'
+                }`}
+              >
+                Kartu Grade
+              </button>
+              <button
+                type="button"
+                onClick={() => setCameraPurpose('BARCODE_UPDATE')}
+                className={`h-8 px-2.5 sm:px-3 rounded-lg text-[11px] sm:text-xs font-black transition-colors cursor-pointer ${
+                  cameraPurpose === 'BARCODE_UPDATE'
+                    ? 'bg-emerald-500 text-black'
+                    : 'text-zinc-300 hover:text-white'
+                }`}
+              >
+                Barcode
+              </button>
             </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable] p-4 sm:p-5 space-y-4">
-                  {/* Hidden file inputs for native mobile camera, barcode update photo, & gallery */}
-                  <input
-                    ref={nativeCameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={(e) => handleFileSelected(e, cameraPurpose)}
-                    className="hidden"
-                  />
-                  <input
-                    ref={barcodePhotoInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileSelected(e, 'BARCODE_UPDATE')}
-                    className="hidden"
-                  />
-                  <input
-                    ref={galleryInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileSelected(e, 'NEW_STOCK')}
-                    className="hidden"
-                  />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleTorch}
+                aria-label={torchOn ? 'Matikan Senter' : 'Nyalakan Senter'}
+                title={torchSupported ? 'Senter Kamera' : 'Coba nyalakan senter kamera'}
+                className={`h-9 px-3 rounded-xl border backdrop-blur-md text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer ${
+                  torchOn
+                    ? 'bg-amber-500/25 text-amber-300 border-amber-400'
+                    : 'bg-black/65 hover:bg-black/80 text-zinc-100 border-white/15'
+                }`}
+              >
+                {torchOn ? <Zap className="w-4 h-4 fill-current" /> : <ZapOff className="w-4 h-4" />}
+                <span className="hidden sm:inline">{torchOn ? 'Senter ON' : 'Senter'}</span>
+              </button>
 
-                  {/* Capture Section (shown when no reviewed cards yet) */}
-                  {reviewedCards.length === 0 && (
-                    <div className="space-y-4">
-                      {/* Live Camera Frame OR Capture Options */}
-                      {cameraActive ? (
-                        <div
-                          className={`relative rounded-2xl overflow-hidden border-2 bg-black ${
-                            cameraPurpose === 'BARCODE_UPDATE'
-                              ? 'border-emerald-500/80'
-                              : 'border-amber-500/70'
-                          }`}
-                        >
-                          <div className="relative w-full aspect-[4/3] sm:aspect-[16/10] max-h-[50vh] bg-black overflow-hidden">
-                            <video
-                              ref={videoRef}
-                              playsInline
-                              muted
-                              autoPlay
-                              className="w-full h-full object-cover bg-black"
-                            />
-                          </div>
+              <button
+                type="button"
+                onClick={() => setShowManualLotBar((v) => !v)}
+                aria-label="Input Kode Lot Manual atau USB"
+                title="Ketik / Scanner USB Kode Lot"
+                className={`h-9 px-3 rounded-xl border backdrop-blur-md text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer ${
+                  showManualLotBar
+                    ? 'bg-emerald-500/25 text-emerald-300 border-emerald-400'
+                    : 'bg-black/65 hover:bg-black/80 text-zinc-100 border-white/15'
+                }`}
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Lot Manual</span>
+              </button>
 
-                          {/* Purpose-Specific Warehouse Framing Overlay */}
-                          {cameraPurpose === 'BARCODE_UPDATE' ? (
-                            <div className="pointer-events-none absolute inset-x-8 sm:inset-x-16 top-1/2 -translate-y-1/2 h-32 border-2 border-emerald-400/70 rounded-xl bg-emerald-500/5">
-                              <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-[2px] bg-red-500/85 shadow-[0_0_8px_rgba(239,68,68,0.9)]" />
-                              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-black/85 border border-emerald-500/60 text-[10px] font-extrabold text-emerald-300 whitespace-nowrap">
-                                Arahkan ke Barcode Belakang Kartu (Auto-Deteksi Lot)
-                              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  stopCamera();
+                  onClose();
+                }}
+                aria-label="Tutup Kamera"
+                className="h-9 w-9 rounded-xl bg-black/70 hover:bg-black/90 border border-white/20 text-white flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Optional Floating Quick Lot / USB Barcode Input Drawer */}
+          {showManualLotBar && (
+            <div className="relative z-20 mx-auto w-[min(92vw,460px)] p-3 rounded-xl bg-black/85 backdrop-blur-md border border-emerald-500/50 shadow-2xl">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleBarcodeLotResolved(barcodeManualQuery);
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  type="text"
+                  value={barcodeManualQuery}
+                  onChange={(e) => setBarcodeManualQuery(e.target.value)}
+                  placeholder="Ketik Kode Lot / tembak USB (mis. MTL001)..."
+                  autoFocus
+                  className="flex-1 h-9 px-3 rounded-lg bg-zinc-950 border border-zinc-700 text-xs font-mono text-white focus:outline-hidden focus:border-emerald-400"
+                />
+                <button
+                  type="submit"
+                  className="h-9 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs cursor-pointer shrink-0"
+                >
+                  Cari
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Minimal Bottom Shutter Dock */}
+          <div className="relative z-10 px-4 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black/85 via-black/50 to-transparent flex items-center justify-around sm:justify-center sm:gap-10">
+            {/* Gallery Picker */}
+            <button
+              type="button"
+              onClick={() => {
+                stopCamera();
+                galleryInputRef.current?.click();
+              }}
+              className="flex flex-col items-center gap-1 text-zinc-200 hover:text-white cursor-pointer"
+            >
+              <span className="w-11 h-11 rounded-2xl bg-black/70 border border-white/20 backdrop-blur-md flex items-center justify-center">
+                <Upload className="w-5 h-5" />
+              </span>
+              <span className="text-[11px] font-bold">Galeri</span>
+            </button>
+
+            {/* Primary Circular Shutter Button */}
+            <button
+              type="button"
+              onClick={handleCaptureFromLiveVideo}
+              aria-label={
+                cameraPurpose === 'BARCODE_UPDATE'
+                  ? 'Jepret & Baca Barcode'
+                  : 'Jepret Kartu Grade'
+              }
+              className="flex flex-col items-center gap-1.5 cursor-pointer group"
+            >
+              <span
+                className={`w-[72px] h-[72px] rounded-full p-1 border-[3px] border-white shadow-[0_0_25px_rgba(0,0,0,0.8)] flex items-center justify-center transition-transform active:scale-95 ${
+                  cameraPurpose === 'BARCODE_UPDATE' ? 'bg-emerald-500/25' : 'bg-amber-500/25'
+                }`}
+              >
+                <span
+                  className={`w-full h-full rounded-full flex items-center justify-center ${
+                    cameraPurpose === 'BARCODE_UPDATE'
+                      ? 'bg-emerald-400 text-black'
+                      : 'bg-amber-400 text-black'
+                  }`}
+                >
+                  {cameraPurpose === 'BARCODE_UPDATE' ? (
+                    <ScanBarcode className="w-7 h-7" />
+                  ) : (
+                    <Camera className="w-7 h-7" />
+                  )}
+                </span>
+              </span>
+              <span className="text-[11px] font-black tracking-wide text-white drop-shadow">
+                {cameraPurpose === 'BARCODE_UPDATE' ? 'Jepret Barcode' : 'Jepret Kartu'}
+              </span>
+            </button>
+
+            {/* Native Phone Camera Fallback (for macro autofocus) */}
+            <button
+              type="button"
+              onClick={() => {
+                stopCamera();
+                nativeCameraInputRef.current?.click();
+              }}
+              className="flex flex-col items-center gap-1 text-zinc-200 hover:text-white cursor-pointer"
+            >
+              <span className="w-11 h-11 rounded-2xl bg-black/70 border border-white/20 backdrop-blur-md flex items-center justify-center">
+                <ImageIcon className="w-5 h-5" />
+              </span>
+              <span className="text-[11px] font-bold">Kamera HP</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4"
+            onClick={onClose}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-5xl max-h-[92vh] bg-[#070709] border border-zinc-800 rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden text-white"
+            >
+              {/* Header */}
+              <div className="px-4 py-3 sm:px-6 border-b border-zinc-800 bg-black/90 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-[#0d0f14] border border-amber-500/70 flex items-center justify-center text-amber-300 shrink-0">
+                    <Camera className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm sm:text-base font-black tracking-tight text-white">
+                      Scan Kartu Grade &amp; Barcode AI
+                    </h2>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {onOpenPrintPanel && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenPrintPanel();
+                      }}
+                      className="h-9 px-3.5 rounded-xl bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Buka Cetak Kartu</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Tutup Scanner Kartu Grade"
+                    className="h-9 w-9 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable] p-4 sm:p-5 space-y-4">
+                {/* Fallback Launcher / Progress / Error (shown when camera is off & no reviewed cards yet) */}
+                {reviewedCards.length === 0 && (
+                  <div className="space-y-4">
+                    {!isScanningAI && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => startCamera('NEW_STOCK')}
+                            disabled={isScanningAI}
+                            className="p-4 sm:p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-amber-500/60 hover:border-amber-400 text-left space-y-2 transition-colors duration-150 cursor-pointer"
+                          >
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/50 flex items-center justify-center text-amber-400">
+                              <Camera className="w-5 h-5" />
                             </div>
-                          ) : (
-                            <div className="pointer-events-none absolute inset-5 sm:inset-8 border border-amber-400/30 rounded-xl">
-                              <span className="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-[3px] border-l-[3px] border-amber-400 rounded-tl-md" />
-                              <span className="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-[3px] border-r-[3px] border-amber-400 rounded-tr-md" />
-                              <span className="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-[3px] border-l-[3px] border-amber-400 rounded-bl-md" />
-                              <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-[3px] border-r-[3px] border-amber-400 rounded-br-md" />
-                              <div className="absolute top-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/75 border border-amber-500/50 text-[10px] font-extrabold text-amber-300 whitespace-nowrap">
-                                Jajarkan 1 s/d 4 Kartu Stok Baru di Dalam Bingkai
-                              </div>
+                            <div className="text-sm font-black text-white">
+                              1. Buka Kamera Full-Screen (Kartu Grade)
                             </div>
-                          )}
+                            <p className="text-xs text-zinc-400 leading-relaxed">
+                              Tampilan kamera layar penuh dengan kotak transparan seukuran Kartu Grade.
+                            </p>
+                          </button>
 
-                          {/* Camera HUD Controls */}
-                          <div className="p-3 bg-black/95 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={toggleTorch}
-                                className={`h-10 px-3 rounded-xl border text-xs font-extrabold inline-flex items-center gap-1.5 cursor-pointer ${
-                                  torchOn
-                                    ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
-                                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border-zinc-700'
-                                }`}
-                                title={
-                                  torchSupported
-                                    ? 'Nyalakan/matikan lampu senter kamera'
-                                    : 'Coba nyalakan senter kamera'
-                                }
-                              >
-                                {torchOn ? (
-                                  <Zap className="w-4 h-4 fill-current" />
-                                ) : (
-                                  <ZapOff className="w-4 h-4" />
-                                )}
-                                <span>{torchOn ? 'Senter ON' : 'Senter'}</span>
-                              </button>
+                          <button
+                            type="button"
+                            onClick={() => startCamera('BARCODE_UPDATE')}
+                            disabled={isScanningAI}
+                            className="p-4 sm:p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-emerald-500/55 hover:border-emerald-400 text-left space-y-2 transition-colors duration-150 cursor-pointer"
+                          >
+                            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/50 flex items-center justify-center text-emerald-400">
+                              <ScanBarcode className="w-5 h-5" />
+                            </div>
+                            <div className="text-sm font-black text-white">
+                              2. Kamera Scan Barcode
+                            </div>
+                            <p className="text-xs text-zinc-400 leading-relaxed">
+                              Scan barcode belakang kartu untuk update timbangan, harga, &amp; edit info.
+                            </p>
+                          </button>
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  stopCamera();
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCameraPurpose('NEW_STOCK');
+                              galleryInputRef.current?.click();
+                            }}
+                            disabled={isScanningAI}
+                            className="p-4 sm:p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-left space-y-2 transition-colors duration-150 cursor-pointer"
+                          >
+                            <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center text-zinc-200">
+                              <Upload className="w-5 h-5" />
+                            </div>
+                            <div className="text-sm font-black text-white">
+                              3. Upload Foto dari Galeri
+                            </div>
+                            <p className="text-xs text-zinc-400 leading-relaxed">
+                              Pilih foto dari HP/WhatsApp atau gunakan{' '}
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(ev) => {
+                                  ev.stopPropagation();
                                   nativeCameraInputRef.current?.click();
                                 }}
-                                className="h-10 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                                onKeyDown={(ev) => {
+                                  if (ev.key === 'Enter' || ev.key === ' ') {
+                                    ev.stopPropagation();
+                                    nativeCameraInputRef.current?.click();
+                                  }
+                                }}
+                                className="text-amber-300 underline font-bold"
                               >
-                                <ImageIcon className="w-3.5 h-3.5" />
-                                <span>Kamera Bawaan</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={stopCamera}
-                                className="h-10 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 text-xs font-bold cursor-pointer"
-                              >
-                                Tutup Kamera
-                              </button>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={handleCaptureFromLiveVideo}
-                              className={`h-11 px-5 rounded-xl font-black text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer border shadow-lg transition-colors ${
-                                cameraPurpose === 'BARCODE_UPDATE'
-                                  ? 'bg-[#0c1411] hover:bg-emerald-950/50 text-emerald-300 border-emerald-500/80'
-                                  : 'bg-[#0d0f14] hover:bg-amber-500/10 text-amber-300 border-amber-500/80'
-                              }`}
-                            >
-                              {cameraPurpose === 'BARCODE_UPDATE' ? (
-                                <ScanBarcode className="w-4 h-4" />
-                              ) : (
-                                <Camera className="w-4 h-4" />
-                              )}
-                              <span>
-                                {cameraPurpose === 'BARCODE_UPDATE'
-                                  ? 'Jepret & Baca Barcode (AI)'
-                                  : 'Jepret & Input Stok Baru'}
+                                Kamera Bawaan HP
                               </span>
-                            </button>
-                          </div>
+                              .
+                            </p>
+                          </button>
                         </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            {/* OPTION 1: Camera Mode 1 — Input Stok Baru */}
-                            <button
-                              type="button"
-                              onClick={() => startCamera('NEW_STOCK')}
-                              disabled={isScanningAI}
-                              className="p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-amber-500/60 hover:border-amber-400 text-left space-y-2 transition-colors duration-150 cursor-pointer"
-                            >
-                              <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/50 flex items-center justify-center text-amber-400">
-                                <Camera className="w-5 h-5" />
-                              </div>
-                              <div className="text-sm font-black text-white">
-                                1. Kamera Stok Baru (Kartu Grade)
-                              </div>
-                              <p className="text-xs text-zinc-400 leading-relaxed">
-                                Foto kartu depan (Silang X &amp; tulis tangan) untuk upload stok baru atau update tulisan kertas baru.
-                              </p>
-                            </button>
 
-                            {/* OPTION 2: Camera Mode 2 — Barcode Scanner for Update & Edit Info */}
-                            <button
-                              type="button"
-                              onClick={() => startCamera('BARCODE_UPDATE')}
-                              disabled={isScanningAI}
-                              className="p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-emerald-500/55 hover:border-emerald-400 text-left space-y-2 transition-colors duration-150 cursor-pointer"
-                            >
-                              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/50 flex items-center justify-center text-emerald-400">
-                                <ScanBarcode className="w-5 h-5" />
-                              </div>
-                              <div className="text-sm font-black text-white">
-                                2. Scan Barcode (Update / Edit Info)
-                              </div>
-                              <p className="text-xs text-zinc-400 leading-relaxed">
-                                Scan barcode besar di belakang kartu untuk update timbangan, harga, &amp; edit info stok lama.
-                              </p>
-                            </button>
-
-                            {/* OPTION 3: Gallery Upload */}
-                            <button
-                              type="button"
-                              onClick={() => galleryInputRef.current?.click()}
-                              disabled={isScanningAI}
-                              className="p-5 rounded-2xl bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-left space-y-2 transition-colors duration-150 cursor-pointer"
-                            >
-                              <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center text-zinc-200">
-                                <Upload className="w-5 h-5" />
-                              </div>
-                              <div className="text-sm font-black text-white">
-                                3. Upload Foto dari Galeri
-                              </div>
-                              <p className="text-xs text-zinc-400 leading-relaxed">
-                                Pilih foto dari HP/WhatsApp (bisa berisi 1 atau banyak kartu berjejer).
-                              </p>
-                            </button>
-                          </div>
-
-                          {/* Instant USB Barcode Gun / Upload Foto Barcode / Manual Lot Code Quick Update Bar */}
-                          <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
-                            <form
-                              onSubmit={(e) => {
-                                e.preventDefault();
-                                handleBarcodeLotResolved(barcodeManualQuery);
-                              }}
-                              className="flex flex-wrap items-center gap-2"
-                            >
-                              <div className="flex items-center gap-2 text-xs font-extrabold text-emerald-400 shrink-0">
-                                <ScanBarcode className="w-4 h-4" />
-                                <span>Scanner USB / Input Cepat Kode Lot:</span>
-                              </div>
-                              <input
-                                type="text"
-                                value={barcodeManualQuery}
-                                onChange={(e) => setBarcodeManualQuery(e.target.value)}
-                                placeholder="Tembak barcode USB atau ketik Kode Lot (mis. MTL001 / LOT-261115-701)..."
-                                className="flex-1 min-w-[200px] h-9 px-3 rounded-xl bg-black border border-zinc-800 text-xs font-mono text-white focus:outline-hidden focus:border-emerald-500"
-                              />
-                              <button
-                                type="submit"
-                                className="h-9 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs inline-flex items-center gap-1.5 cursor-pointer shrink-0"
-                              >
-                                <Search className="w-3.5 h-3.5" />
-                                <span>Cari &amp; Edit Stok</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => barcodePhotoInputRef.current?.click()}
-                                disabled={isScanningAI}
-                                className="h-9 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-emerald-500/45 text-emerald-300 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shrink-0"
-                              >
-                                <Upload className="w-3.5 h-3.5" />
-                                <span>Scan Foto Barcode</span>
-                              </button>
-                            </form>
-                          </div>
-                        </div>
-                      )}
-
-                      {cameraError && (
-                        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/50 text-xs text-amber-200 flex items-start gap-2">
-                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                          <span>{cameraError}</span>
-                        </div>
-                      )}
-
-                      {/* Scanning Progress Indicator */}
-                      {isScanningAI && (
-                        <div className="p-5 rounded-2xl bg-zinc-950 border border-amber-500/60 flex flex-col sm:flex-row items-center gap-4">
-                          {capturedPreviewUrl && (
-                            <img
-                              src={capturedPreviewUrl}
-                              alt="Preview Foto Kartu Grade"
-                              className="w-28 h-20 object-cover rounded-xl border border-zinc-700 shrink-0"
-                            />
-                          )}
-                          <div className="flex items-center gap-3">
-                            <Loader2 className="w-6 h-6 text-amber-400 animate-spin shrink-0" />
-                            <div>
-                              <div className="text-sm font-black text-white">
-                                Membaca Tulisan Tangan &amp; Kotak Silang (X)...
-                              </div>
-                              <p className="text-xs text-zinc-400">
-                                Mencocokkan Kode Lot, Kamus Master Penjual/Daerah, dan cek anti-dobel.
-                              </p>
+                        {/* Instant USB Barcode Gun / Upload Foto Barcode / Manual Lot Code Quick Update Bar */}
+                        <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
+                          <form
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              handleBarcodeLotResolved(barcodeManualQuery);
+                            }}
+                            className="flex flex-wrap items-center gap-2"
+                          >
+                            <div className="flex items-center gap-2 text-xs font-extrabold text-emerald-400 shrink-0">
+                              <ScanBarcode className="w-4 h-4" />
+                              <span>Scanner USB / Input Cepat Kode Lot:</span>
                             </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {scanError && !isScanningAI && (
-                        <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/70 text-xs text-red-200 flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex items-start gap-2">
-                            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                            <span>{scanError}</span>
-                          </div>
-                          <div className="flex items-center gap-2 flex-wrap ml-auto">
-                            {unregisteredBarcodeLot && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleRegisterUnregisteredBarcodeAsNew(unregisteredBarcodeLot)
-                                }
-                                className="h-8 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 font-black text-xs cursor-pointer transition-colors"
-                              >
-                                Daftarkan &ldquo;{unregisteredBarcodeLot}&rdquo; Sebagai Stok Baru
-                              </button>
-                            )}
+                            <input
+                              type="text"
+                              value={barcodeManualQuery}
+                              onChange={(e) => setBarcodeManualQuery(e.target.value)}
+                              placeholder="Tembak barcode USB atau ketik Kode Lot (mis. MTL001 / LOT-261115-701)..."
+                              className="flex-1 min-w-[200px] h-9 px-3 rounded-xl bg-black border border-zinc-800 text-xs font-mono text-white focus:outline-hidden focus:border-emerald-500"
+                            />
+                            <button
+                              type="submit"
+                              className="h-9 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                            >
+                              <Search className="w-3.5 h-3.5" />
+                              <span>Cari &amp; Edit Stok</span>
+                            </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                setUnregisteredBarcodeLot(null);
-                                resetForNextPhoto();
-                              }}
-                              className="h-8 px-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs cursor-pointer"
+                              onClick={() => barcodePhotoInputRef.current?.click()}
+                              disabled={isScanningAI}
+                              className="h-9 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-emerald-500/45 text-emerald-300 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer shrink-0"
                             >
-                              Coba Foto Ulang
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>Scan Foto Barcode</span>
                             </button>
+                          </form>
+                        </div>
+                      </div>
+                    )}
+
+                    {cameraError && (
+                      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/50 text-xs text-amber-200 flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <span>{cameraError}</span>
+                      </div>
+                    )}
+
+                    {/* Scanning Progress Indicator */}
+                    {isScanningAI && (
+                      <div className="p-5 rounded-2xl bg-zinc-950 border border-amber-500/60 flex flex-col sm:flex-row items-center gap-4">
+                        {capturedPreviewUrl && (
+                          <img
+                            src={capturedPreviewUrl}
+                            alt="Preview Foto Kartu Grade"
+                            className="w-28 h-20 object-cover rounded-xl border border-zinc-700 shrink-0"
+                          />
+                        )}
+                        <div className="flex items-center gap-3">
+                          <Loader2 className="w-6 h-6 text-amber-400 animate-spin shrink-0" />
+                          <div>
+                            <div className="text-sm font-black text-white">
+                              Membaca Tulisan Tangan &amp; Kotak Silang (X)...
+                            </div>
+                            <p className="text-xs text-zinc-400">
+                              Mencocokkan Kode Lot, Kamus Master Penjual/Daerah, dan cek anti-dobel.
+                            </p>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
+
+                    {scanError && !isScanningAI && (
+                      <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/70 text-xs text-red-200 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                          <span>{scanError}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap ml-auto">
+                          {unregisteredBarcodeLot && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleRegisterUnregisteredBarcodeAsNew(unregisteredBarcodeLot)
+                              }
+                              className="h-8 px-3 rounded-lg bg-[#0d0f14] hover:bg-amber-500/10 border border-amber-500/80 text-amber-300 font-black text-xs cursor-pointer transition-colors"
+                            >
+                              Daftarkan &ldquo;{unregisteredBarcodeLot}&rdquo; Sebagai Stok Baru
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUnregisteredBarcodeLot(null);
+                              resetForNextPhoto();
+                              void startCamera(cameraPurpose);
+                            }}
+                            className="h-8 px-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs cursor-pointer"
+                          >
+                            Buka Kamera Ulang
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                   {/* REVIEW CEPAT SEBELUM MASUK GUDANG */}
                   {reviewedCards.length > 0 && (
@@ -1848,10 +2001,11 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                   </button>
                 </div>
               </div>
-            )}
+              )}
+            </motion.div>
           </motion.div>
-        </motion.div>
-      </AnimatePresence>
+        </AnimatePresence>
+      )}
     </>
   );
 };
