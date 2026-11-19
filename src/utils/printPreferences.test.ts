@@ -6,10 +6,10 @@ import {
   sanitizePrintPreferences,
 } from './printPreferences';
 
-test('sanitizePrintPreferences returns fixed 6/A4 defaults and migrates legacy A4_4', () => {
+test('sanitizePrintPreferences returns 4/A4 defaults and migrates legacy A4_4', () => {
   assert.deepEqual(sanitizePrintPreferences(null), DEFAULT_PRINT_PREFERENCES);
   assert.equal(DEFAULT_PRINT_PREFERENCES.paperFormat, 'A4_6');
-  assert.equal(DEFAULT_PRINT_PREFERENCES.printCount, 6);
+  assert.equal(DEFAULT_PRINT_PREFERENCES.printCount, 4);
 
   const migratedLegacy = sanitizePrintPreferences({
     paperFormat: 'A4_4',
@@ -18,7 +18,7 @@ test('sanitizePrintPreferences returns fixed 6/A4 defaults and migrates legacy A
     hasCustomizedBefore: true,
   });
   assert.equal(migratedLegacy.paperFormat, 'A4_6');
-  assert.equal(migratedLegacy.printCount, 6);
+  assert.equal(migratedLegacy.printCount, 8);
 
   assert.deepEqual(
     sanitizePrintPreferences({
@@ -30,10 +30,12 @@ test('sanitizePrintPreferences returns fixed 6/A4 defaults and migrates legacy A
   );
 });
 
-test('sanitizePrintPreferences snaps A4 card counts to kelipatan 6 and preserves thermal counts', () => {
+test('sanitizePrintPreferences snaps A4 card counts to kelipatan 4 and preserves thermal counts', () => {
+  assert.equal(sanitizePrintPreferences({ paperFormat: 'A4_6', printCount: 4 }).printCount, 4);
+  assert.equal(sanitizePrintPreferences({ paperFormat: 'A4_6', printCount: 6 }).printCount, 8);
   assert.equal(sanitizePrintPreferences({ paperFormat: 'A4_6', printCount: 11 }).printCount, 12);
-  assert.equal(sanitizePrintPreferences({ paperFormat: 'A4_6', printCount: 18 }).printCount, 18);
-  assert.equal(sanitizePrintPreferences({ paperFormat: 'A4_6', printCount: 36 }).printCount, 36);
+  assert.equal(sanitizePrintPreferences({ paperFormat: 'A4_6', printCount: 16 }).printCount, 16);
+  assert.equal(sanitizePrintPreferences({ paperFormat: 'A4_6', printCount: 24 }).printCount, 24);
 
   const sanitized = sanitizePrintPreferences({
     paperFormat: 'THERMAL_80',
@@ -49,17 +51,17 @@ test('sanitizePrintPreferences snaps A4 card counts to kelipatan 6 and preserves
   assert.equal(sanitized.hasCustomizedBefore, true);
 });
 
-test('formatPaperSummaryLabel produces fixed A4 (6/Hal) summary string and sanitizes printYear', () => {
+test('formatPaperSummaryLabel produces A4 (4/Hal) summary string and sanitizes printYear', () => {
   assert.equal(
     formatPaperSummaryLabel({
       paperFormat: 'A4_6',
       duplexMode: 'LONG_EDGE',
-      printCount: 6,
+      printCount: 4,
       includeThermalBarcode: true,
       hasCustomizedBefore: true,
       printYear: 2026,
     }),
-    'A4 (6/Hal) • 2 Sisi (Long Edge)'
+    'A4 (4/Hal) • 2 Sisi (Long Edge)'
   );
   assert.equal(
     formatPaperSummaryLabel({

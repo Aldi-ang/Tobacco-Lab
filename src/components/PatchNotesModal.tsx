@@ -13,7 +13,7 @@ import {
 
 import { ALUCARD_EASE } from './AlucardMotion';
 
-export const CURRENT_APP_VERSION = 'v4.3.9';
+export const CURRENT_APP_VERSION = 'v4.4.2';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -32,10 +32,103 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v4.4.2',
+    date: '19 November 2026',
+    codename:
+      'Kotak Catatan / Keterangan Detail Full-Width Multi-Baris Ekstra Luas (Kartu A4 4-Kartu & Thermal)',
+    isLatest: true,
+    highlights:
+      'Kolom CATATAN / KETERANGAN DETAIL (TAHAP 2) kini dipisahkan ke baris penuh tersendiri (100% lebar kartu) dengan ruang tulis 3 baris berjarak lega di bawah kolom ringkas Bruto (Kg) & Harga / Kg (Rp), sehingga informasi catatan terbanyak dapat ditulis panjang dan jelas.',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Kotak Catatan Full-Width 100% Lebar Kartu (3 Baris Tulis Lega)',
+        description:
+          'Pada kartu A4 (PDF 200 DPI & Cetak Sistem) maupun slip Thermal 58mm/80mm, kotak Catatan tidak lagi berhimpitan menyamping dengan Bruto & Harga melainkan membentang penuh 100% lebar kartu dengan tinggi ekstra luas (148px di PDF / 3 baris bergaris bantu putus-putus).',
+      },
+      {
+        type: 'ui',
+        title: 'Baris Bruto (Kg) & Harga / Kg (Rp) Ringkas di Atas Catatan',
+        description:
+          'Kolom Bruto (Kg) dan Harga / Kg (Rp) ditata berdampingan secara ringkas tepat di atas kotak Catatan agar proporsi ruang tulis fokus pada informasi catatan detail.',
+      },
+    ],
+  },
+  {
+    version: 'v4.4.1',
+    date: '19 November 2026',
+    codename:
+      'Format A4 4 Kartu Besar (2×2) + Kotak Tulis Bruto, Harga, Catatan & Identitas Ekstra Lega',
+    isLatest: false,
+    highlights:
+      'Upgrade ukuran cetak lembar A4 menjadi 4 Kartu Besar per Halaman (grid 2×2) sehingga setiap kartu 52% lebih tinggi. Kolak tulis tangan Bruto (Kg), Harga / Kg (Rp), Catatan (Tahap 2), serta 4 kolom Identitas (Grader, Penjual, Daerah, Jenis Tembakau) diperbesar drastis agar sangat nyaman ditulis pulpen di gudang.',
+    changes: [
+      {
+        type: 'ui',
+        title: '1 Lembar A4 = 4 Kartu Grade Besar (Grid 2×2)',
+        description:
+          'Format cetak A4 (PDF Vektor & Cetak Sistem) kini menggunakan tata letak 2 kolom × 2 baris (4 Kartu Besar per lembar A4) lengkap dengan preset jumlah kelipatan 4 (4, 8, 12, 16, 20, 24) dan Custom Printing Slot 1–4.',
+      },
+      {
+        type: 'ui',
+        title: 'Kotak Tulis Bruto (Kg), Harga / Kg (Rp) & Catatan (Tahap 2) Diperbesar >2.3×',
+        description:
+          'Ruang tulis tangan di bagian bawah kartu (Bruto, Harga/Kg, Catatan Tahap 2) dipertinggi signifikan menjadi 118px pada PDF 200 DPI (dan h-10 pada pratinjau/cetak HTML) sehingga angka timbangan dan harga mudah ditulis jelas.',
+      },
+      {
+        type: 'ui',
+        title: 'Kolom Identitas & Kotak Centang Lebih Besar & Jelas',
+        description:
+          'Kotak tulis Nama Grader, Penjual/Petani, Daerah Asal, dan Nama/Jenis Tembakau diperbesar menjadi 78px (h-8 di HTML), disertai kotak centang Grade 2×7 (A–G / A+–G+), Kemasan dinamis, dan Karakter Rasa [1]–[5] yang lebih lega.',
+      },
+    ],
+  },
+  {
+    version: 'v4.4.0',
+    date: '19 November 2026',
+    codename:
+      'Redesign Kartu Grade Presisi Tinggi + Format Grade 2×7 (A–G / A+–G+) + Kemasan Dinamis + Korelasi Barcode Grader',
+    isLatest: false,
+    highlights:
+      'Desain ulang total Kartu Grade (A4 PDF, Print Sistem, dan Thermal) dengan kotak centang & angka 1–5 jauh lebih besar, kolom Bruto & Harga diperkecil ringkas, format Grade baru 2 baris vertikal A–G di atas A+–G+, sinkronisasi otomatis semua Master Kemasan ke kartu, serta pengikatan Nama Grader tetap langsung di dalam Barcode (mis. MTL001/ALDI) agar tidak pernah salah eja namun tetap bebas diedit setelah scan.',
+    changes: [
+      {
+        type: 'ui',
+        title: 'Kartu Grade Kotak Jauh Lebih Besar & Kolom Bruto/Harga Ringkas',
+        description:
+          'Kotak centang Grade diperbesar (23×23px di A4 PDF), 6 atribut Karakter Rasa kini tampil 1 kolom penuh dengan kotak angka [1]–[5] ekstra besar & berjarak lebar agar tanda silang/centang terbaca jauh lebih akurat, sementara strip Tahap 2 (Bruto & Harga) diperkecil ringkas di bagian bawah.',
+      },
+      {
+        type: 'feature',
+        title: 'Format Grade Vertikal 2×7 (A–G di Atas A+–G+) di Kartu & Seluruh Aplikasi',
+        description:
+          'Menambahkan Grade G dan G+ serta menata ulang seluruh pilihan Grade (Kartu Cetak, Edit Cepat, Tambah Stok, Review Cepat Scanner, dan Auto-Racik) menjadi 2 baris × 7 kolom berpasangan vertikal: baris atas A B C D E F G dan baris bawah A+ B+ C+ D+ E+ F+ G+.',
+      },
+      {
+        type: 'feature',
+        title: 'Korelasi Barcode → Nama Grader Tetap (Bebas Salah Baca, Tetap Bisa Diedit)',
+        description:
+          'Barcode Code 39 di bagian depan & belakang kartu kini menyematkan Nama Grader tetap (mis. MTL001/ALDI) sehingga hasil scan otomatis mengisi "Aldi" dengan 100% akurat lintas perangkat (PC → HP) tanpa salah baca jadi "Adi", sambil tetap bisa diubah manual di Review Cepat.',
+      },
+      {
+        type: 'feature',
+        title: 'Sinkronisasi Otomatis Semua Jenis Kemasan ke Kartu Grade',
+        description:
+          'Menghapus batas potongan 3/4/6 kemasan — setiap kali jenis Kemasan baru ditambahkan di Master Kemasan, opsi tersebut otomatis langsung muncul sebagai kotak pilihan di Kartu Grade A4 PDF, Print Sistem, dan Thermal.',
+      },
+      {
+        type: 'fix',
+        title: 'Peningkatan Akurasi AI Vision untuk Centang Kotak & Ejaan Tulisan',
+        description:
+          'Memprioritaskan model Vision akurasi penuh (gemini-4-hydrogen / gemini-2.5-flash) sebelum varian lite, dengan panduan koordinat baris×kolom ketat untuk tabel Grade 2×7 dan 6 baris atribut 1–5.',
+      },
+    ],
+  },
+  {
     version: 'v4.3.9',
     date: '19 November 2026',
     codename: 'Dukungan Langsung Variabel Vercel "Camera_scanner" untuk AI Scanner',
-    isLatest: true,
+    isLatest: false,
     highlights:
       'Menambahkan pembacaan otomatis environment variable "Camera_scanner" (Production & Preview di Vercel) selain GEMINI_API_KEY agar Scan Foto Kartu Grade langsung aktif tanpa harus mengubah nama variabel di Vercel.',
     changes: [

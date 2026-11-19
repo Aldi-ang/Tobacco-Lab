@@ -19,7 +19,11 @@ import {
   Search,
 } from 'lucide-react';
 import { PackagingMaster, RawTobacco, TobaccoGrade } from '../types/tobacco';
-import { TOBACCO_GRADE_ORDER, formatRating5, formatRupiah } from '../utils/tobaccoMath';
+import {
+  TOBACCO_GRADE_GRID_2X7,
+  formatRating5,
+  formatRupiah,
+} from '../utils/tobaccoMath';
 import {
   ReviewedScannedGradeCard,
   ScannedGradeCardRawInput,
@@ -33,6 +37,8 @@ import {
   decodeCode39FromCanvas,
   decodeCode39FromVideoElement,
 } from '../utils/code39DecoderEngine';
+import { parseGradeCardBarcodePayload } from '../utils/thermalPrintEngine';
+import { loadPrintedLotMetadataMap } from '../utils/printBatchLockEngine';
 import {
   GRADER_REGISTRY_STORAGE_KEY,
   GraderRegistryState,
@@ -236,18 +242,18 @@ async function compressImageFileToJpegBase64(
     const canvas = document.createElement('canvas');
     canvas.width = targetW;
     canvas.height = targetH;
-    const ctx = canvas.getContext('2d', { willReadFrequently: purpose === 'BARCODE_UPDATE' });
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) throw new Error('Browser canvas tidak tersedia.');
 
     ctx.drawImage(drawSource, 0, 0, targetW, targetH);
 
+    // Run fast local Code 39 decoding on BOTH Front Card & Back Barcode captures
+    // so front header barcodes (e.g. MTL001/ALDI) deterministically bind Lot + Fixed Grader Name!
     let localBarcodes: string[] = [];
-    if (purpose === 'BARCODE_UPDATE') {
-      try {
-        localBarcodes = decodeCode39FromCanvas(canvas);
-      } catch {
-        localBarcodes = [];
-      }
+    try {
+      localBarcodes = decodeCode39FromCanvas(canvas);
+    } catch {
+      localBarcodes = [];
     }
 
     const { dataUrl, base64 } = encodeCanvasToBoundedJpeg(canvas, targetW, targetH);
@@ -385,7 +391,8 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
   }, [isOpen]);
 
   const findExistingStockByCode = (rawCode: string): RawTobacco | undefined => {
-    const cleanCode = normalizeLotNumber(rawCode);
+    const parsed = parseGradeCardBarcodePayload(rawCode);
+    const cleanCode = normalizeLotNumber(parsed.lotNumber || rawCode);
     if (!cleanCode) return undefined;
     return (
       rawTobaccos.find((t) => normalizeLotNumber(t.lotNumber) === cleanCode) ||
@@ -394,7 +401,8 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
   };
 
   const handleBarcodeLotResolved = (rawCode: string): boolean => {
-    const cleanCode = normalizeLotNumber(rawCode);
+    const parsed = parseGradeCardBarcodePayload(rawCode);
+    const cleanCode = normalizeLotNumber(parsed.lotNumber || rawCode);
     if (!cleanCode) {
       setScanError('Masukkan atau arahkan barcode Kode Lot terlebih dahulu.');
       setUnregisteredBarcodeLot(null);
@@ -404,9 +412,9 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
     const found = findExistingStockByCode(cleanCode);
     if (!found) {
       stopCamera();
-      setUnregisteredBarcodeLot(cleanCode);
+      setUnregisteredBarcodeLot(parsed.rawPayload || cleanCode);
       setScanError(
-        `Barcode "${cleanCode}" terbaca oleh kamera, tetapi belum ada di stok gudang.`
+        `Barcode "${parsed.rawPayload || cleanCode}" terbaca oleh kamera, tetapi belum ada di stok gudang.`
       );
       return false;
     }
@@ -417,7 +425,13 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
     setCameraError(null);
     setScanQualityWarning('');
     setScanModelUsed('Barcode Scanner');
-    setReviewedCards([buildEditableReviewCardFromExistingStock(found)]);
+    const editableCard = buildEditableReviewCardFromExistingStock(found);
+    if (!editableCard.graderName && parsed.embeddedGraderName) {
+      editableCard.graderName = parsed.embeddedGraderName;
+      editableCard.graderBoundFromBarcode = true;
+      editableCard.barcodePayload = parsed.rawPayload;
+    }
+    setReviewedCards([editableCard]);
     const missingFlags = getRawTobaccoMissingFlags(found);
     if (!missingFlags.isIncomplete) {
       onShowToast?.(
@@ -432,11 +446,14 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
   };
 
   const handleRegisterUnregisteredBarcodeAsNew = (lotCode: string) => {
-    const cleanLot = normalizeLotNumber(lotCode);
+    const parsed = parseGradeCardBarcodePayload(lotCode);
+    const cleanLot = normalizeLotNumber(parsed.lotNumber || lotCode);
     const classified = classifyScannedCardsForReview({
       scannedCards: [
         {
           lotNumber: cleanLot,
+          barcodePayload: parsed.rawPayload || cleanLot,
+          graderName: parsed.embeddedGraderName || '',
           name: '',
           origin: '',
           sellerName: '',
@@ -457,6 +474,8 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
       packagingList,
       defaultPrintYear: printYear,
       registeredGraders: graderRegistryRaw.registeredGraders,
+      printedLotMetadata: loadPrintedLotMetadataMap(),
+      localBarcodes: parsed.rawPayload ? [parsed.rawPayload] : [],
     });
     setScanError(null);
     setUnregisteredBarcodeLot(null);
@@ -755,6 +774,8 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
         packagingList,
         defaultPrintYear: printYear,
         registeredGraders: graderRegistryRaw.registeredGraders,
+        printedLotMetadata: loadPrintedLotMetadataMap(),
+        localBarcodes: localHits,
       });
       setReviewedCards(classified);
 
@@ -1689,10 +1710,20 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                                 </div>
 
                                 <div>
-                                  <label className="block text-[10px] font-extrabold uppercase text-zinc-400 mb-1">
-                                    Nama Grader{' '}
-                                    {isUncertain('graderName') && (
-                                      <span className="text-amber-400">• Cek!</span>
+                                  <label className="block text-[10px] font-extrabold uppercase text-zinc-400 mb-1 flex items-center justify-between gap-1">
+                                    <span>
+                                      Nama Grader{' '}
+                                      {isUncertain('graderName') && (
+                                        <span className="text-amber-400">• Cek!</span>
+                                      )}
+                                    </span>
+                                    {card.graderBoundFromBarcode && (
+                                      <span
+                                        title="Diisi otomatis dari Barcode kartu (masih bisa diedit manual)"
+                                        className="text-[9px] text-emerald-400 font-bold normal-case"
+                                      >
+                                        Terkait Barcode
+                                      </span>
                                     )}
                                   </label>
                                   <input
@@ -1703,12 +1734,15 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                                     onChange={(e) =>
                                       updateReviewedCard(card.reviewId, {
                                         graderName: e.target.value,
+                                        graderBoundFromBarcode: false,
                                       })
                                     }
                                     className={`w-full h-9 px-2.5 rounded-xl text-xs font-bold text-amber-200 border focus:outline-hidden ${
                                       isUncertain('graderName')
                                         ? 'bg-amber-500/10 border-amber-400'
-                                        : 'bg-black border-zinc-800 focus:border-amber-500'
+                                        : card.graderBoundFromBarcode
+                                          ? 'bg-emerald-950/20 border-emerald-500/50 focus:border-amber-500'
+                                          : 'bg-black border-zinc-800 focus:border-amber-500'
                                     }`}
                                   />
                                 </div>
@@ -1744,32 +1778,42 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                                   />
                                 </div>
 
-                                <div>
+                                <div className="sm:col-span-2">
                                   <label className="block text-[10px] font-extrabold uppercase text-zinc-400 mb-1">
                                     Grade{' '}
                                     {isUncertain('colorGrade') && (
                                       <span className="text-amber-400">• Cek!</span>
                                     )}
                                   </label>
-                                  <select
-                                    value={card.colorGrade}
-                                    onChange={(e) =>
-                                      updateReviewedCard(card.reviewId, {
-                                        colorGrade: e.target.value as TobaccoGrade,
-                                      })
-                                    }
-                                    className={`w-full h-9 px-2.5 rounded-xl text-xs font-mono font-black text-amber-300 border focus:outline-hidden ${
+                                  <div
+                                    className={`grid grid-cols-7 gap-1 p-1 rounded-xl border ${
                                       isUncertain('colorGrade')
                                         ? 'bg-amber-500/10 border-amber-400'
-                                        : 'bg-black border-zinc-800 focus:border-amber-500'
+                                        : 'bg-black border-zinc-800'
                                     }`}
                                   >
-                                    {TOBACCO_GRADE_ORDER.map((gr) => (
-                                      <option key={gr} value={gr}>
-                                        Grade {gr}
-                                      </option>
-                                    ))}
-                                  </select>
+                                    {TOBACCO_GRADE_GRID_2X7.map((gr) => {
+                                      const active = card.colorGrade === gr;
+                                      return (
+                                        <button
+                                          key={gr}
+                                          type="button"
+                                          onClick={() =>
+                                            updateReviewedCard(card.reviewId, {
+                                              colorGrade: gr as TobaccoGrade,
+                                            })
+                                          }
+                                          className={`h-7 rounded-lg text-[11px] font-mono border transition-colors cursor-pointer ${
+                                            active
+                                              ? 'bg-[#0e1015] text-amber-300 border-amber-500/90 font-black'
+                                              : 'bg-zinc-950 text-zinc-300 border-zinc-800 hover:border-zinc-600 font-bold'
+                                          }`}
+                                        >
+                                          {gr}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
 
                                 <div>

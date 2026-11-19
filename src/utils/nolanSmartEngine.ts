@@ -87,6 +87,8 @@ const ALL_GRADES: TobaccoGrade[] = [
   'E',
   'F+',
   'F',
+  'G+',
+  'G',
 ];
 
 const KNOWN_INDONESIAN_TOBACCO_REGIONS = [

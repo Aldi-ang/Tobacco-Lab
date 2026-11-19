@@ -12,9 +12,9 @@ export const NOLAN_CLOUD_MODEL_CASCADE = [
 ] as const;
 
 export const SCAN_GRADE_CARD_MODEL_CASCADE = [
-  'gemini-3.1-flash-lite',
   'gemini-4-hydrogen',
   'gemini-2.5-flash',
+  'gemini-3.1-flash-lite',
   'gemini-2.5-flash-lite',
 ] as const;
 

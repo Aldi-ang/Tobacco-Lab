@@ -67,6 +67,96 @@ export function extractLotPrefixCode(lotNumber: string, customPrefix?: string): 
 }
 
 /**
+ * Encodes a grader name into a compact Code 39 safe token (max 12 chars, spaces -> '-').
+ * Example: "Aldi" -> "ALDI", "Pak Joko" -> "PAK-JOKO".
+ */
+export function encodeGraderTokenForCode39(graderName?: string): string {
+  const cleaned = String(graderName || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^A-Z0-9.-]/g, '')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return cleaned.slice(0, 12).replace(/-+$/g, '');
+}
+
+/**
+ * Builds the machine-readable Code 39 barcode payload correlating Lot Number + Fixed Grader Name.
+ * Uses Code 39's native '/' separator: e.g. "MTL001/ALDI" (or "MTL001" when no fixed grader is set).
+ */
+export function buildGradeCardBarcodePayload(lotNumber: string, graderName?: string): string {
+  const cleanLot = String(lotNumber || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/[^A-Z0-9-]/g, '');
+  if (!cleanLot) return '';
+  const graderToken = encodeGraderTokenForCode39(graderName);
+  return graderToken ? `${cleanLot}/${graderToken}` : cleanLot;
+}
+
+function toDisplayGraderName(token: string): string {
+  return String(token || '')
+    .trim()
+    .replace(/-/g, ' ')
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+/**
+ * Parses a scanned Code 39 barcode payload (or legacy plain Lot barcode) into
+ * normalized `{ lotNumber, embeddedGraderName }`.
+ * Examples:
+ *  - "*MTL001/ALDI*" -> { lotNumber: "MTL001", embeddedGraderName: "Aldi" }
+ *  - "MTL001/PAK-JOKO" -> { lotNumber: "MTL001", embeddedGraderName: "Pak Joko" }
+ *  - "MTL001" -> { lotNumber: "MTL001", embeddedGraderName: "" }
+ */
+export function parseGradeCardBarcodePayload(raw: string): {
+  lotNumber: string;
+  embeddedGraderName: string;
+  rawPayload: string;
+} {
+  const cleaned = String(raw || '')
+    .trim()
+    .replace(/^\*+|\*+$/g, '')
+    .replace(/^BC\s*:\s*/i, '')
+    .trim()
+    .toUpperCase();
+  if (!cleaned) {
+    return { lotNumber: '', embeddedGraderName: '', rawPayload: '' };
+  }
+
+  const slashIdx = cleaned.indexOf('/');
+  if (slashIdx > 0) {
+    const lotPart = cleaned
+      .slice(0, slashIdx)
+      .replace(/\s+/g, '')
+      .replace(/[^A-Z0-9-]/g, '');
+    const graderPart = cleaned
+      .slice(slashIdx + 1)
+      .replace(/[^A-Z0-9.\-\s]/g, '')
+      .trim();
+    const embeddedGraderName = toDisplayGraderName(graderPart);
+    return {
+      lotNumber: lotPart,
+      embeddedGraderName,
+      rawPayload: lotPart && graderPart ? `${lotPart}/${graderPart.replace(/\s+/g, '-')}` : lotPart,
+    };
+  }
+
+  const lotOnly = cleaned.replace(/\s+/g, '').replace(/[^A-Z0-9-]/g, '');
+  return {
+    lotNumber: lotOnly,
+    embeddedGraderName: '',
+    rawPayload: lotOnly,
+  };
+}
+
+/**
  * Standard ISO/ANSI Code 39 bar/space encoding patterns (9 elements per char: n=narrow 1, w=wide 3).
  * Scannable by handheld laser scanners, mobile camera apps, and optical vision pipelines.
  */
@@ -321,11 +411,37 @@ export function renderThermalCardToCanvas(params: {
       ? Math.round(Number(printYear))
       : new Date().getFullYear();
   const cleanGrader = String(graderName || '').trim().slice(0, 22);
+  const barcodePayload = buildGradeCardBarcodePayload(lotNumber, cleanGrader) || lotNumber;
   const isNarrow = widthDots <= 400;
-  const frontHeightDots = isNarrow ? 760 : 880;
-  const barcodeSectionH = includeBackBarcode ? (isNarrow ? 195 : 225) : 0;
-  const heightDots = frontHeightDots + barcodeSectionH;
   const pad = isNarrow ? 10 : 14;
+  const innerW = widthDots - pad * 2;
+
+  // Dynamic Kemasan choices: include ALL packaging master types + Lainnya
+  const normalizedPkgs = Array.from(
+    new Set(
+      (packagingChoices || [])
+        .map((p) => String(p || '').trim())
+        .filter(Boolean)
+    )
+  );
+  const pkgItems = [...normalizedPkgs, 'Lainnya: ______'];
+  const pkgCols = isNarrow ? 2 : pkgItems.length >= 7 ? 3 : 2;
+  const pkgRows = Math.max(1, Math.ceil(pkgItems.length / pkgCols));
+  const pkgRowStep = isNarrow ? 24 : 28;
+  const pkgBoxH = 26 + pkgRows * pkgRowStep;
+
+  const gradeBoxH = isNarrow ? 82 : 96;
+  const attrRowStep = isNarrow ? 29 : 35;
+  const attrSqSize = isNarrow ? 24 : 30;
+  const attrBoxH = 28 + 6 * attrRowStep;
+  const stage2H = isNarrow ? 38 : 44; // Compact Tahap 2 strip
+
+  const headerH = isNarrow ? 102 : 114;
+  const identityH = (isNarrow ? 42 : 46) * 3 + 18;
+  const frontHeightDots =
+    pad + headerH + identityH + gradeBoxH + 8 + pkgBoxH + 8 + attrBoxH + 8 + stage2H + 34;
+  const barcodeSectionH = includeBackBarcode ? (isNarrow ? 205 : 238) : 0;
+  const heightDots = frontHeightDots + barcodeSectionH;
 
   const canvas = document.createElement('canvas');
   canvas.width = widthDots;
@@ -338,42 +454,43 @@ export function renderThermalCardToCanvas(params: {
   ctx.strokeStyle = '#000000';
   ctx.fillStyle = '#000000';
 
-  // Outer border + corner marks for front slip
+  // Outer border for front slip
   ctx.lineWidth = 3;
-  ctx.strokeRect(4, 4, widthDots - 8, frontHeightDots - 26);
+  ctx.strokeRect(4, 4, widthDots - 8, frontHeightDots - 22);
 
-  // Header
-  ctx.font = `bold ${isNarrow ? 12 : 14}px monospace`;
-  ctx.fillText('TOBACCO LAB • KARTU GRADE', pad, pad + 16);
-  ctx.font = `900 ${isNarrow ? 20 : 26}px monospace`;
-  ctx.fillText(lotNumber, pad, pad + 44);
+  // Header + Front Code 39 Barcode (correlates Lot + Fixed Grader)
+  ctx.font = `bold ${isNarrow ? 11 : 13}px monospace`;
+  ctx.fillText('TOBACCO LAB · KARTU GRADE', pad, pad + 14);
+  ctx.font = `900 ${isNarrow ? 21 : 27}px monospace`;
+  ctx.fillText(lotNumber, pad, pad + 40);
   ctx.font = `bold ${isNarrow ? 11 : 13}px sans-serif`;
   ctx.fillText(
     `Tgl: ___/___/${yearLabel}  Grader: ${cleanGrader || '________'}`,
     pad,
-    pad + 64
+    pad + 58
   );
 
-  // Matrix SVG on top-right
-  const cells = computeLotMatrixCells(lotNumber);
-  const cellSize = isNarrow ? 6 : 8;
-  const matrixX = widthDots - pad - cellSize * 7 - 4;
-  const matrixY = pad + 4;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(matrixX - 3, matrixY - 3, cellSize * 7 + 6, cellSize * 7 + 6);
-  cells.forEach((on, idx) => {
-    if (on) {
-      ctx.fillRect(
-        matrixX + (idx % 7) * cellSize,
-        matrixY + Math.floor(idx / 7) * cellSize,
-        cellSize,
-        cellSize
-      );
+  // Front Header Code 39 strip
+  const frontRuns = encodeCode39Modules(barcodePayload);
+  const frontTotalUnits = computeCode39TotalUnits(frontRuns);
+  const frontBarAreaW = innerW - 8;
+  const frontUnitPx = Math.max(1, frontBarAreaW / frontTotalUnits);
+  const frontRenderedW = frontUnitPx * frontTotalUnits;
+  let frontBarX = pad + Math.max(0, (innerW - frontRenderedW) / 2);
+  const frontBarY = pad + 64;
+  const frontBarH = isNarrow ? 24 : 30;
+  for (const run of frontRuns) {
+    const w = run.units * frontUnitPx;
+    if (run.isBar) {
+      ctx.fillRect(frontBarX, frontBarY, Math.max(1, w), frontBarH);
     }
-  });
+    frontBarX += w;
+  }
+  ctx.font = `bold ${isNarrow ? 9 : 11}px monospace`;
+  ctx.fillText(`BC: ${barcodePayload}`, pad, frontBarY + frontBarH + (isNarrow ? 11 : 13));
 
   // Identity boxes
-  let y = pad + 78;
+  let y = pad + headerH;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(4, y);
@@ -381,80 +498,91 @@ export function renderThermalCardToCanvas(params: {
   ctx.stroke();
 
   const drawBox = (label: string, x: number, boxY: number, w: number, h: number) => {
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.2;
     ctx.strokeRect(x, boxY, w, h);
     ctx.font = `bold ${isNarrow ? 10 : 12}px sans-serif`;
     ctx.fillText(label, x + 6, boxY + 14);
   };
 
-  const innerW = widthDots - pad * 2;
-  y += 8;
-  drawBox('PENJUAL / PETANI', pad, y, innerW, isNarrow ? 44 : 50);
-  y += isNarrow ? 50 : 56;
-  drawBox('DAERAH ASAL (MTL / TMG / WDS)', pad, y, innerW, isNarrow ? 44 : 50);
-  y += isNarrow ? 50 : 56;
-  drawBox('NAMA / JENIS TEMBAKAU', pad, y, innerW, isNarrow ? 44 : 50);
-  y += isNarrow ? 52 : 58;
+  y += 6;
+  const idBoxH = isNarrow ? 40 : 44;
+  drawBox('PENJUAL / PETANI', pad, y, innerW, idBoxH);
+  y += idBoxH + 5;
+  drawBox('DAERAH ASAL (MTL / TMG / WDS)', pad, y, innerW, idBoxH);
+  y += idBoxH + 5;
+  drawBox('NAMA / JENIS TEMBAKAU', pad, y, innerW, idBoxH);
+  y += idBoxH + 7;
 
-  // Grade checkboxes (SILANG X)
-  const grades = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'E+', 'E', 'F+', 'F'];
-  const gradeBoxH = isNarrow ? 66 : 74;
+  // Grade checkboxes — 2 rows x 7 vertical pairs:
+  // Row 1: A  B  C  D  E  F  G
+  // Row 2: A+ B+ C+ D+ E+ F+ G+
+  const gradeRows: string[][] = [
+    ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
+    ['A+', 'B+', 'C+', 'D+', 'E+', 'F+', 'G+'],
+  ];
   drawBox('GRADE WARNA (SILANG X SATU)', pad, y, innerW, gradeBoxH);
-  const colW = (innerW - 12) / 6;
-  grades.forEach((gr, idx) => {
-    const col = idx % 6;
-    const row = Math.floor(idx / 6);
-    const gx = pad + 6 + col * colW;
-    const gy = y + 22 + row * (isNarrow ? 21 : 24);
-    ctx.strokeRect(gx, gy, isNarrow ? 14 : 16, isNarrow ? 14 : 16);
-    ctx.font = `bold ${isNarrow ? 11 : 13}px monospace`;
-    ctx.fillText(gr, gx + (isNarrow ? 18 : 21), gy + (isNarrow ? 12 : 14));
+  const colW = (innerW - 10) / 7;
+  const gSq = isNarrow ? 16 : 20;
+  gradeRows.forEach((rowGrades, rIdx) => {
+    rowGrades.forEach((gr, cIdx) => {
+      const gx = pad + 5 + cIdx * colW;
+      const gy = y + 22 + rIdx * (isNarrow ? 28 : 34);
+      ctx.lineWidth = 2.2;
+      ctx.strokeRect(gx, gy, gSq, gSq);
+      ctx.font = `900 ${isNarrow ? 12 : 15}px monospace`;
+      ctx.fillText(gr, gx + gSq + (isNarrow ? 3 : 5), gy + (isNarrow ? 13 : 16));
+    });
   });
-  y += gradeBoxH + 6;
+  y += gradeBoxH + 7;
 
-  // Packaging checkboxes
-  const pkgs = packagingChoices.slice(0, 4);
-  const pkgBoxH = isNarrow ? 66 : 74;
+  // Dynamic ALL Packaging checkboxes
   drawBox('KEMASAN (SILANG X SATU)', pad, y, innerW, pkgBoxH);
-  pkgs.forEach((pk, idx) => {
-    const col = idx % 2;
-    const row = Math.floor(idx / 2);
-    const px = pad + 6 + col * (innerW / 2 - 4);
-    const py = y + 22 + row * (isNarrow ? 21 : 24);
-    ctx.strokeRect(px, py, isNarrow ? 14 : 16, isNarrow ? 14 : 16);
+  const pkgColW = (innerW - 10) / pkgCols;
+  const pSq = isNarrow ? 16 : 18;
+  pkgItems.forEach((pk, idx) => {
+    const col = idx % pkgCols;
+    const row = Math.floor(idx / pkgCols);
+    const px = pad + 6 + col * pkgColW;
+    const py = y + 22 + row * pkgRowStep;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(px, py, pSq, pSq);
     ctx.font = `bold ${isNarrow ? 10 : 12}px sans-serif`;
-    ctx.fillText(pk.slice(0, isNarrow ? 16 : 20), px + 20, py + 13);
+    const maxChars = pkgCols >= 3 ? 13 : isNarrow ? 15 : 22;
+    ctx.fillText(pk.slice(0, maxChars), px + pSq + 5, py + (isNarrow ? 13 : 14));
   });
-  y += pkgBoxH + 6;
+  y += pkgBoxH + 7;
 
-  // 6 Karakter Rasa — Square numbered boxes [1][2][3][4][5] for easy X crossing!
+  // 6 Karakter Rasa — BIG wide-spaced square numbered boxes [1][2][3][4][5]
   const attrs = ['POWER', 'IMPACT', 'BITTER', 'BURN', 'SUGAR', 'AROMA'];
-  const attrBoxH = isNarrow ? 166 : 196;
   drawBox('KARAKTER RASA (SILANG X ANGKA 1-5)', pad, y, innerW, attrBoxH);
-  const rowStep = isNarrow ? 23 : 27;
-  const sqSize = isNarrow ? 19 : 23;
+  const labelColumnW = isNarrow ? 68 : 94;
+  const startX = pad + 8 + labelColumnW;
+  const boxGap = isNarrow ? 7 : 12;
   attrs.forEach((attr, rIdx) => {
-    const ry = y + 24 + rIdx * rowStep;
-    ctx.font = `bold ${isNarrow ? 11 : 13}px sans-serif`;
-    ctx.fillText(attr, pad + 8, ry + 15);
-    const labelColumnW = isNarrow ? 74 : 92;
-    const startX = pad + 8 + labelColumnW;
+    const ry = y + 22 + rIdx * attrRowStep;
+    ctx.font = `900 ${isNarrow ? 12 : 14}px sans-serif`;
+    ctx.fillText(attr, pad + 8, ry + Math.round(attrSqSize * 0.72));
     for (let d = 1; d <= 5; d++) {
-      const bx = startX + (d - 1) * (sqSize + 5);
-      ctx.strokeRect(bx, ry, sqSize, sqSize);
-      ctx.font = `bold ${isNarrow ? 12 : 14}px monospace`;
-      ctx.fillText(String(d), bx + (isNarrow ? 6 : 7), ry + (isNarrow ? 14 : 17));
+      const bx = startX + (d - 1) * (attrSqSize + boxGap);
+      ctx.lineWidth = 2.2;
+      ctx.strokeRect(bx, ry, attrSqSize, attrSqSize);
+      ctx.font = `900 ${isNarrow ? 14 : 17}px monospace`;
+      ctx.fillText(
+        String(d),
+        bx + Math.round(attrSqSize * 0.32),
+        ry + Math.round(attrSqSize * 0.72)
+      );
     }
   });
-  y += attrBoxH + 8;
+  y += attrBoxH + 7;
 
-  // Stage 2 boxes
-  const halfW = (innerW - 8) / 2;
-  drawBox('TAHAP 2: BRUTO (KG)', pad, y, halfW, isNarrow ? 48 : 54);
-  drawBox('HARGA / KG (RP)', pad + halfW + 8, y, halfW, isNarrow ? 48 : 54);
+  // Stage 2 — Compact small bottom strip (Bruto + Harga)
+  const halfW = (innerW - 6) / 2;
+  drawBox('BRUTO (KG)', pad, y, halfW, stage2H);
+  drawBox('HARGA / KG (RP)', pad + halfW + 6, y, halfW, stage2H);
 
   if (includeBackBarcode) {
-    const foldY = frontHeightDots - 8;
+    const foldY = frontHeightDots - 6;
     ctx.font = `bold ${isNarrow ? 10 : 11}px monospace`;
     ctx.fillText('--- LIPAT KE BELAKANG / LABEL ---', pad + 18, foldY);
 
@@ -466,15 +594,19 @@ export function renderThermalCardToCanvas(params: {
     ctx.fillStyle = '#000000';
     ctx.fillRect(pad, bTop + 8, innerW, isNarrow ? 24 : 28);
     ctx.fillStyle = '#ffffff';
-    ctx.font = `900 ${isNarrow ? 12 : 15}px monospace`;
-    ctx.fillText(`PREFIX: ${prefix}`, pad + 8, bTop + (isNarrow ? 24 : 28));
+    ctx.font = `900 ${isNarrow ? 11 : 14}px monospace`;
+    ctx.fillText(
+      cleanGrader ? `PREFIX: ${prefix} · GRD: ${cleanGrader.toUpperCase()}` : `PREFIX: ${prefix}`,
+      pad + 8,
+      bTop + (isNarrow ? 24 : 28)
+    );
 
-    // Render big Code 39 1D linear barcode
+    // Render big Code 39 1D linear barcode encoding Lot + Fixed Grader
     ctx.fillStyle = '#000000';
-    const runs = encodeCode39Modules(lotNumber);
+    const runs = encodeCode39Modules(barcodePayload);
     const totalUnits = computeCode39TotalUnits(runs);
     const barAreaW = innerW - 12;
-    const unitPx = Math.max(1, Math.floor(barAreaW / totalUnits));
+    const unitPx = Math.max(1, barAreaW / totalUnits);
     const renderedW = unitPx * totalUnits;
     let curX = pad + Math.floor((innerW - renderedW) / 2);
     const barY = bTop + (isNarrow ? 40 : 46);
@@ -482,13 +614,13 @@ export function renderThermalCardToCanvas(params: {
     for (const run of runs) {
       const w = run.units * unitPx;
       if (run.isBar) {
-        ctx.fillRect(curX, barY, w, barH);
+        ctx.fillRect(curX, barY, Math.max(1, w), barH);
       }
       curX += w;
     }
 
-    ctx.font = `900 ${isNarrow ? 18 : 24}px monospace`;
-    ctx.fillText(lotNumber, pad + 12, barY + barH + (isNarrow ? 22 : 28));
+    ctx.font = `900 ${isNarrow ? 16 : 22}px monospace`;
+    ctx.fillText(barcodePayload, pad + 8, barY + barH + (isNarrow ? 22 : 28));
   }
 
   // Cut line at bottom

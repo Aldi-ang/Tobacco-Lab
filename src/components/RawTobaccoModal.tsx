@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { RawTobacco, TobaccoGrade, PackagingMaster, AgentFeeItem } from '../types/tobacco';
 import {
-  TOBACCO_GRADE_ORDER,
+  TOBACCO_GRADE_GRID_2X7,
   calculateRawTobaccoCost,
   formatRupiah,
   formatTaraFormula,
@@ -1393,8 +1393,8 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                           ))}
                         </div>
                       </div>
-                      <div className="grid grid-cols-6 sm:grid-cols-12 gap-1.5">
-                        {TOBACCO_GRADE_ORDER.map((grade) => {
+                      <div className="grid grid-cols-7 gap-1.5">
+                        {TOBACCO_GRADE_GRID_2X7.map((grade) => {
                           const isSelected = colorGrade === grade;
                           return (
                             <button
@@ -1404,7 +1404,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                               onClick={() => {
                                 if (!isLocked('colorGrade')) setColorGrade(grade);
                               }}
-                              className={`h-8 rounded-lg border text-center transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-0.5 ${
+                              className={`h-8 rounded-lg border text-center font-mono transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-0.5 ${
                                 isSelected
                                   ? 'bg-[#0e1015] text-amber-300 border-amber-500/85 font-black'
                                   : 'bg-zinc-950 border-zinc-800 text-white hover:border-zinc-700 font-bold'

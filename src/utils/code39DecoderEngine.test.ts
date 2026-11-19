@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computeCode39TotalUnits, encodeCode39Modules } from './thermalPrintEngine';
+import {
+  buildGradeCardBarcodePayload,
+  computeCode39TotalUnits,
+  encodeCode39Modules,
+  parseGradeCardBarcodePayload,
+} from './thermalPrintEngine';
 import { decodeCode39FromRgba } from './code39DecoderEngine';
 
 function renderSyntheticBarcodeRgba(
@@ -73,3 +78,15 @@ test('decodeCode39FromRgba decodes hyphenated LOT numbers and upside-down 180deg
   const decoded = decodeCode39FromRgba(rgba, width, height);
   assert.equal(decoded.includes('LOT-261115-701'), true);
 });
+
+test('decodeCode39FromRgba round-trips slash-delimited Lot/Grader barcode payloads (MTL001/ALDI)', () => {
+  const payload = buildGradeCardBarcodePayload('MTL001', 'Aldi');
+  assert.equal(payload, 'MTL001/ALDI');
+  const { rgba, width, height } = renderSyntheticBarcodeRgba([payload], 3);
+  const decoded = decodeCode39FromRgba(rgba, width, height);
+  assert.equal(decoded.includes('MTL001/ALDI'), true);
+  const parsed = parseGradeCardBarcodePayload(decoded[0]);
+  assert.equal(parsed.lotNumber, 'MTL001');
+  assert.equal(parsed.embeddedGraderName, 'Aldi');
+});
+

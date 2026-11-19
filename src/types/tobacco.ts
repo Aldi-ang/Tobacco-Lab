@@ -10,7 +10,9 @@ export type TobaccoGrade =
   | 'E'
   | 'E+'
   | 'F'
-  | 'F+';
+  | 'F+'
+  | 'G'
+  | 'G+';
 
 export type SerialFactoryStatus = 'PENDING' | 'ACCEPTED_CAIR' | 'REJECTED_STOCK';
 export type SerialPaymentStatus = 'CAIR' | 'BELUM_CAIR';

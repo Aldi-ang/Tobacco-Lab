@@ -468,3 +468,85 @@ test('classifyScannedCardsForReview strips stray ink punctuation from characterN
   assert.equal(reviewed[0].grossWeightKg, 50);
   assert.equal(reviewed[0].pricePerKgPurchase, 80000);
 });
+
+test('v4.4.0 Barcode-bound fixed Grader overrides OCR misread ("Adi" -> "Aldi") and supports Grade G/G+', () => {
+  // Case 1: Local Code 39 barcode decoded 'MTL001/ALDI' while Vision OCR misread graderName as 'Adi'
+  const viaLocalBarcode = classifyScannedCardsForReview({
+    scannedCards: [
+      {
+        lotNumber: 'MTL001',
+        graderName: 'Adi',
+        name: 'Muntilan Super',
+        origin: 'Muntilan',
+        colorGrade: 'G+',
+        uncertainFields: ['graderName'],
+        confidenceScore: 90,
+      },
+    ],
+    rawTobaccos: [],
+    packagingList: SAMPLE_PACKAGINGS,
+    registeredGraders: ['Aldi'],
+    localBarcodes: ['MTL001/ALDI'],
+  });
+
+  assert.equal(viaLocalBarcode[0].lotNumber, 'MTL001');
+  assert.equal(viaLocalBarcode[0].graderName, 'Aldi');
+  assert.equal(viaLocalBarcode[0].graderBoundFromBarcode, true);
+  assert.equal(viaLocalBarcode[0].uncertainFields.includes('graderName'), false);
+  assert.equal(viaLocalBarcode[0].colorGrade, 'G+');
+  assert.ok(
+    viaLocalBarcode[0].autoCorrections.some(
+      (note) => note.field.includes('Barcode') && note.to === 'Aldi'
+    )
+  );
+
+  // Case 2: Vision AI reads barcodePayload directly from photo (cross-device phone scan)
+  const viaVisionBarcodePayload = classifyScannedCardsForReview({
+    scannedCards: [
+      {
+        lotNumber: 'MTL002',
+        barcodePayload: 'MTL002/ALDI',
+        graderName: 'Adi',
+        name: 'Temanggung Emas',
+        origin: 'Temanggung',
+        colorGrade: 'G',
+        confidenceScore: 92,
+      },
+    ],
+    rawTobaccos: [],
+    packagingList: SAMPLE_PACKAGINGS,
+    registeredGraders: ['Aldi'],
+  });
+
+  assert.equal(viaVisionBarcodePayload[0].graderName, 'Aldi');
+  assert.equal(viaVisionBarcodePayload[0].graderBoundFromBarcode, true);
+  assert.equal(viaVisionBarcodePayload[0].colorGrade, 'G');
+
+  // Case 3: Local printedLotMetadata fallback on same device when barcode only had Lot
+  const viaMetadata = classifyScannedCardsForReview({
+    scannedCards: [
+      {
+        lotNumber: 'MTL003',
+        graderName: 'Adu',
+        name: 'Klaten Halus',
+        origin: 'Klaten',
+        colorGrade: 'D+',
+        confidenceScore: 88,
+      },
+    ],
+    rawTobaccos: [],
+    packagingList: SAMPLE_PACKAGINGS,
+    printedLotMetadata: {
+      MTL003: {
+        lotNumber: 'MTL003',
+        graderName: 'Aldi',
+        printYear: 2026,
+        updatedAt: Date.now(),
+      },
+    },
+  });
+
+  assert.equal(viaMetadata[0].graderName, 'Aldi');
+  assert.equal(viaMetadata[0].graderBoundFromBarcode, true);
+});
+

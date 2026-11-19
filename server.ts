@@ -172,7 +172,7 @@ async function generateWith24x7Fallback(params: {
   throw finalErr;
 }
 
-const SERVER_ALL_GRADES = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'E+', 'E', 'F+', 'F'];
+const SERVER_ALL_GRADES = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'E+', 'E', 'F+', 'F', 'G+', 'G'];
 const SERVER_REGIONS = [
   'muntilan',
   'temanggung',
@@ -1491,7 +1491,7 @@ app.get('/api/health', async (req: Request, res: Response) => {
   const envInfo = inspectGeminiEnv(process.env);
   const basePayload: Record<string, unknown> = {
     ok: true,
-    version: 'v4.3.9',
+    version: 'v4.4.2',
     runtime: getServerRuntimeLabel(process.env),
     geminiConfigured: envInfo.validKeys.length > 0,
     keyCount: envInfo.validKeys.length,
@@ -2456,30 +2456,48 @@ Aturan Saat Ini: ${JSON.stringify(currentMemory?.learnedRules || [])}`,
           ? '\nMODE BARCODE SCANNER AKTIF: Foto ini kemungkinan besar hanya menampilkan Barcode 1D & Prefix di sisi belakang kartu atau label thermal (seperti MTL001, MTL002, TMG-001, LOT-261115-001) TANPA kotak Grade/Karakter di depan. Jika hanya barcode/lot terlihat, WAJIB tetap ekstrak setiap lotNumber yang terbaca, isi colorGrade = "", dan isi rating = 0.'
           : '';
 
-      const visionPrompt = `Anda adalah sistem pembaca Kartu Grade Tembakau gudang Tobacco Lab yang sangat akurat (mendukung kartu cetak A4 sisi depan & sisi belakang barcode besar, maupun struk Thermal 58mm/80mm).
+      const visionPrompt = `Anda adalah sistem pembaca Kartu Grade Tembakau gudang Tobacco Lab dengan presisi tinggi (mendukung kartu cetak A4 sisi depan & sisi belakang barcode besar, maupun struk Thermal 58mm/80mm).
 Tugas Anda: baca SEMUA Kartu Grade Cetak atau Barcode Lot yang terlihat dalam foto ini (bisa 1 kartu atau beberapa kartu sekaligus yang dijajar bersebelahan).${barcodeModeNote}
 
-ATURAN PEMBACAAN KETAT:
-1. Kode Lot (lotNumber): baca kode lot cetak atau tulis tangan di pojok kartu depan ATAU dari Barcode 1D Besar & teks Kode Prefix di sisi belakang kartu / struk thermal (bisa berformat standar LOT-260327-001 maupun prefix kustom tanpa strip seperti MTL001, MTL002, TMG-005). Jika kode mirip salah satu Lot yang sudah ada di gudang berikut, prioritaskan pencocokan exact: [${existingLotsList || 'belum ada'}].
-2. Grade Warna (colorGrade): lihat kotak/lingkaran yang DISILANG (X), DICORET (/), DICENTANG (✓), atau dilingkari pada pilihan Grade [A+, A, B+, B, C+, C, D+, D, E+, E, F+, F]. Jika foto hanya menampilkan barcode belakang tanpa tabel Grade, isi "".
-3. Kemasan (packagingType): lihat kotak/lingkaran yang DISILANG (X) / dicentang pada pilihan Kemasan. Cocokkan ke daftar Master Kemasan gudang: [${packagingsList || 'KRJ MUNTILAN, BAL, KARUNG, PETI'}].
-4. 6 Atribut Karakter (powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating):
+ATURAN PEMBACAAN SUPER KETAT (IKUTI STEP-BY-STEP):
+1. Barcode & Kode Lot (barcodePayload & lotNumber):
+   - Periksa Barcode 1D di pojok kanan atas kartu depan (ada teks "BC: MTL001/ALDI" atau "BC: MTL001") ATAU Barcode 1D besar di sisi belakang kartu.
+   - Isi field barcodePayload dengan isi kode barcode persis apa adanya (contoh: "MTL001/ALDI" atau "MTL001").
+   - Isi field lotNumber HANYA dengan kode lot sebelum tanda "/" (contoh: dari "MTL001/ALDI" -> lotNumber = "MTL001").
+   - Jika kode mirip salah satu Lot gudang berikut, cocokkan persis: [${existingLotsList || 'belum ada'}].
+2. Nama Grader (graderName):
+   - PRIORITAS #1: Jika barcodePayload memiliki akhiran setelah "/" (contoh "MTL001/ALDI" -> "Aldi", "MTL001/PAK-JOKO" -> "Pak Joko"), GUNAKAN NAMA TERSEBUT untuk graderName agar ejaan 100% akurat tanpa salah baca!
+   - PRIORITAS #2: Jika tidak ada akhiran "/" di barcode, baca kotak "NAMA GRADER" dengan sangat teliti huruf demi huruf (jangan sampai menghilangkan huruf seperti "Aldi" terbaca "Adi"!). Cocokkan dengan daftar grader gudang: [${gradersList || 'bebas'}]. Jika kosong, isi "".
+3. Grade Warna (colorGrade) — TATA LETAK 2 BARIS × 7 KOLOM VERTIKAL:
+   - Baris ATAS (tanpa tanda +): [ ] A | [ ] B | [ ] C | [ ] D | [ ] E | [ ] F | [ ] G
+   - Baris BAWAH (dengan tanda +): [ ] A+ | [ ] B+ | [ ] C+ | [ ] D+ | [ ] E+ | [ ] F+ | [ ] G+
+   - PERIKSA DENGAN TELITI: Cari HANYA SATU kotak persegi [ ] yang memiliki goresan tinta pena gelap (tanda X, garis miring /, centang ✓, atau titik penuh).
+   - Verifikasi KEDUA koordinatnya: kolom ke-berapa dari kiri (1=A, 2=B, 3=C, 4=D, 5=E, 6=F, 7=G) DAN baris atas (huruf biasa) atau baris bawah (huruf +). JANGAN sampai tertukar kolom sebelah atau tertukar baris atas vs bawah!
+   - Jika foto hanya menampilkan barcode belakang tanpa tabel Grade, isi "".
+4. Kemasan (packagingType):
+   - Cari kotak [ ] yang disilang (X) / dicentang pada bagian KEMASAN.
+   - Cocokkan ke daftar Master Kemasan gudang ini: [${packagingsList || 'KRJ MUNTILAN, BAL, KARUNG, PETI'}]. Jika kotak "Lainnya" dicentang, baca tulisan tangan di sebelahnya.
+5. 6 Atribut Karakter (powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating):
    - WAJIB BILANGAN BULAT 1, 2, 3, 4, atau 5 SAJA (TANPA DESIMAL!).
-   - Pada kartu, setiap atribut memiliki 5 kotak angka [1] [2] [3] [4] [5]. Baca angka yang DISILANG (tanda X), DICORET GARIS MIRING (/), DICENTANG, atau dilingkari oleh grader!
-   - HATI-HATI: abaikan angka 1-5 yang masih kosong/bersih tanpa coretan/silang; hanya pilih angka yang benar-benar ada tanda silang/coretan/lingkaran pena! Jika seluruh 5 kotak atribut tersebut kosong tanpa coretan sama sekali atau tidak terlihat (foto belakang), isi 0 agar sistem tahu belum diisi.
-5. Kamus Master Penjual & Daerah (Auto-Correction Tulisan Tangan):
-   - Cocokkan tulisan tangan Penjual dengan daftar penjual gudang ini jika mirip ejaannya: [${sellersList || 'bebas'}].
-   - Cocokkan tulisan tangan Daerah Asal dengan daftar daerah ini jika mirip/disingkat (contoh Mtl -> Muntilan, Tmg -> Temanggung, Wds -> Windusari): [${originsList || 'Muntilan, Temanggung, Windusari, Boyolali, Madura, Pamekasan, Bojonegoro, Jember'}].
+   - Setiap baris (POWER, IMPACT, BITTER, BURN, SUGAR, AROMA) memiliki 5 kotak persegi bernomor dari kiri ke kanan: [1]  [2]  [3]  [4]  [5].
+   - PERIKSA SATU BARIS DEMI SATU BARIS secara terpisah:
+     * Lihat label di ujung kiri baris (misal POWER).
+     * Telusuri ke kanan kotak [1], [2], [3], [4], [5] pada baris yang SAMA persis (jangan loncat ke baris atas/bawah!).
+     * Pilih angka yang tercetak DI DALAM kotak yang benar-benar ada coretan pena (X, /, ✓, lingkaran, atau arsir).
+     * Abaikan kotak yang bersih/putih kosong. Jika seluruh 5 kotak pada baris itu bersih tanpa tanda pena, isi 0.
+6. Ejaan Tulisan Tangan (Penjual, Daerah Asal, Nama Tembakau):
+   - Baca huruf demi huruf dengan teliti, jangan memotong atau menebak huruf yang hilang!
+   - Cocokkan Penjual dengan daftar penjual gudang ini jika ejaannya mirip: [${sellersList || 'bebas'}].
+   - Cocokkan Daerah Asal dengan daftar daerah ini (Mtl -> Muntilan, Tmg -> Temanggung, Wds -> Windusari): [${originsList || 'Muntilan, Temanggung, Windusari, Boyolali, Madura, Pamekasan, Bojonegoro, Jember'}].
    - Referensi nama tembakau yang biasa masuk: [${tobaccoNamesList || 'bebas'}].
-6. Tanggal & Nama Grader:
-   - purchaseDate: baca tanggal di kotak "TANGGAL (TGL / BLN / THN)" atau baris "Tgl:" (misal "15 / 11 / 2026" -> "2026-11-15", atau tulis tangan tgl/bln saja seperti "15/11" jika tahun sudah tercetak). Jika tgl/bln masih kosong atau tidak terlihat, isi "".
-   - graderName: baca nama grader tercetak atau tulisan tangan di kotak "NAMA GRADER" atau "Grd:". Cocokkan dengan daftar grader gudang ini jika mirip: [${gradersList || 'bebas'}]. Jika kosong, isi "".
-7. Tahap 2 (Timbangan & Harga):
-   - grossWeightKg: angka Bruto (kg). Isi 0 jika masih kosong / belum ditimbang.
-   - pricePerKgPurchase: harga per kg dalam Rupiah penuh. Konversi singkatan gudang seperti "85k", "85rb", "85.000" menjadi 85000. Isi 0 jika masih kosong.
+7. Tanggal & Tahap 2 (Timbangan & Harga):
+   - purchaseDate: baca tanggal di "TGL: ___ / ___ / 2026" atau "TANGGAL" (contoh "18 / 11 / 2026" -> "2026-11-18"). Jika tgl/bln masih kosong, isi "".
+   - grossWeightKg: angka Bruto (kg) di baris ringkas bagian bawah. Isi 0 jika masih kosong / belum ditimbang.
+   - pricePerKgPurchase: harga per kg dalam Rupiah penuh ("85k", "85rb", "85.000" -> 85000). Isi 0 jika masih kosong.
+   - notes: baca seluruh tulisan tangan multi-baris di dalam kotak penuh paling bawah "CATATAN / KETERANGAN DETAIL (TAHAP 2)". Gabungkan semua baris catatan dengan rapi.
 8. Keraguan (uncertainFields & confidenceScore):
-   - Jika ada kotak/tulisan yang buram, miring, dua angka tercoret ragu, atau kurang jelas, WAJIB masukkan nama field-nya ke array uncertainFields (pilih dari: lotNumber, purchaseDate, graderName, name, origin, sellerName, colorGrade, packagingType, grossWeightKg, pricePerKgPurchase, powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating) dan turunkan confidenceScore (10-100).
-   - Jika foto terlalu gelap/buram atau bukan foto Kartu Grade maupun Barcode, isi cards = [], detectedCount = 0, dan jelaskan di imageQualityWarning.`;
+   - Jika ada kotak/tulisan yang buram, miring, dua kotak tercoret, atau ragu, WAJIB masukkan nama field-nya ke uncertainFields (pilih dari: lotNumber, purchaseDate, graderName, name, origin, sellerName, colorGrade, packagingType, grossWeightKg, pricePerKgPurchase, powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating) dan turunkan confidenceScore (10-100).
+   - Jika foto terlalu gelap/buram atau bukan Kartu Grade / Barcode, isi cards = [], detectedCount = 0, dan jelaskan di imageQualityWarning.`;
 
       const rawMime = dataUrlMimeMatch?.[1] || (typeof mimeType === 'string' ? mimeType.trim() : '');
       const safeMimeType = /^image\/(jpeg|png|webp|gif)$/i.test(rawMime)
@@ -2499,7 +2517,7 @@ ATURAN PEMBACAAN KETAT:
           ],
         },
         maxTotalWaitMs: 48000,
-        perModelTimeoutMs: 18000,
+        perModelTimeoutMs: 20000,
         modelCascade: SCAN_GRADE_CARD_MODEL_CASCADE,
         config: {
           responseMimeType: 'application/json',
@@ -2520,6 +2538,11 @@ ATURAN PEMBACAAN KETAT:
                   type: Type.OBJECT,
                   properties: {
                     cardIndex: { type: Type.INTEGER },
+                    barcodePayload: {
+                      type: Type.STRING,
+                      description:
+                        'Teks barcode lengkap jika terlihat (misal "MTL001/ALDI" dari BC: MTL001/ALDI atau barcode belakang).',
+                    },
                     lotNumber: { type: Type.STRING },
                     purchaseDate: { type: Type.STRING },
                     graderName: { type: Type.STRING },

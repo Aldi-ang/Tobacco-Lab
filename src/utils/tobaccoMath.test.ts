@@ -15,6 +15,11 @@ import {
   getAllowedGradesForTarget,
   extractUniqueOrigins,
   solveAutoBlend,
+  TOBACCO_GRADE_ORDER,
+  TOBACCO_GRADE_ROW_BASE,
+  TOBACCO_GRADE_ROW_PLUS,
+  TOBACCO_GRADE_GRID_2X7,
+  GRADE_SCORES,
 } from './tobaccoMath';
 import { BlendIngredient, FinishedTobaccoSerial, RawTobacco } from '../types/tobacco';
 
@@ -503,6 +508,19 @@ test('Auto-Racik Solver: Finds optimal blend when feasible and reports honest ma
   assert.equal(priceDiag?.status, 'IMPOSSIBLE_TOO_LOW');
   assert.equal(impossibleResult.impossibilityWarnings.length >= 2, true);
 });
+
+test('v4.4.0 2x7 Vertical-Pair Grade Layout & G/G+ scores (A..G over A+..G+)', () => {
+  assert.deepEqual(TOBACCO_GRADE_ROW_BASE, ['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+  assert.deepEqual(TOBACCO_GRADE_ROW_PLUS, ['A+', 'B+', 'C+', 'D+', 'E+', 'F+', 'G+']);
+  assert.deepEqual(TOBACCO_GRADE_GRID_2X7, [
+    'A', 'B', 'C', 'D', 'E', 'F', 'G',
+    'A+', 'B+', 'C+', 'D+', 'E+', 'F+', 'G+',
+  ]);
+  assert.equal(TOBACCO_GRADE_ORDER.length, 14);
+  assert.equal(GRADE_SCORES['G'], 13);
+  assert.equal(GRADE_SCORES['G+'], 14);
+});
+
 
 
 

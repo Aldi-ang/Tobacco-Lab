@@ -22,6 +22,20 @@ export const TOBACCO_GRADE_ORDER: TobaccoGrade[] = [
   'E+',
   'F',
   'F+',
+  'G',
+  'G+',
+];
+
+/**
+ * Vertical-pair Grade rows for printed Grade Cards and 2x7 UI selectors:
+ * Row 1: A  B  C  D  E  F  G
+ * Row 2: A+ B+ C+ D+ E+ F+ G+
+ */
+export const TOBACCO_GRADE_ROW_BASE: TobaccoGrade[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+export const TOBACCO_GRADE_ROW_PLUS: TobaccoGrade[] = ['A+', 'B+', 'C+', 'D+', 'E+', 'F+', 'G+'];
+export const TOBACCO_GRADE_GRID_2X7: TobaccoGrade[] = [
+  ...TOBACCO_GRADE_ROW_BASE,
+  ...TOBACCO_GRADE_ROW_PLUS,
 ];
 
 export const GRADE_SCORES: Record<TobaccoGrade, number> = {
@@ -37,6 +51,8 @@ export const GRADE_SCORES: Record<TobaccoGrade, number> = {
   'E+': 10,
   'F': 11,
   'F+': 12,
+  'G': 13,
+  'G+': 14,
 };
 
 export const GRADE_LABELS: Record<TobaccoGrade, { name: string; color: string; desc: string }> = {
@@ -99,6 +115,16 @@ export const GRADE_LABELS: Record<TobaccoGrade, { name: string; color: string; d
     name: 'Grade F+',
     color: 'bg-black text-amber-400 border-amber-500',
     desc: 'Grade F+',
+  },
+  'G': {
+    name: 'Grade G',
+    color: 'bg-black text-amber-300 border-amber-500/60',
+    desc: 'Grade G',
+  },
+  'G+': {
+    name: 'Grade G+',
+    color: 'bg-black text-amber-400 border-amber-400',
+    desc: 'Grade G+',
   },
 };
 

@@ -83,6 +83,7 @@ import {
   saveIssuedPrintedLots,
   saveLastLockedBatch,
   savePendingPrintBatch,
+  upsertPrintedLotMetadata,
   snapPrintCountForFormat,
   unlockLastLockedBatch,
 } from '../utils/printBatchLockEngine';
@@ -112,7 +113,7 @@ interface GradeCardPrintPanelProps {
   onSwitchToScanner?: () => void;
 }
 
-const A4_COUNT_PRESETS = [6, 12, 18, 24, 30, 36] as const;
+const A4_COUNT_PRESETS = [4, 8, 12, 16, 20, 24] as const;
 const THERMAL_COUNT_PRESETS = [1, 4, 6, 12, 24] as const;
 
 export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
@@ -147,7 +148,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
   );
   const [isAddingGrader, setIsAddingGrader] = useState(false);
   const [newGraderDraft, setNewGraderDraft] = useState('');
-  const [pendingDeleteGrader, setPendingDeleteGrader] = useState<string | null>(null);
+  const [pendingDeleteGrader, setPendingDeleteGrader] = useState(null as string | null);
 
   // Prefix Registry & Issued Lots
   const [issuedPrintedLots, setIssuedPrintedLots] = useState<string[]>(() =>
@@ -173,9 +174,9 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [printPdfError, setPrintPdfError] = useState<string | null>(null);
 
-  // Reprint Recovery State (1-to-1 per-slot A4 position assignment: Slots 1..6)
+  // Reprint Recovery State (1-to-1 per-slot A4 position assignment: Slots 1..4)
   const [reprintModeType, setReprintModeType] = useState<ReprintMode>('SLOT_TERPILIH');
-  const [reprintSlotCodes, setReprintSlotCodes] = useState<string[]>(['', '', '', '', '', '']);
+  const [reprintSlotCodes, setReprintSlotCodes] = useState<string[]>(['', '', '', '']);
   const [activeReprintSlotIndex, setActiveReprintSlotIndex] = useState<number>(0);
 
   // 100-Number Read-Only Audit Portal State
@@ -187,7 +188,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
   const effectivePrintCount = snapPrintCountForFormat(printCount, paperFormat);
   const activeGraderName = graderRegistryRaw.lastSelectedGrader;
   const isThermalMode = isThermalPaperFormat(paperFormat);
-  const cardsPerA4Page = 6 as const;
+  const cardsPerA4Page = 4 as const;
 
   useEffect(() => {
     savePrintPreferences({
@@ -275,6 +276,21 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
       ),
     [rawTobaccos, packagingList, graderRegistryRaw.registeredGraders]
   );
+
+  // Dynamic Kemasan list for printed cards: always mirrors ALL Master Kemasan entries cleanly
+  const cardPackagingChoices = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const p of packagingList) {
+      const name = (p.name || '').trim();
+      const key = name.toLowerCase();
+      if (name && !seen.has(key)) {
+        seen.add(key);
+        out.push(name);
+      }
+    }
+    return out.length > 0 ? out : masterDict.packagings;
+  }, [packagingList, masterDict.packagings]);
 
   const stockedLotSet = useMemo(
     () =>
@@ -480,7 +496,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
   const activeReprintPlan = useMemo(
     () =>
       buildSlotAssignedReprintPlan({
-        slotCodes: printModeTab === 'reprint' ? reprintSlotCodes : ['', '', '', '', '', ''],
+        slotCodes: printModeTab === 'reprint' ? reprintSlotCodes : ['', '', '', ''],
         mode: printModeTab === 'reprint' ? reprintModeType : 'GABUNG_BARU',
         generatedFreshLots: freshLotsForBatch,
         requestedCount: effectivePrintCount,
@@ -574,7 +590,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
   };
 
   const handleSelectReprintSlot = (slotIdx: number) => {
-    setActiveReprintSlotIndex(Math.max(0, Math.min(5, slotIdx)));
+    setActiveReprintSlotIndex(Math.max(0, Math.min(3, slotIdx)));
   };
 
   const handleClearReprintSlot = (slotIdx: number) => {
@@ -770,13 +786,22 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
     try {
       const { blob, filename, physicalPageCount } = generateA4GradeCardsPdf({
         lotBatchNumbers: slotSnapshot,
-        packagingChoices: masterDict.packagings,
+        packagingChoices: cardPackagingChoices,
         duplexMode,
         customPrefix: customLotPrefix,
         graderName: activeGraderName,
         printYear,
         blankUnusedSlots,
       });
+
+      const validPrintedLots = slotSnapshot.filter((l): l is string => Boolean(l));
+      if (validPrintedLots.length > 0) {
+        upsertPrintedLotMetadata({
+          lots: validPrintedLots,
+          graderName: activeGraderName,
+          printYear,
+        });
+      }
 
       const blobUrl = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
@@ -819,6 +844,12 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
 
     const freshSnapshot = [...freshLotsToLock];
     setPrintPdfError(null);
+
+    upsertPrintedLotMetadata({
+      lots: lotBatchNumbers,
+      graderName: activeGraderName,
+      printYear,
+    });
 
     if (freshSnapshot.length > 0) {
       stagePendingBatch(freshSnapshot, isThermalMode ? 'THERMAL' : 'SYSTEM_PRINT');
@@ -865,6 +896,12 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
     setPendingPrintBatch(null);
     savePendingPrintBatch(null);
     setPrintPdfError(null);
+
+    upsertPrintedLotMetadata({
+      lots: activePending.lots,
+      graderName: activeGraderName,
+      printYear,
+    });
 
     const nextPrefixReg = recordPrintedBatchToPrefixRegistry(
       prefixRegistry,
@@ -1519,19 +1556,19 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                             )}
                           </div>
 
-                          {/* Quick Slot 1..6 Position Switcher inside Pilih Nomor */}
+                          {/* Quick Slot 1..4 Position Switcher inside Pilih Nomor */}
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-[11px] font-semibold text-zinc-400">
                                 {isThermalMode
-                                  ? 'Slot Kartu Cetak (1–6):'
-                                  : 'Slot Posisi Kertas A4 (1–6 · digabung dalam 1 lembar):'}
+                                  ? 'Slot Kartu Cetak (1–4):'
+                                  : 'Slot Posisi Kertas A4 (1–4 · digabung dalam 1 lembar):'}
                               </span>
                               {parsedReprintLots.length > 0 && (
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    setReprintSlotCodes(['', '', '', '', '', ''])
+                                    setReprintSlotCodes(['', '', '', ''])
                                   }
                                   className="text-[10px] font-bold text-zinc-400 hover:text-red-300 cursor-pointer"
                                 >
@@ -1540,7 +1577,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                               )}
                             </div>
                             <div className="grid grid-cols-2 gap-1.5">
-                              {[0, 1, 2, 3, 4, 5].map((slotIdx) => {
+                              {[0, 1, 2, 3].map((slotIdx) => {
                                 const code = normalizeLotNumber(reprintSlotCodes[slotIdx]);
                                 const isActiveSlot = activeReprintSlotIndex === slotIdx;
                                 const isRedCode = Boolean(
@@ -1674,7 +1711,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                                   : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-700'
                               }`}
                             >
-                              <div className="text-xs font-extrabold">Slot Terpilih 1–6</div>
+                              <div className="text-xs font-extrabold">Slot Terpilih 1–4</div>
                               <div className="text-[11px] text-zinc-400 mt-0.5">
                                 Sisa kertas putih bersih, urutan baru tidak berubah
                               </div>
@@ -1747,7 +1784,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                           }`}
                         >
                           <Layers className="w-3.5 h-3.5 shrink-0" />
-                          <span>A4 6/Hal</span>
+                          <span>A4 4/Hal</span>
                         </button>
                         <button
                           type="button"
@@ -1950,12 +1987,12 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                       <RotateCcw className="w-7 h-7 text-zinc-500" />
                       <div className="space-y-1 max-w-md">
                         <div className="text-sm font-extrabold text-white">
-                          Pilih Slot 1–6 &amp; Isi Nomor Kartu
+                          Pilih Slot 1–4 &amp; Isi Nomor Kartu
                         </div>
                         <p className="text-xs text-zinc-400">
-                          Klik Slot 1–6 di panel kiri lalu ketik nomor seri, pilih dari{' '}
+                          Klik Slot 1–4 di panel kiri lalu ketik nomor seri, pilih dari{' '}
                           <strong className="text-red-400">Seri Terakhir</strong>, atau tekan{' '}
-                          <strong className="text-amber-300">Pilih Nomor</strong> untuk menggabungkan beberapa kartu pada 1 lembar A4.
+                          <strong className="text-amber-300">Pilih Nomor</strong> untuk menggabungkan beberapa kartu pada 1 lembar A4 (4 Kartu Besar).
                         </p>
                       </div>
                     </div>
@@ -1965,7 +2002,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                         <div key={`${tIdx}-${lot}`} className="shadow-2xl">
                           <ThermalGradeCardPaper
                             lotNumber={lot}
-                            packagingChoices={masterDict.packagings}
+                            packagingChoices={cardPackagingChoices}
                             profile={paperFormat === 'THERMAL_58' ? 'THERMAL_58' : 'THERMAL_80'}
                             includeBackBarcode={includeThermalBarcode}
                             customPrefix={customLotPrefix}
@@ -1987,16 +2024,16 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                             {/* FRONT SIDE SHEET */}
                             <div className="bg-white text-black rounded-xl p-4 shadow-2xl border border-zinc-300">
                               <div className="text-[10px] font-mono font-bold text-zinc-600 mb-2.5 flex justify-between gap-2">
-                                <span>HALAMAN A4 #{pageIdx + 1} — SISI DEPAN (6 KARTU)</span>
+                                <span>HALAMAN A4 #{pageIdx + 1} — SISI DEPAN (4 KARTU BESAR)</span>
                                 <span>POTONG GARIS TEPI HITAM</span>
                               </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-3 sm:auto-rows-fr gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-2 sm:auto-rows-fr gap-4">
                                 {pageLots.map((lot, sIdx) => (
                                   <PrintableGradeCardPaper
                                     key={`${pageIdx}-front-${sIdx}-${lot || 'empty'}`}
                                     lotNumber={lot}
-                                    packagingChoices={masterDict.packagings}
-                                    compact={true}
+                                    packagingChoices={cardPackagingChoices}
+                                    compact={false}
                                     graderName={activeGraderName}
                                     printYear={printYear}
                                     previewEmptySlotLabel={
@@ -2020,15 +2057,16 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                                   </span>
                                   <span>SEJAJAR DI BALIK KARTU DEPAN</span>
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-3 sm:auto-rows-fr gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-rows-2 sm:auto-rows-fr gap-4">
                                   {backSlots.map((slot, sIdx) => (
                                     <PrintableGradeCardBackPaper
                                       key={`${pageIdx}-back-${sIdx}`}
                                       lotNumber={slot.lot}
                                       customPrefix={customLotPrefix}
-                                      compact={true}
+                                      compact={false}
                                       rotate180={slot.rotate180}
                                       blankUnusedSlots={blankUnusedSlots}
+                                      graderName={activeGraderName}
                                     />
                                   ))}
                                 </div>
@@ -2246,7 +2284,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
               <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
                 <div className="flex flex-wrap items-center gap-2 min-w-0">
                   <span className="font-extrabold text-zinc-200">
-                    Slot Custom Printing (1–6)
+                    Slot Custom Printing (1–4)
                   </span>
                   <span className="text-zinc-500 hidden sm:inline">
                     · Pilih slot aktif lalu klik kotak Hijau/Kuning di bawah
@@ -2259,7 +2297,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                   <button
                     type="button"
                     data-testid="audit-reset-slots-btn"
-                    onClick={() => setReprintSlotCodes(['', '', '', '', '', ''])}
+                    onClick={() => setReprintSlotCodes(['', '', '', ''])}
                     className="text-[11px] font-bold text-zinc-400 hover:text-red-300 cursor-pointer"
                   >
                     Reset Semua
@@ -2267,8 +2305,8 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5">
-                {[0, 1, 2, 3, 4, 5].map((slotIdx) => {
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {[0, 1, 2, 3].map((slotIdx) => {
                   const code = normalizeLotNumber(reprintSlotCodes[slotIdx]);
                   const isActiveSlot = activeReprintSlotIndex === slotIdx;
                   const isRedCode = Boolean(code && printedOrStockedLotSet.has(code));
@@ -2521,7 +2559,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                   <ThermalGradeCardPaper
                     key={`portal-thermal-${tIdx}-${lot}`}
                     lotNumber={lot}
-                    packagingChoices={masterDict.packagings}
+                    packagingChoices={cardPackagingChoices}
                     profile={paperFormat === 'THERMAL_58' ? 'THERMAL_58' : 'THERMAL_80'}
                     includeBackBarcode={includeThermalBarcode}
                     customPrefix={customLotPrefix}
@@ -2539,7 +2577,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                       <div
                         className="grade-card-a4-page grid grid-cols-2"
                         style={{
-                          gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
+                          gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
                           gap: `${A4_PRINT_PAGE_METRICS.gridGapMm}mm`,
                           height: `${A4_PRINT_PAGE_METRICS.pageHeightMm}mm`,
                           maxHeight: `${A4_PRINT_PAGE_METRICS.pageHeightMm}mm`,
@@ -2549,8 +2587,8 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                           <PrintableGradeCardPaper
                             key={`portal-front-${pageIdx}-${sIdx}-${lot || 'empty'}`}
                             lotNumber={lot}
-                            packagingChoices={masterDict.packagings}
-                            compact={true}
+                            packagingChoices={cardPackagingChoices}
+                            compact={false}
                             graderName={activeGraderName}
                             printYear={printYear}
                           />
@@ -2561,7 +2599,7 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                         <div
                           className="grade-card-a4-page grid grid-cols-2"
                           style={{
-                            gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
+                            gridTemplateRows: 'repeat(2, minmax(0, 1fr))',
                             gap: `${A4_PRINT_PAGE_METRICS.gridGapMm}mm`,
                             height: `${A4_PRINT_PAGE_METRICS.pageHeightMm}mm`,
                             maxHeight: `${A4_PRINT_PAGE_METRICS.pageHeightMm}mm`,
@@ -2572,9 +2610,10 @@ export const GradeCardPrintPanel: React.FC<GradeCardPrintPanelProps> = ({
                               key={`${pageIdx}-print-back-${sIdx}`}
                               lotNumber={slot.lot}
                               customPrefix={customLotPrefix}
-                              compact={true}
+                              compact={false}
                               rotate180={slot.rotate180}
                               blankUnusedSlots={blankUnusedSlots}
+                              graderName={activeGraderName}
                             />
                           ))}
                         </div>

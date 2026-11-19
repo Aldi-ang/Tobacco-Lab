@@ -4,11 +4,13 @@ import {
   A4_PRINT_PAGE_METRICS,
   arrangeDuplexBackSlots,
   buildDynamicPrintPageCss,
+  buildGradeCardBarcodePayload,
   computeCode39TotalUnits,
   encodeCode39Modules,
   encodeMonochromePixelsToEscPos,
   extractLotPrefixCode,
   isThermalPaperFormat,
+  parseGradeCardBarcodePayload,
   THERMAL_PROFILES,
 } from './thermalPrintEngine';
 
@@ -98,3 +100,22 @@ test('encodeMonochromePixelsToEscPos builds valid GS v 0 raster command with thr
   // Footer: ESC d 3 + GS V 66 0
   assert.deepEqual(Array.from(cmd.slice(12)), [0x1b, 0x64, 3, 0x1d, 0x56, 0x42, 0x00]);
 });
+
+test('buildGradeCardBarcodePayload and parseGradeCardBarcodePayload encode & decode fixed grader names cleanly', () => {
+  assert.equal(buildGradeCardBarcodePayload('MTL001', 'Aldi'), 'MTL001/ALDI');
+  assert.equal(buildGradeCardBarcodePayload('MTL001', 'Pak Joko'), 'MTL001/PAK-JOKO');
+  assert.equal(buildGradeCardBarcodePayload('MTL001', ''), 'MTL001');
+
+  const parsedSimple = parseGradeCardBarcodePayload('MTL001/ALDI');
+  assert.equal(parsedSimple.lotNumber, 'MTL001');
+  assert.equal(parsedSimple.embeddedGraderName, 'Aldi');
+
+  const parsedMulti = parseGradeCardBarcodePayload('*MTL001/PAK-JOKO*');
+  assert.equal(parsedMulti.lotNumber, 'MTL001');
+  assert.equal(parsedMulti.embeddedGraderName, 'Pak Joko');
+
+  const parsedPlain = parseGradeCardBarcodePayload('MTL009');
+  assert.equal(parsedPlain.lotNumber, 'MTL009');
+  assert.equal(parsedPlain.embeddedGraderName, '');
+});
+

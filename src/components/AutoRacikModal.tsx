@@ -21,7 +21,7 @@ import {
   TobaccoGrade,
 } from '../types/tobacco';
 import {
-  TOBACCO_GRADE_ORDER,
+  TOBACCO_GRADE_GRID_2X7,
   getAllowedGradesForTarget,
   extractUniqueOrigins,
   solveAutoBlend,
@@ -410,44 +410,56 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                   </label>
                 </div>
 
-                {/* Target Grade Selector */}
-                <div className="flex items-center gap-1 flex-wrap">
-                  <span className="text-[10px] font-bold uppercase text-zinc-400 mr-1">
-                    Target:
+                {/* Target Grade Selector (2x7 Vertical Pairs: A..G / A+..G+) */}
+                <div className="space-y-1">
+                  <span className="block text-[10px] font-bold uppercase text-zinc-400">
+                    Target Grade:
                   </span>
-                  {TOBACCO_GRADE_ORDER.map((g) => {
-                    const active = targetGrade === g;
-                    return (
-                      <button
-                        key={g}
-                        type="button"
-                        onClick={() => handleSelectTargetGrade(g, strictCrossGradeOnly)}
-                        className={`h-7 min-w-8 px-2 rounded-lg text-[11px] font-mono font-black border cursor-pointer transition-all ${
-                          active
-                            ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
-                            : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-600'
-                        }`}
-                      >
-                        {g}
-                      </button>
-                    );
-                  })}
+                  <div className="grid grid-cols-7 gap-1">
+                    {TOBACCO_GRADE_GRID_2X7.map((g) => {
+                      const active = targetGrade === g;
+                      return (
+                        <button
+                          key={g}
+                          type="button"
+                          onClick={() => handleSelectTargetGrade(g, strictCrossGradeOnly)}
+                          className={`h-7 rounded-lg text-[11px] font-mono font-black border cursor-pointer transition-all ${
+                            active
+                              ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
+                              : 'bg-black text-zinc-300 border-zinc-800 hover:border-zinc-600'
+                          }`}
+                        >
+                          {g}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {/* Auto-Selected Allowed Grades Window */}
-                <div className="bg-black/70 border border-zinc-800/90 rounded-lg p-2 flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-[10px] font-extrabold uppercase text-emerald-400 mr-1">
+                {/* Auto-Selected Allowed Grades Window (2x7 Vertical Pairs) */}
+                <div className="bg-black/70 border border-zinc-800/90 rounded-lg p-2 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-extrabold uppercase text-emerald-400">
                       Stok Grade Aktif:
                     </span>
-                    {TOBACCO_GRADE_ORDER.map((g) => {
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTargetGrade(targetGrade, strictCrossGradeOnly)}
+                      className="text-[10px] text-amber-400 hover:underline font-bold inline-flex items-center gap-1 cursor-pointer shrink-0"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Reset</span>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {TOBACCO_GRADE_GRID_2X7.map((g) => {
                       const isIncluded = allowedGrades.includes(g);
                       return (
                         <button
                           key={g}
                           type="button"
                           onClick={() => toggleAllowedGrade(g)}
-                          className={`h-6 px-1.5 rounded text-[10px] font-mono font-extrabold border cursor-pointer transition-colors ${
+                          className={`h-6 rounded text-[10px] font-mono font-extrabold border cursor-pointer transition-colors ${
                             isIncluded
                               ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/60'
                               : 'bg-zinc-950 text-zinc-600 border-zinc-900 hover:text-zinc-400'
@@ -458,14 +470,6 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                       );
                     })}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectTargetGrade(targetGrade, strictCrossGradeOnly)}
-                    className="text-[10px] text-amber-400 hover:underline font-bold inline-flex items-center gap-1 cursor-pointer shrink-0"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    <span>Reset</span>
-                  </button>
                 </div>
               </div>
 

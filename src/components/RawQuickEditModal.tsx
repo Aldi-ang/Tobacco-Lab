@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { PackagingMaster, RawTobacco, TobaccoGrade } from '../types/tobacco';
 import {
-  TOBACCO_GRADE_ORDER,
+  TOBACCO_GRADE_GRID_2X7,
   clampRating5,
   formatRupiah,
   formatTaraFormula,
@@ -744,15 +744,15 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                 <label className="block text-[11px] font-bold text-zinc-200 mb-1.5">
                   Grade Tembakau
                 </label>
-                <div className="grid grid-cols-6 gap-1.5">
-                  {TOBACCO_GRADE_ORDER.map((gr) => {
+                <div className="grid grid-cols-7 gap-1.5">
+                  {TOBACCO_GRADE_GRID_2X7.map((gr) => {
                     const active = colorGrade === gr;
                     return (
                       <button
                         key={gr}
                         type="button"
                         onClick={() => setColorGrade(gr)}
-                        className={`h-8 rounded-lg border text-xs transition-all cursor-pointer ${
+                        className={`h-8 rounded-lg border text-xs font-mono transition-all cursor-pointer ${
                           active
                             ? 'bg-[#0e1015] text-amber-300 border-amber-500/80 font-black'
                             : 'bg-black border-zinc-800 text-zinc-200 hover:border-zinc-600 font-bold'

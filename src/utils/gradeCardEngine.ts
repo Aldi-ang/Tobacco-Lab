@@ -10,10 +10,13 @@ import {
   calculateRawTobaccoCost,
   clampRating5,
 } from './tobaccoMath';
+import { parseGradeCardBarcodePayload } from './thermalPrintEngine';
+import type { PrintedLotMetadata } from './printBatchLockEngine';
 
 export interface ScannedGradeCardRawInput {
   cardIndex?: number;
   lotNumber?: string;
+  barcodePayload?: string;
   purchaseDate?: string;
   graderName?: string;
   name?: string;
@@ -53,6 +56,8 @@ export interface ReviewedScannedGradeCard {
   purchaseDate: string;
   dateWasAutoDefaulted?: boolean;
   graderName: string;
+  graderBoundFromBarcode?: boolean;
+  barcodePayload?: string;
   name: string;
   origin: string;
   sellerName: string;
@@ -449,6 +454,8 @@ export function classifyScannedCardsForReview(params: {
   defaultPrintYear?: number;
   registeredGraders?: string[];
   todayIsoOverride?: string;
+  printedLotMetadata?: Record<string, PrintedLotMetadata>;
+  localBarcodes?: string[];
 }): ReviewedScannedGradeCard[] {
   const {
     scannedCards,
@@ -457,6 +464,8 @@ export function classifyScannedCardsForReview(params: {
     defaultPrintYear,
     registeredGraders = [],
     todayIsoOverride,
+    printedLotMetadata = {},
+    localBarcodes = [],
   } = params;
   const master = buildWarehouseMasterDictionary(rawTobaccos, packagingList, registeredGraders);
   const todayIso = todayIsoOverride || new Date().toISOString().split('T')[0];
@@ -467,13 +476,39 @@ export function classifyScannedCardsForReview(params: {
     if (normLot) existingByLot.set(normLot, t);
   }
 
+  // Parse all locally decoded Code 39 barcodes (e.g. "MTL001/ALDI") into a fast lot lookup
+  const parsedLocalBarcodes = (localBarcodes || [])
+    .map((code) => parseGradeCardBarcodePayload(code))
+    .filter((p) => Boolean(p.lotNumber));
+  const localBarcodeByLot = new Map<string, ReturnType<typeof parseGradeCardBarcodePayload>>();
+  for (const hit of parsedLocalBarcodes) {
+    const existingHit = localBarcodeByLot.get(hit.lotNumber);
+    if (!existingHit || (!existingHit.embeddedGraderName && hit.embeddedGraderName)) {
+      localBarcodeByLot.set(hit.lotNumber, hit);
+    }
+  }
+
   const seenLotsInCurrentScan = new Set<string>();
   const autoLots = generateNextLotBatchNumbers(rawTobaccos, scannedCards.length);
 
   return scannedCards.map((raw, idx) => {
     const autoCorrections: AutoCorrectionNote[] = [];
 
-    const rawLot = normalizeLotNumber(raw.lotNumber);
+    // Parse barcodePayload (if AI extracted "MTL001/ALDI") and raw.lotNumber (in case "/" landed in lotNumber)
+    const parsedFromBarcodeField = parseGradeCardBarcodePayload(raw.barcodePayload || '');
+    const parsedFromLotField = parseGradeCardBarcodePayload(raw.lotNumber || '');
+
+    let candidateLot = parsedFromBarcodeField.lotNumber || parsedFromLotField.lotNumber;
+    let matchedLocalBarcode = candidateLot ? localBarcodeByLot.get(candidateLot) : undefined;
+    // Single-card capture convenience: if exactly 1 card & 1 local Code 39 barcode, correlate directly
+    if (!matchedLocalBarcode && scannedCards.length === 1 && parsedLocalBarcodes.length === 1) {
+      matchedLocalBarcode = parsedLocalBarcodes[0];
+      if (!candidateLot) {
+        candidateLot = matchedLocalBarcode.lotNumber;
+      }
+    }
+
+    const rawLot = normalizeLotNumber(candidateLot);
     const lotNumber = rawLot || autoLots[idx];
 
     const originSnap = snapToMasterDictionary(raw.origin || '', master.origins);
@@ -486,8 +521,39 @@ export function classifyScannedCardsForReview(params: {
       autoCorrections.push({ field: 'Penjual', from: raw.sellerName, to: sellerSnap.value });
     }
 
-    const graderSnap = snapToMasterDictionary(raw.graderName || '', master.graders);
-    if (graderSnap.wasAutoCorrected && raw.graderName) {
+    // Fixed Grader Name Correlation Priority:
+    // 1. Local Code 39 barcode payload (e.g. MTL001/ALDI)
+    // 2. AI-read barcodePayload / lotNumber with embedded "/GRADER"
+    // 3. Local printedLotMetadata registry keyed by Lot Number
+    // 4. OCR graderName snapped against Kamus Master Graders
+    const embeddedBarcodeGrader =
+      matchedLocalBarcode?.embeddedGraderName ||
+      parsedFromBarcodeField.embeddedGraderName ||
+      parsedFromLotField.embeddedGraderName ||
+      '';
+    const registryGrader = lotNumber ? printedLotMetadata[lotNumber]?.graderName || '' : '';
+    const barcodeDerivedRawGrader = embeddedBarcodeGrader || registryGrader;
+    const graderBoundFromBarcode = Boolean(barcodeDerivedRawGrader);
+    const resolvedBarcodePayload =
+      matchedLocalBarcode?.rawPayload ||
+      parsedFromBarcodeField.rawPayload ||
+      parsedFromLotField.rawPayload ||
+      '';
+
+    const graderSnap = barcodeDerivedRawGrader
+      ? snapToMasterDictionary(barcodeDerivedRawGrader, master.graders)
+      : snapToMasterDictionary(raw.graderName || '', master.graders);
+
+    if (graderBoundFromBarcode) {
+      const rawOcrGrader = String(raw.graderName || '').trim();
+      if (rawOcrGrader && normalizeToken(rawOcrGrader) !== normalizeToken(graderSnap.value)) {
+        autoCorrections.push({
+          field: 'Grader (Barcode)',
+          from: rawOcrGrader,
+          to: graderSnap.value,
+        });
+      }
+    } else if (graderSnap.wasAutoCorrected && raw.graderName) {
       autoCorrections.push({ field: 'Grader', from: raw.graderName, to: graderSnap.value });
     }
 
@@ -500,9 +566,14 @@ export function classifyScannedCardsForReview(params: {
       });
     }
 
+    const fallbackYear =
+      (lotNumber ? printedLotMetadata[lotNumber]?.printYear : undefined) ??
+      defaultPrintYear ??
+      new Date().getFullYear();
+
     const parsedDate = normalizeScannedPurchaseDate(
       raw.purchaseDate,
-      defaultPrintYear ?? new Date().getFullYear(),
+      fallbackYear,
       todayIso
     );
 
@@ -714,9 +785,11 @@ export function classifyScannedCardsForReview(params: {
     }
 
     const confidence = Math.min(100, Math.max(10, Math.round(Number(raw.confidenceScore) || 85)));
-    const uncertainFields = Array.isArray(raw.uncertainFields)
-      ? raw.uncertainFields.map((f) => String(f)).filter(Boolean)
-      : [];
+    const uncertainFields = (
+      Array.isArray(raw.uncertainFields)
+        ? raw.uncertainFields.map((f) => String(f)).filter(Boolean)
+        : []
+    ).filter((f) => !(graderBoundFromBarcode && f === 'graderName'));
 
     // When matching an existing record, fill unprovided fields cleanly from existingRecord so review edits are accurate
     const resolvedName =
@@ -760,6 +833,8 @@ export function classifyScannedCardsForReview(params: {
       purchaseDate: resolvedDate,
       dateWasAutoDefaulted: !matchedExisting && parsedDate.wasAutoDefaulted,
       graderName: resolvedGrader,
+      graderBoundFromBarcode,
+      barcodePayload: resolvedBarcodePayload || undefined,
       name: resolvedName,
       origin: resolvedOrigin,
       sellerName: resolvedSeller,
