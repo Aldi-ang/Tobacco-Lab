@@ -13,7 +13,7 @@ import {
 
 import { ALUCARD_EASE } from './AlucardMotion';
 
-export const CURRENT_APP_VERSION = 'v4.3.7';
+export const CURRENT_APP_VERSION = 'v4.3.8';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -32,11 +32,40 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v4.3.8',
+    date: '19 November 2026',
+    codename:
+      'Deteksi Fleksibel Semua Nama Variabel Gemini Key + Diagnostik Placeholder & Runtime Vercel',
+    isLatest: true,
+    highlights:
+      'Server kini otomatis mendeteksi semua variasi nama variabel key Gemini (termasuk VITE_GEMINI_API_KEY, NEXT_PUBLIC_GEMINI_API_KEY, GEMINI_KEY, spasi tak sengaja, dan nama kustom *GEMINI*KEY*), serta melaporkan secara akurat di /api/health?probe=1 apakah variabel masih berisi placeholder atau belum aktif di runtime Vercel Production.',
+    changes: [
+      {
+        type: 'fix',
+        title: 'Deteksi Otomatis Semua Variasi Nama Env Var Gemini di Server',
+        description:
+          'Mendukung GEMINI_API_KEY, VITE_GEMINI_API_KEY, NEXT_PUBLIC_GEMINI_API_KEY, GOOGLE_API_KEY, GEMINI_KEY, nama dengan spasi/huruf kecil, hingga variabel kustom berpola *GEMINI*KEY* tanpa perlu ganti nama.',
+      },
+      {
+        type: 'fix',
+        title: 'Diagnostik Tepat: Placeholder vs Variabel Kosong vs Runtime Vercel',
+        description:
+          'Endpoint /api/health?probe=1 kini menampilkan runtime, matchedEnvNames, placeholderEnvNames, dan emptyEnvNames (tanpa pernah membocorkan isi key) sehingga langsung jelas penyebab jika key belum terbaca.',
+      },
+      {
+        type: 'fix',
+        title: 'Perbaikan Parser Tanggal Kartu Grade dengan Spasi & Badge v4.3.8',
+        description:
+          'Memperbaiki pembacaan tanggal bertanda spasi seperti "18 / 11 / 2026" agar tidak mundur ke tanggal hari ini, serta memperbarui versi aktif ke v4.3.8.',
+      },
+    ],
+  },
+  {
     version: 'v4.3.7',
     date: '19 November 2026',
     codename:
       'Fix Scan Foto di Vercel/HP (Fallback Model Publik Gemini 2.5 + Sanitasi Key & Diagnostik Akurat)',
-    isLatest: true,
+    isLatest: false,
     highlights:
       'Memperbaiki error palsu "Konfigurasi GEMINI_API_KEY pada server belum valid/aktif" padahal geminiConfigured sudah true di Vercel: server kini otomatis fallback ke model Gemini 2.5 publik saat alias model AI Studio tidak tersedia di API Key eksternal, membersihkan tanda kutip/spasi pada env key, serta menampilkan penyebab asli dari Google.',
     changes: [

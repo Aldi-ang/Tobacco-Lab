@@ -7,9 +7,12 @@ import path from 'path';
 import {
   NOLAN_CLOUD_MODEL_CASCADE,
   SCAN_GRADE_CARD_MODEL_CASCADE,
+  buildMissingKeyDiagnosticMessage,
   extractShortUpstreamReason,
   extractUniqueGeminiApiKeys,
   formatGeminiScanErrorMessage,
+  getServerRuntimeLabel,
+  inspectGeminiEnv,
   isFatalKeyError,
   scrubApiKeysFromText,
 } from './src/utils/geminiServerHelpers.ts';
@@ -97,9 +100,7 @@ async function generateWith24x7Fallback(params: {
 }): Promise<{ text: string; modelUsed: string }> {
   const apiKeys = getGeminiApiKeys();
   if (apiKeys.length === 0) {
-    throw new Error(
-      'GEMINI_API_KEY belum terpasang di server ini (Nolan bisa jalan lokal tanpa key, tetapi Scan Foto AI butuh GEMINI_API_KEY di Secrets / Environment Variables server).'
-    );
+    throw new Error(buildMissingKeyDiagnosticMessage(process.env));
   }
   const maxTotalWaitMs = params.maxTotalWaitMs ?? 14000;
   const perModelTimeoutMs = params.perModelTimeoutMs ?? 7000;
@@ -1487,12 +1488,16 @@ app.use((req, res, next) => {
 });
 
 app.get('/api/health', async (req: Request, res: Response) => {
-  const keys = getGeminiApiKeys();
+  const envInfo = inspectGeminiEnv(process.env);
   const basePayload: Record<string, unknown> = {
     ok: true,
-    version: 'v4.3.7',
-    geminiConfigured: keys.length > 0,
-    keyCount: keys.length,
+    version: 'v4.3.8',
+    runtime: getServerRuntimeLabel(process.env),
+    geminiConfigured: envInfo.validKeys.length > 0,
+    keyCount: envInfo.validKeys.length,
+    matchedEnvNames: envInfo.matchedEnvNames,
+    placeholderEnvNames: envInfo.placeholderEnvNames,
+    emptyEnvNames: envInfo.emptyEnvNames,
     timestamp: new Date().toISOString(),
   };
 

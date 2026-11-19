@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import {
   NOLAN_CLOUD_MODEL_CASCADE,
   SCAN_GRADE_CARD_MODEL_CASCADE,
+  buildMissingKeyDiagnosticMessage,
   extractUniqueGeminiApiKeys,
   formatGeminiScanErrorMessage,
+  inspectGeminiEnv,
   isFatalKeyError,
   looksLikeGoogleApiKey,
   sanitizeApiKey,
@@ -24,18 +26,43 @@ test('sanitizeApiKey strips quotes, whitespace, newlines, and accidental VAR= pr
   assert.equal(sanitizeApiKey('   '), '');
 });
 
-test('extractUniqueGeminiApiKeys reads all aliases, sanitizes, and deduplicates', () => {
+test('extractUniqueGeminiApiKeys reads standard, VITE_, NEXT_PUBLIC_, trimmed, and custom GEMINI*KEY env vars', () => {
   const keys = extractUniqueGeminiApiKeys({
-    GEMINI_API_KEY: '"AIzaSyPrimaryKey1234567890123456"',
+    ' GEMINI_API_KEY ': '"AIzaSyPrimaryKey1234567890123456"',
     GOOGLE_API_KEY: 'AIzaSyPrimaryKey1234567890123456',
-    GOOGLE_GENERATIVE_AI_API_KEY: 'AIzaSySecondaryKey12345678901234',
+    VITE_GEMINI_API_KEY: 'AIzaSyViteKey1234567890123456789',
+    TOBACCO_GEMINI_KEY: 'AIzaSyCustomKey12345678901234567',
     API_KEY: 'MY_GEMINI_API_KEY',
   });
   assert.deepEqual(keys, [
     'AIzaSyPrimaryKey1234567890123456',
-    'AIzaSySecondaryKey12345678901234',
+    'AIzaSyViteKey1234567890123456789',
+    'AIzaSyCustomKey12345678901234567',
   ]);
   assert.equal(looksLikeGoogleApiKey(keys[0]), true);
+});
+
+test('inspectGeminiEnv and buildMissingKeyDiagnosticMessage report placeholders, empty vars, and Vercel runtime accurately', () => {
+  const placeholderEnv = {
+    VERCEL: '1',
+    VERCEL_ENV: 'production',
+    GEMINI_API_KEY: 'MY_GEMINI_API_KEY',
+  };
+  const info = inspectGeminiEnv(placeholderEnv);
+  assert.deepEqual(info.validKeys, []);
+  assert.deepEqual(info.placeholderEnvNames, ['GEMINI_API_KEY']);
+
+  const placeholderMsg = buildMissingKeyDiagnosticMessage(placeholderEnv);
+  assert.match(placeholderMsg, /masih teks placeholder/i);
+  assert.match(placeholderMsg, /GEMINI_API_KEY/);
+  assert.equal(formatGeminiScanErrorMessage(new Error(placeholderMsg)), placeholderMsg);
+
+  const missingVercelMsg = buildMissingKeyDiagnosticMessage({
+    VERCEL: '1',
+    VERCEL_ENV: 'production',
+  });
+  assert.match(missingVercelMsg, /vercel:production/);
+  assert.match(missingVercelMsg, /Production/);
 });
 
 test('model cascades avoid deprecated models and include Vercel-compatible public fallbacks', () => {
