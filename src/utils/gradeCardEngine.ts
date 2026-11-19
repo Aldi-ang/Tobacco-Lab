@@ -363,14 +363,14 @@ export function normalizeScannedPurchaseDate(
   };
 
   // YYYY-MM-DD or YYYY/MM/DD
-  const isoMatch = cleaned.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  const isoMatch = cleaned.match(/^(\d{4})\s*[-/]\s*(\d{1,2})\s*[-/]\s*(\d{1,2})$/);
   if (isoMatch) {
     const valid = isValidYmd(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
     if (valid) return { isoDate: valid, wasAutoDefaulted: false };
   }
 
-  // DD/MM/YYYY or DD-MM-YYYY or DD/MM/YY
-  const dmyMatch = cleaned.match(/^(\d{1,2})[-/.](\d{1,2})(?:[-/.](\d{2,4}))?$/);
+  // DD/MM/YYYY or DD-MM-YYYY or DD/MM/YY (allowing spaces around slashes like "18 / 11 / 2026")
+  const dmyMatch = cleaned.match(/^(\d{1,2})\s*[-/.]\s*(\d{1,2})(?:\s*[-/.]\s*(\d{2,4}))?$/);
   if (dmyMatch) {
     const day = Number(dmyMatch[1]);
     const month = Number(dmyMatch[2]);

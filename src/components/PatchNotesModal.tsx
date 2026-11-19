@@ -13,7 +13,7 @@ import {
 
 import { ALUCARD_EASE } from './AlucardMotion';
 
-export const CURRENT_APP_VERSION = 'v4.3.6';
+export const CURRENT_APP_VERSION = 'v4.3.7';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -32,11 +32,40 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v4.3.7',
+    date: '19 November 2026',
+    codename:
+      'Fix Scan Foto di Vercel/HP (Fallback Model Publik Gemini 2.5 + Sanitasi Key & Diagnostik Akurat)',
+    isLatest: true,
+    highlights:
+      'Memperbaiki error palsu "Konfigurasi GEMINI_API_KEY pada server belum valid/aktif" padahal geminiConfigured sudah true di Vercel: server kini otomatis fallback ke model Gemini 2.5 publik saat alias model AI Studio tidak tersedia di API Key eksternal, membersihkan tanda kutip/spasi pada env key, serta menampilkan penyebab asli dari Google.',
+    changes: [
+      {
+        type: 'fix',
+        title: 'Fallback Otomatis Model Publik Gemini 2.5 untuk Deploy Vercel',
+        description:
+          'Saat API Key eksternal di Vercel menolak alias model internal (403/404), server Vision AI & Nolan kini otomatis berpindah ke gemini-2.5-flash dan gemini-2.5-flash-lite tanpa error.',
+      },
+      {
+        type: 'fix',
+        title: 'Sanitasi Otomatis GEMINI_API_KEY & Pesan Diagnostik Sebenarnya',
+        description:
+          'Otomatis menghapus tanda kutip, spasi, atau prefix tak sengaja pada env var server, serta membedakan error HTTP Referrer restriction, key tidak valid, dan izin model (tanpa menyembunyikan detail asli).',
+      },
+      {
+        type: 'feature',
+        title: 'Uji Koneksi Live via /api/health?probe=1 & Badge v4.3.7',
+        description:
+          'Menambahkan parameter ?probe=1 pada /api/health untuk menguji langsung koneksi kunci AI & model aktif di server, serta memperbarui penanda versi header menjadi v4.3.7.',
+      },
+    ],
+  },
+  {
     version: 'v4.3.6',
     date: '18 November 2026',
     codename:
       'Kamera Full-Screen dengan Kotak Transparan Kartu Grade + Dukungan Alias Key Server',
-    isLatest: true,
+    isLatest: false,
     highlights:
       'Panel kamera Scan Kartu Grade dirombak total menjadi viewfinder layar penuh (full-screen 100dvh) dengan kotak transparan seukuran fisik Kartu Grade di bagian tengah, tombol jepret satu tangan, dan dukungan tambahan nama variabel key AI di server.',
     changes: [

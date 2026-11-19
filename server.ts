@@ -4,6 +4,15 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import {
+  NOLAN_CLOUD_MODEL_CASCADE,
+  SCAN_GRADE_CARD_MODEL_CASCADE,
+  extractShortUpstreamReason,
+  extractUniqueGeminiApiKeys,
+  formatGeminiScanErrorMessage,
+  isFatalKeyError,
+  scrubApiKeysFromText,
+} from './src/utils/geminiServerHelpers.ts';
 
 dotenv.config();
 
@@ -24,22 +33,12 @@ try {
 }
 
 function getGeminiApiKeys(): string[] {
-  const keys = [
-    process.env.GEMINI_API_KEY,
-    process.env.GEMINI_API_KEY_2,
-    process.env.GEMINI_API_KEY_3,
-    process.env.GOOGLE_API_KEY,
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-    process.env.API_KEY,
-  ]
-    .map((k) => (k || '').trim())
-    .filter(Boolean);
-  return Array.from(new Set(keys));
+  return extractUniqueGeminiApiKeys(process.env);
 }
 
 function getGeminiClient(apiKeyOverride?: string): GoogleGenAI {
   const keys = getGeminiApiKeys();
-  const activeKey = apiKeyOverride || keys[0] || process.env.GEMINI_API_KEY;
+  const activeKey = apiKeyOverride || keys[0];
   return new GoogleGenAI({
     apiKey: activeKey,
     httpOptions: {
@@ -50,11 +49,8 @@ function getGeminiClient(apiKeyOverride?: string): GoogleGenAI {
   });
 }
 
-// 24/7 Official Multi-Model Cascade (verified active aliases from @google/genai skill):
-const NOLAN_24X7_MODEL_CASCADE = [
-  'gemini-4-hydrogen',
-  'gemini-3.1-flash-lite',
-] as const;
+// 24/7 Multi-Model Cascade (primary AI Studio models + public Gemini 2.5 GA fallbacks for Vercel):
+const NOLAN_24X7_MODEL_CASCADE = NOLAN_CLOUD_MODEL_CASCADE;
 
 function parseGeminiJsonSafely(rawText: string): any {
   const trimmed = String(rawText || '').trim();
@@ -113,12 +109,18 @@ async function generateWith24x7Fallback(params: {
       : NOLAN_24X7_MODEL_CASCADE;
   const startAll = Date.now();
   let lastError: unknown = null;
+  const attemptSummaries: string[] = [];
 
   for (const key of apiKeys) {
     const ai = getGeminiClient(key);
     for (let i = 0; i < cascade.length; i++) {
       if (Date.now() - startAll >= maxTotalWaitMs) {
-        throw lastError || new Error('Exceeded max wait budget, switching to Local Engine.');
+        const timeoutErr =
+          lastError instanceof Error
+            ? lastError
+            : new Error('Exceeded max wait budget, switching to Local Engine.');
+        (timeoutErr as any).attemptSummaries = attemptSummaries;
+        throw timeoutErr;
       }
       const modelName = cascade[i];
       const supportsLowThinking = modelName === 'gemini-4-hydrogen';
@@ -143,16 +145,30 @@ async function generateWith24x7Fallback(params: {
         if (text) {
           return { text, modelUsed: modelName };
         }
-        lastError = new Error(`Model ${modelName} mengembalikan respons kosong.`);
+        const emptyErr = new Error(`Model ${modelName} mengembalikan respons kosong.`);
+        attemptSummaries.push(`${modelName}: empty`);
+        lastError = emptyErr;
       } catch (err: any) {
-        console.warn(`[Gemini Cascade] ${modelName} failed:`, err?.message || err);
+        const errMsg = scrubApiKeysFromText(err?.message || String(err));
+        const shortErr = extractShortUpstreamReason(errMsg);
+        console.warn(`[Gemini Cascade] ${modelName} failed:`, shortErr || errMsg);
+        attemptSummaries.push(`${modelName}: ${shortErr || errMsg}`);
         lastError = err;
+        // If this API key itself is invalid or referrer-blocked, skip remaining models for this key
+        if (isFatalKeyError(errMsg)) {
+          break;
+        }
         continue;
       }
     }
   }
 
-  throw lastError || new Error('All Gemini model pools temporarily busy.');
+  const finalErr =
+    lastError instanceof Error
+      ? lastError
+      : new Error(String(lastError || 'All Gemini model pools temporarily busy.'));
+  (finalErr as any).attemptSummaries = attemptSummaries;
+  throw finalErr;
 }
 
 const SERVER_ALL_GRADES = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'E+', 'E', 'F+', 'F'];
@@ -1470,12 +1486,39 @@ app.use((req, res, next) => {
   return jsonBodyParser(req, res, next);
 });
 
-app.get('/api/health', (_req: Request, res: Response) => {
-  res.json({
+app.get('/api/health', async (req: Request, res: Response) => {
+  const keys = getGeminiApiKeys();
+  const basePayload: Record<string, unknown> = {
     ok: true,
-    geminiConfigured: getGeminiApiKeys().length > 0,
+    version: 'v4.3.7',
+    geminiConfigured: keys.length > 0,
+    keyCount: keys.length,
     timestamp: new Date().toISOString(),
-  });
+  };
+
+  if (req.query.probe === '1' || req.query.probe === 'true') {
+    try {
+      const probeRes = await generateWith24x7Fallback({
+        contents: 'Reply with OK',
+        config: {},
+        maxTotalWaitMs: 12000,
+        perModelTimeoutMs: 5000,
+        modelCascade: SCAN_GRADE_CARD_MODEL_CASCADE,
+      });
+      basePayload.probe = {
+        ok: true,
+        modelUsed: probeRes.modelUsed,
+      };
+    } catch (err: any) {
+      basePayload.probe = {
+        ok: false,
+        error: formatGeminiScanErrorMessage(err, err?.attemptSummaries),
+        attempts: Array.isArray(err?.attemptSummaries) ? err.attemptSummaries : [],
+      };
+    }
+  }
+
+  res.json(basePayload);
 });
 
   // ============================================================================
@@ -2451,8 +2494,8 @@ ATURAN PEMBACAAN KETAT:
           ],
         },
         maxTotalWaitMs: 48000,
-        perModelTimeoutMs: 22000,
-        modelCascade: ['gemini-3.1-flash-lite', 'gemini-4-hydrogen'],
+        perModelTimeoutMs: 18000,
+        modelCascade: SCAN_GRADE_CARD_MODEL_CASCADE,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -2512,25 +2555,12 @@ ATURAN PEMBACAAN KETAT:
         cards,
         modelUsed: result.modelUsed,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Grade card scan error:', error);
-      const rawMsg = error instanceof Error ? error.message : String(error || '');
-      let friendlyMsg = rawMsg
-        ? `Gagal membaca foto Kartu Grade: ${rawMsg}`
-        : 'Gagal memproses foto Kartu Grade dengan Scanner AI.';
-      if (/Unable to process input image|INVALID_ARGUMENT/i.test(rawMsg)) {
-        friendlyMsg =
-          'Format foto tidak dapat dibaca oleh server AI. Coba ambil ulang foto tegak lurus yang terang atau unggah JPEG/PNG dari galeri.';
-      } else if (/RESOURCE_EXHAUSTED|429|quota/i.test(rawMsg)) {
-        friendlyMsg =
-          'Server AI sedang padat sementara (batas antrean). Tunggu beberapa detik lalu coba scan ulang.';
-      } else if (/Timeout|Exceeded max wait/i.test(rawMsg)) {
-        friendlyMsg =
-          'Server AI melebihi batas waktu membaca foto. Coba dekatkan kamera ke kartu dan pastikan jaringan stabil.';
-      } else if (/PERMISSION_DENIED|API_KEY|GEMINI_API_KEY/i.test(rawMsg)) {
-        friendlyMsg =
-          'Konfigurasi GEMINI_API_KEY pada server belum valid/aktif. Periksa Secrets / Environment Variable server.';
-      }
+      const attemptSummaries = Array.isArray(error?.attemptSummaries)
+        ? error.attemptSummaries
+        : undefined;
+      const friendlyMsg = formatGeminiScanErrorMessage(error, attemptSummaries);
       res.status(500).json({ error: friendlyMsg });
     }
   });
