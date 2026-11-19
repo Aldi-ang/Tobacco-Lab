@@ -1491,7 +1491,7 @@ app.get('/api/health', async (req: Request, res: Response) => {
   const envInfo = inspectGeminiEnv(process.env);
   const basePayload: Record<string, unknown> = {
     ok: true,
-    version: 'v4.3.8',
+    version: 'v4.3.9',
     runtime: getServerRuntimeLabel(process.env),
     geminiConfigured: envInfo.validKeys.length > 0,
     keyCount: envInfo.validKeys.length,

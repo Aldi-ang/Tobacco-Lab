@@ -13,7 +13,7 @@ import {
 
 import { ALUCARD_EASE } from './AlucardMotion';
 
-export const CURRENT_APP_VERSION = 'v4.3.8';
+export const CURRENT_APP_VERSION = 'v4.3.9';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -32,11 +32,33 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v4.3.9',
+    date: '19 November 2026',
+    codename: 'Dukungan Langsung Variabel Vercel "Camera_scanner" untuk AI Scanner',
+    isLatest: true,
+    highlights:
+      'Menambahkan pembacaan otomatis environment variable "Camera_scanner" (Production & Preview di Vercel) selain GEMINI_API_KEY agar Scan Foto Kartu Grade langsung aktif tanpa harus mengubah nama variabel di Vercel.',
+    changes: [
+      {
+        type: 'fix',
+        title: 'Pembacaan Otomatis Environment Variable Camera_scanner',
+        description:
+          'Server kini otomatis mengenali nama variabel Camera_scanner / CAMERA_SCANNER / CAMERA_SCANNER_API_KEY (case-insensitive) bersama GEMINI_API_KEY sehingga kunci AI yang sudah dipasang di Vercel langsung terdeteksi.',
+      },
+      {
+        type: 'fix',
+        title: 'Penanda Versi v4.3.9 di Header & /api/health',
+        description:
+          'Memperbarui versi aktif ke v4.3.9 di header aplikasi, Patch Notes, dan endpoint /api/health.',
+      },
+    ],
+  },
+  {
     version: 'v4.3.8',
     date: '19 November 2026',
     codename:
       'Deteksi Fleksibel Semua Nama Variabel Gemini Key + Diagnostik Placeholder & Runtime Vercel',
-    isLatest: true,
+    isLatest: false,
     highlights:
       'Server kini otomatis mendeteksi semua variasi nama variabel key Gemini (termasuk VITE_GEMINI_API_KEY, NEXT_PUBLIC_GEMINI_API_KEY, GEMINI_KEY, spasi tak sengaja, dan nama kustom *GEMINI*KEY*), serta melaporkan secara akurat di /api/health?probe=1 apakah variabel masih berisi placeholder atau belum aktif di runtime Vercel Production.',
     changes: [

@@ -26,17 +26,19 @@ test('sanitizeApiKey strips quotes, whitespace, newlines, and accidental VAR= pr
   assert.equal(sanitizeApiKey('   '), '');
 });
 
-test('extractUniqueGeminiApiKeys reads standard, VITE_, NEXT_PUBLIC_, trimmed, and custom GEMINI*KEY env vars', () => {
+test('extractUniqueGeminiApiKeys reads standard, VITE_, Camera_scanner, trimmed, and custom GEMINI*KEY env vars', () => {
   const keys = extractUniqueGeminiApiKeys({
     ' GEMINI_API_KEY ': '"AIzaSyPrimaryKey1234567890123456"',
     GOOGLE_API_KEY: 'AIzaSyPrimaryKey1234567890123456',
     VITE_GEMINI_API_KEY: 'AIzaSyViteKey1234567890123456789',
+    Camera_scanner: 'AIzaSyCameraScannerKey1234567890',
     TOBACCO_GEMINI_KEY: 'AIzaSyCustomKey12345678901234567',
     API_KEY: 'MY_GEMINI_API_KEY',
   });
   assert.deepEqual(keys, [
     'AIzaSyPrimaryKey1234567890123456',
     'AIzaSyViteKey1234567890123456789',
+    'AIzaSyCameraScannerKey1234567890',
     'AIzaSyCustomKey12345678901234567',
   ]);
   assert.equal(looksLikeGoogleApiKey(keys[0]), true);

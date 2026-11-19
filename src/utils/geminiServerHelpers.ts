@@ -42,6 +42,8 @@ const PRIORITY_ENV_NAMES = [
   'VITE_GOOGLE_API_KEY',
   'NEXT_PUBLIC_GEMINI_API_KEY',
   'NEXT_PUBLIC_GOOGLE_API_KEY',
+  'CAMERA_SCANNER',
+  'CAMERA_SCANNER_API_KEY',
   'API_KEY',
 ] as const;
 
@@ -56,7 +58,7 @@ function stripKeyWrappers(raw?: string | null): string {
 
   // Strip accidental VAR_NAME=... paste
   cleaned = cleaned.replace(
-    /^(?:(?:VITE_|NEXT_PUBLIC_)?(?:GEMINI_API_KEY(?:_\d+)?|GOOGLE_API_KEY|GOOGLE_GEMINI_API_KEY|GOOGLE_GENERATIVE_AI_API_KEY|GEMINI_KEY|API_KEY))\s*=\s*/i,
+    /^(?:(?:VITE_|NEXT_PUBLIC_)?(?:GEMINI_API_KEY(?:_\d+)?|GOOGLE_API_KEY|GOOGLE_GEMINI_API_KEY|GOOGLE_GENERATIVE_AI_API_KEY|GEMINI_KEY|CAMERA_SCANNER(?:_API_KEY)?|API_KEY))\s*=\s*/i,
     ''
   );
   // Strip accidental Authorization prefix
