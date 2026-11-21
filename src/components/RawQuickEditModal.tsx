@@ -30,6 +30,10 @@ import {
 } from '../utils/graderRegistryEngine';
 import { NumericInput } from './NumericInput';
 import { RatingSegmentSlider } from './RatingSegmentSlider';
+import {
+  getAttributePolarity,
+  MATURITY_LEVEL_LABELS,
+} from '../utils/attributePalette';
 
 export type QuickEditSection = 'timbangan' | 'harga' | 'grade_attr' | 'info';
 
@@ -45,22 +49,22 @@ const CHARACTER_PRESETS = [
   {
     id: 'ringan',
     label: 'Ringan Halus',
-    values: { power: 2, impact: 2, bitter: 1, burn: 5, sugar: 4, aroma: 4 },
+    values: { power: 2, impact: 2, bitter: 1, burn: 1, sugar: 4, aroma: 4, maturity: 3 },
   },
   {
     id: 'sedang',
     label: 'Sedang Seimbang',
-    values: { power: 3, impact: 3, bitter: 2, burn: 4, sugar: 4, aroma: 4 },
+    values: { power: 3, impact: 3, bitter: 2, burn: 2, sugar: 4, aroma: 4, maturity: 3 },
   },
   {
     id: 'berat',
     label: 'Berat Mantap',
-    values: { power: 5, impact: 5, bitter: 4, burn: 4, sugar: 3, aroma: 4 },
+    values: { power: 5, impact: 5, bitter: 4, burn: 2, sugar: 3, aroma: 4, maturity: 3 },
   },
   {
     id: 'manis',
     label: 'Manis Harum',
-    values: { power: 3, impact: 3, bitter: 1, burn: 5, sugar: 5, aroma: 5 },
+    values: { power: 3, impact: 3, bitter: 1, burn: 1, sugar: 5, aroma: 5, maturity: 3 },
   },
 ];
 
@@ -94,6 +98,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
   const [burnRating, setBurnRating] = useState(0);
   const [sugarRating, setSugarRating] = useState(0);
   const [aromaRating, setAromaRating] = useState(0);
+  const [maturityRating, setMaturityRating] = useState(0);
   const [characterNotes, setCharacterNotes] = useState('');
   const [confirmDiscardChanges, setConfirmDiscardChanges] = useState(false);
   const initialSigRef = useRef('');
@@ -131,6 +136,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
     const initBrn = clampRating5(tobacco.burnRating || 0);
     const initSgr = clampRating5(tobacco.sugarRating || 0);
     const initArm = clampRating5(tobacco.aromaRating || 0);
+    const initMat = clampRating5(tobacco.maturityRating || 0);
     const initNotes = tobacco.characterNotes || '';
 
     setSection(initialSection);
@@ -151,6 +157,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
     setBurnRating(initBrn);
     setSugarRating(initSgr);
     setAromaRating(initArm);
+    setMaturityRating(initMat);
     setCharacterNotes(initNotes);
     setConfirmDiscardChanges(false);
     initialSigRef.current = JSON.stringify({
@@ -171,6 +178,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
       initBrn,
       initSgr,
       initArm,
+      initMat,
       initNotes,
     });
   }, [tobacco, initialSection]);
@@ -211,6 +219,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
     initBrn: burnRating,
     initSgr: sugarRating,
     initArm: aromaRating,
+    initMat: maturityRating,
     initNotes: characterNotes,
   });
   const hasUnsavedChanges =
@@ -268,6 +277,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
       burnRating,
       sugarRating,
       aromaRating,
+      maturityRating,
       characterNotes,
     },
     packagingList
@@ -737,7 +747,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
             </div>
           )}
 
-          {/* SECTION 3: GRADE & 6 ATRIBUT */}
+          {/* SECTION 3: GRADE & 7 ATRIBUT */}
           {section === 'grade_attr' && (
             <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
               <div>
@@ -783,6 +793,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                         setBurnRating(p.values.burn);
                         setSugarRating(p.values.sugar);
                         setAromaRating(p.values.aroma);
+                        setMaturityRating(p.values.maturity);
                       }}
                       className="px-2 py-1.5 rounded-lg bg-black hover:bg-zinc-900 border border-zinc-800 hover:border-amber-500/60 text-[10px] font-bold text-amber-300 cursor-pointer transition-colors"
                     >
@@ -793,12 +804,49 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <RatingSegmentSlider label="Power" value={powerRating} onChange={setPowerRating} />
-                <RatingSegmentSlider label="Impact" value={impactRating} onChange={setImpactRating} />
-                <RatingSegmentSlider label="Bitter" value={bitterRating} onChange={setBitterRating} />
-                <RatingSegmentSlider label="Burn" value={burnRating} onChange={setBurnRating} />
-                <RatingSegmentSlider label="Sugar" value={sugarRating} onChange={setSugarRating} />
-                <RatingSegmentSlider label="Aroma" value={aromaRating} onChange={setAromaRating} />
+                <RatingSegmentSlider
+                  label="Power"
+                  polarity={getAttributePolarity('powerRating')}
+                  value={powerRating}
+                  onChange={setPowerRating}
+                />
+                <RatingSegmentSlider
+                  label="Impact"
+                  polarity={getAttributePolarity('impactRating')}
+                  value={impactRating}
+                  onChange={setImpactRating}
+                />
+                <RatingSegmentSlider
+                  label="Bitter"
+                  polarity={getAttributePolarity('bitterRating')}
+                  value={bitterRating}
+                  onChange={setBitterRating}
+                />
+                <RatingSegmentSlider
+                  label="Burn"
+                  polarity={getAttributePolarity('burnRating')}
+                  value={burnRating}
+                  onChange={setBurnRating}
+                />
+                <RatingSegmentSlider
+                  label="Sugar"
+                  polarity={getAttributePolarity('sugarRating')}
+                  value={sugarRating}
+                  onChange={setSugarRating}
+                />
+                <RatingSegmentSlider
+                  label="Aroma"
+                  polarity={getAttributePolarity('aromaRating')}
+                  value={aromaRating}
+                  onChange={setAromaRating}
+                />
+                <RatingSegmentSlider
+                  label="Maturity"
+                  polarity={getAttributePolarity('maturityRating')}
+                  levelLabels={MATURITY_LEVEL_LABELS}
+                  value={maturityRating}
+                  onChange={setMaturityRating}
+                />
               </div>
             </div>
           )}

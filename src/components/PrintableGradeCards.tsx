@@ -14,8 +14,10 @@ const PRINT_ATTRIBUTE_FIELDS: {
     | 'bitterRating'
     | 'burnRating'
     | 'sugarRating'
-    | 'aromaRating';
+    | 'aromaRating'
+    | 'maturityRating';
   label: string;
+  hint?: string;
 }[] = [
   { key: 'powerRating', label: 'Power' },
   { key: 'impactRating', label: 'Impact' },
@@ -23,6 +25,7 @@ const PRINT_ATTRIBUTE_FIELDS: {
   { key: 'burnRating', label: 'Burn' },
   { key: 'sugarRating', label: 'Sugar' },
   { key: 'aromaRating', label: 'Aroma' },
+  { key: 'maturityRating', label: 'Maturity', hint: '1:TdkMtg 2:Lmy 3:Matang 4:Klw 5:Busuk' },
 ];
 
 /** Deterministic crisp 7x7 mini matrix SVG from Kode Lot string for printable paper cards */
@@ -78,7 +81,7 @@ export const LotMatrixSvg: React.FC<{ lotCode: string; size?: number }> = ({
   );
 };
 
-/** Single crisp black-on-white printable Kartu Grade Cetak (4 Large Cards per A4 Sheet) */
+/** Single crisp black-on-white printable Kartu Grade Cetak (6 Cards per A4 Sheet: 2 cols x 3 rows) */
 export const PrintableGradeCardPaper: React.FC<{
   lotNumber: string | null;
   packagingChoices: string[];
@@ -98,7 +101,7 @@ export const PrintableGradeCardPaper: React.FC<{
     if (previewEmptySlotLabel) {
       return (
         <div
-          className="grade-card-paper-item bg-zinc-50/60 border border-dashed border-zinc-200 text-zinc-400 flex items-center justify-center select-none min-h-[320px]"
+          className="grade-card-paper-item bg-zinc-50/60 border border-dashed border-zinc-200 text-zinc-400 flex items-center justify-center select-none min-h-[240px]"
           aria-hidden="true"
         >
           <span className="font-mono text-xs font-bold uppercase tracking-widest">
@@ -138,54 +141,54 @@ export const PrintableGradeCardPaper: React.FC<{
   return (
     <div
       className={`grade-card-paper-item printable-grade-card-slot relative bg-white text-black border-2 border-black flex flex-col justify-between select-none box-border overflow-hidden ${
-        compact ? 'p-2.5 text-[10px] leading-snug' : 'p-3.5 text-[11px] leading-snug'
+        compact ? 'p-2 text-[9px] leading-tight' : 'p-3 text-[10px] leading-snug'
       }`}
       style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif" }}
     >
       {/* 4 Corner Registration L-Marks for Vision Alignment */}
-      <span className="absolute top-1 left-1 w-3 h-3 border-t-2 border-l-2 border-black pointer-events-none" />
-      <span className="absolute top-1 right-1 w-3 h-3 border-t-2 border-r-2 border-black pointer-events-none" />
-      <span className="absolute bottom-1 left-1 w-3 h-3 border-b-2 border-l-2 border-black pointer-events-none" />
-      <span className="absolute bottom-1 right-1 w-3 h-3 border-b-2 border-r-2 border-black pointer-events-none" />
+      <span className="absolute top-0.5 left-0.5 w-2.5 h-2.5 border-t-2 border-l-2 border-black pointer-events-none" />
+      <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 border-t-2 border-r-2 border-black pointer-events-none" />
+      <span className="absolute bottom-0.5 left-0.5 w-2.5 h-2.5 border-b-2 border-l-2 border-black pointer-events-none" />
+      <span className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 border-b-2 border-r-2 border-black pointer-events-none" />
 
       {/* Header + Lot Code + Front Code 39 Barcode (Correlates Lot + Fixed Grader) */}
-      <div className="flex items-center justify-between gap-2.5 border-b-2 border-black pb-2">
+      <div className="flex items-center justify-between gap-2 border-b-[1.5px] border-black pb-1">
         <div className="min-w-0 shrink-0">
-          <div className="text-[8px] font-extrabold uppercase tracking-[0.12em] text-zinc-700 truncate">
+          <div className="text-[7px] font-extrabold uppercase tracking-[0.12em] text-zinc-700 truncate">
             TOBACCO LAB · KARTU GRADE
           </div>
           <div
-            className={`font-mono font-black tracking-tight leading-none mt-1 ${
-              compact ? 'text-[17px]' : 'text-xl'
+            className={`font-mono font-black tracking-tight leading-none mt-0.5 ${
+              compact ? 'text-[14px]' : 'text-lg'
             }`}
           >
             {lotNumber}
           </div>
-          <div className="font-mono text-[9px] font-bold text-zinc-800 mt-1">
+          <div className="font-mono text-[8px] font-bold text-zinc-800 mt-0.5">
             TGL: ____ / ____ / <span className="text-black font-black">{resolvedYear}</span>
           </div>
         </div>
-        <div className="flex-1 max-w-[55%] min-w-[110px] flex flex-col items-center justify-center">
-          <Code39BarcodeSvg code={barcodePayload} height={compact ? 28 : 34} />
-          <div className="font-mono text-[8px] font-black tracking-wider text-black leading-snug mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
+        <div className="flex-1 max-w-[54%] min-w-[96px] flex flex-col items-center justify-center">
+          <Code39BarcodeSvg code={barcodePayload} height={compact ? 22 : 28} />
+          <div className="font-mono text-[7px] font-black tracking-wider text-black leading-tight mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
             BC: {barcodePayload}
           </div>
         </div>
       </div>
 
-      {/* Spacious 2-Row Boxed Identity Handwriting Fields */}
-      <div className="grid grid-cols-12 gap-1.5 my-1">
-        <div className="col-span-5 border-[1.5px] border-black px-2 py-1 flex flex-col justify-between">
-          <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-800 truncate">
+      {/* 2-Row Boxed Identity Handwriting Fields */}
+      <div className="grid grid-cols-12 gap-1 my-1">
+        <div className="col-span-5 border-[1.2px] border-black px-1.5 py-0.5 flex flex-col justify-between">
+          <div className="text-[6.5px] font-black uppercase tracking-wider text-zinc-800 truncate">
             {cleanGrader ? 'NAMA GRADER (BARCODE)' : 'NAMA GRADER'}
           </div>
           <div
-            className={`${compact ? 'h-5' : 'h-6'} flex items-end leading-none overflow-hidden`}
+            className={`${compact ? 'h-3.5' : 'h-4'} flex items-end leading-none overflow-hidden`}
           >
             {cleanGrader ? (
               <span
                 className={`font-black text-black truncate ${
-                  compact ? 'text-xs' : 'text-sm'
+                  compact ? 'text-[10.5px]' : 'text-xs'
                 }`}
               >
                 {cleanGrader}
@@ -193,40 +196,40 @@ export const PrintableGradeCardPaper: React.FC<{
             ) : null}
           </div>
         </div>
-        <div className="col-span-7 border-[1.5px] border-black px-2 py-1">
-          <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-800">
+        <div className="col-span-7 border-[1.2px] border-black px-1.5 py-0.5">
+          <div className="text-[6.5px] font-black uppercase tracking-wider text-zinc-800">
             PENJUAL / PETANI
           </div>
-          <div className={compact ? 'h-5' : 'h-6'} />
+          <div className={compact ? 'h-3.5' : 'h-4'} />
         </div>
-        <div className="col-span-5 border-[1.5px] border-black px-2 py-1">
-          <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-800 truncate">
+        <div className="col-span-5 border-[1.2px] border-black px-1.5 py-0.5">
+          <div className="text-[6.5px] font-black uppercase tracking-wider text-zinc-800 truncate">
             DAERAH ASAL (MTL/TMG/WDS)
           </div>
-          <div className={compact ? 'h-5' : 'h-6'} />
+          <div className={compact ? 'h-3.5' : 'h-4'} />
         </div>
-        <div className="col-span-7 border-[1.5px] border-black px-2 py-1">
-          <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-800">
+        <div className="col-span-7 border-[1.2px] border-black px-1.5 py-0.5">
+          <div className="text-[6.5px] font-black uppercase tracking-wider text-zinc-800">
             NAMA / JENIS TEMBAKAU
           </div>
-          <div className={compact ? 'h-5' : 'h-6'} />
+          <div className={compact ? 'h-3.5' : 'h-4'} />
         </div>
       </div>
 
-      {/* Grade Checkboxes — Vertical Pairs 2x7 (A..G over A+..G+) with BIG checkboxes */}
-      <div className="border-[1.5px] border-black px-2 py-1.5 mb-1.5">
-        <div className="text-[8px] font-black uppercase tracking-wider text-zinc-900 mb-1.5">
+      {/* Grade Checkboxes — Vertical Pairs 2x7 (A..G over A+..G+) */}
+      <div className="border-[1.2px] border-black px-1.5 py-1 mb-1">
+        <div className="text-[7px] font-black uppercase tracking-wider text-zinc-900 mb-1">
           GRADE WARNA (SILANG X SATU KOTAK)
         </div>
-        <div className="grid grid-cols-7 gap-x-1.5 gap-y-2">
+        <div className="grid grid-cols-7 gap-x-1 gap-y-1">
           {[...gradesRow1, ...gradesRow2].map((gr) => (
-            <div key={gr} className="flex items-center gap-1 min-w-0">
+            <div key={gr} className="flex items-center gap-0.5 min-w-0">
               <span
-                className={`inline-block rounded-[2px] border-2 border-black shrink-0 ${
-                  compact ? 'w-4 h-4' : 'w-5 h-5'
+                className={`inline-block rounded-[2px] border-[1.5px] border-black shrink-0 ${
+                  compact ? 'w-3.5 h-3.5' : 'w-4 h-4'
                 }`}
               />
-              <span className={`font-mono font-black ${compact ? 'text-[11px]' : 'text-xs'}`}>
+              <span className={`font-mono font-black ${compact ? 'text-[9.5px]' : 'text-[11px]'}`}>
                 {gr}
               </span>
             </div>
@@ -235,63 +238,72 @@ export const PrintableGradeCardPaper: React.FC<{
       </div>
 
       {/* Dynamic ALL Packaging Checkboxes */}
-      <div className="border-[1.5px] border-black px-2 py-1.5 mb-1.5">
-        <div className="text-[8px] font-black uppercase tracking-wider text-zinc-900 mb-1.5">
+      <div className="border-[1.2px] border-black px-1.5 py-1 mb-1">
+        <div className="text-[7px] font-black uppercase tracking-wider text-zinc-900 mb-1">
           KEMASAN (SILANG X SATU KOTAK)
         </div>
-        <div className={`grid ${pkgColsClass} gap-x-2 gap-y-1.5`}>
+        <div className={`grid ${pkgColsClass} gap-x-1.5 gap-y-1`}>
           {pkgs.map((pkgName) => (
-            <div key={pkgName} className="flex items-center gap-1.5 min-w-0">
+            <div key={pkgName} className="flex items-center gap-1 min-w-0">
               <span
-                className={`inline-block rounded-[2px] border-[1.8px] border-black shrink-0 ${
-                  compact ? 'w-3.5 h-3.5' : 'w-4 h-4'
+                className={`inline-block rounded-[2px] border-[1.5px] border-black shrink-0 ${
+                  compact ? 'w-3 h-3' : 'w-3.5 h-3.5'
                 }`}
               />
-              <span className={`font-extrabold uppercase truncate ${compact ? 'text-[8.5px]' : 'text-[9.5px]'}`}>
+              <span className={`font-extrabold uppercase truncate ${compact ? 'text-[7.5px]' : 'text-[8.5px]'}`}>
                 {pkgName}
               </span>
             </div>
           ))}
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-1 min-w-0">
             <span
-              className={`inline-block rounded-[2px] border-[1.8px] border-black shrink-0 ${
-                compact ? 'w-3.5 h-3.5' : 'w-4 h-4'
+              className={`inline-block rounded-[2px] border-[1.5px] border-black shrink-0 ${
+                compact ? 'w-3 h-3' : 'w-3.5 h-3.5'
               }`}
             />
-            <span className={`font-extrabold truncate ${compact ? 'text-[8.5px]' : 'text-[9.5px]'}`}>
-              Lainnya: ______
+            <span className={`font-extrabold truncate ${compact ? 'text-[7.5px]' : 'text-[8.5px]'}`}>
+              Lainnya: ____
             </span>
           </div>
         </div>
       </div>
 
-      {/* 6 Attributes — Single-column 6 rows with BIG wide-spaced [1][2][3][4][5] square boxes */}
-      <div className="border-[1.5px] border-black px-2 py-1 mb-1.5 flex flex-col justify-between">
-        <div className="text-[7.5px] font-black uppercase tracking-wider text-zinc-900 mb-0.5">
-          KARAKTER RASA &amp; BAKAR (SILANG X SATU ANGKA 1–5 PER BARIS)
+      {/* 7 Attributes (Power..Aroma + Maturity) — Compact 7 rows with clear [1][2][3][4][5] square boxes */}
+      <div className="border-[1.2px] border-black px-1.5 py-1 mb-1 flex-1 flex flex-col justify-between">
+        <div className="flex items-center justify-between gap-1 mb-0.5">
+          <span className="text-[7px] font-black uppercase tracking-wider text-zinc-900">
+            KARAKTER RASA, BAKAR &amp; MATURITY (SILANG X 1–5)
+          </span>
         </div>
-        <div className="flex flex-col justify-between divide-y divide-zinc-200">
+        <div className="flex-1 flex flex-col justify-between divide-y divide-zinc-200">
           {PRINT_ATTRIBUTE_FIELDS.map((attr) => (
             <div
               key={attr.key}
-              className="flex items-center justify-between gap-2 py-0.5 min-w-0"
+              className="flex items-center justify-between gap-2 py-[1.5px] min-w-0"
             >
-              <span
-                className={`font-black uppercase tracking-tight shrink-0 w-16 ${
-                  compact ? 'text-[9.5px]' : 'text-[10.5px]'
-                }`}
-              >
-                {attr.label}
-              </span>
-              <div className="flex-1 flex items-center justify-between max-w-[245px] gap-2">
+              <div className="min-w-0 flex-1 pr-1">
+                <div
+                  className={`font-black uppercase tracking-tight leading-none ${
+                    compact ? 'text-[8.5px]' : 'text-[9.5px]'
+                  }`}
+                >
+                  {attr.label}
+                </div>
+                {attr.hint && (
+                  <div className="text-[5.8px] font-bold text-zinc-600 leading-[1.15] mt-[1px] whitespace-normal">
+                    {attr.hint}
+                  </div>
+                )}
+              </div>
+              <div className="shrink-0 flex items-center justify-between w-[142px] sm:w-[156px] gap-1">
                 {[1, 2, 3, 4, 5].map((num) => (
                   <span
                     key={num}
                     className={`${
                       compact
-                        ? 'w-[20px] h-[20px] text-[10.5px]'
-                        : 'w-[22px] h-[22px] text-[11.5px]'
-                    } rounded-[2px] border-2 border-black inline-flex items-center justify-center font-mono font-black leading-none`}
+                        ? 'w-[17px] h-[17px] text-[9.5px]'
+                        : 'w-[19px] h-[19px] text-[10.5px]'
+                    } rounded-[2px] border-[1.5px] border-black inline-flex items-center justify-center font-mono font-black leading-none`}
                   >
                     {num}
                   </span>
@@ -302,38 +314,20 @@ export const PrintableGradeCardPaper: React.FC<{
         </div>
       </div>
 
-      {/* Stage 2 — Compact Bruto & Harga row + Giant Full-Width Multi-Line Catatan box */}
-      <div className="flex-1 flex flex-col justify-end border-t-[1.5px] border-dashed border-black pt-1.5 space-y-1.5">
+      {/* Stage 2 Bottom Strip — Bruto & Harga only (Notes moved to Back side below Barcode) */}
+      <div className="border-t-[1.2px] border-dashed border-black pt-1">
         <div className="grid grid-cols-12 gap-1.5">
-          <div className="col-span-5 border-[1.5px] border-black px-2 py-1">
-            <div className="text-[7px] font-black uppercase tracking-wider text-zinc-900 truncate">
+          <div className="col-span-5 border-[1.2px] border-black px-1.5 py-0.5">
+            <div className="text-[6.5px] font-black uppercase tracking-wider text-zinc-900 truncate">
               BRUTO (KG)
             </div>
-            <div className={compact ? 'h-5' : 'h-6'} />
+            <div className={compact ? 'h-3.5' : 'h-4.5'} />
           </div>
-          <div className="col-span-7 border-[1.5px] border-black px-2 py-1">
-            <div className="text-[7px] font-black uppercase tracking-wider text-zinc-900 truncate">
+          <div className="col-span-7 border-[1.2px] border-black px-1.5 py-0.5">
+            <div className="text-[6.5px] font-black uppercase tracking-wider text-zinc-900 truncate">
               HARGA / KG (RP)
             </div>
-            <div className={compact ? 'h-5' : 'h-6'} />
-          </div>
-        </div>
-        <div
-          data-testid="grade-card-catatan-box"
-          className="flex-1 border-[1.5px] border-black px-2 py-1 flex flex-col justify-between min-h-[68px]"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[7.5px] font-black uppercase tracking-wider text-zinc-900">
-              CATATAN / KETERANGAN DETAIL (TAHAP 2)
-            </span>
-            <span className="text-[6.5px] font-mono font-bold text-zinc-500 uppercase">
-              RUANG TULIS EKSTRA LUAS
-            </span>
-          </div>
-          <div className="flex-1 flex flex-col justify-evenly py-1 space-y-3">
-            <div className="border-b border-dashed border-zinc-300 w-full h-3.5" />
-            <div className="border-b border-dashed border-zinc-300 w-full h-3.5" />
-            <div className="w-full h-2" />
+            <div className={compact ? 'h-3.5' : 'h-4.5'} />
           </div>
         </div>
       </div>
@@ -379,7 +373,7 @@ export const Code39BarcodeSvg: React.FC<{
   );
 };
 
-/** Back side of Printable Kartu Grade for 2-sided Duplex printing: Giant Barcode + Prefix Code + Fixed Grader */
+/** Back side of Printable Kartu Grade for 2-sided Duplex printing: Normal-size Barcode on top + Giant Catatan (Tahap 2) below */
 export const PrintableGradeCardBackPaper: React.FC<{
   lotNumber: string | null;
   customPrefix?: string;
@@ -407,7 +401,7 @@ export const PrintableGradeCardBackPaper: React.FC<{
     return (
       <div
         className={`grade-card-paper-item bg-white text-zinc-400 border border-dashed border-zinc-300 flex items-center justify-center select-none ${
-          compact ? 'p-2.5' : 'p-3.5'
+          compact ? 'p-2' : 'p-3'
         }`}
       >
         <span className="font-mono text-[9px] uppercase tracking-widest">
@@ -424,7 +418,7 @@ export const PrintableGradeCardBackPaper: React.FC<{
   return (
     <div
       className={`grade-card-paper-item relative bg-white text-black border-2 border-black flex flex-col justify-between select-none box-border overflow-hidden ${
-        compact ? 'p-2.5 text-[9px]' : 'p-3 text-[10px]'
+        compact ? 'p-2 text-[8.5px]' : 'p-3 text-[9.5px]'
       } ${rotate180 ? 'rotate-180' : ''}`}
       style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif" }}
     >
@@ -433,22 +427,23 @@ export const PrintableGradeCardBackPaper: React.FC<{
       <span className="absolute bottom-0.5 left-0.5 w-2.5 h-2.5 border-b-2 border-l-2 border-black pointer-events-none" />
       <span className="absolute bottom-0.5 right-0.5 w-2.5 h-2.5 border-b-2 border-r-2 border-black pointer-events-none" />
 
-      <div className="flex items-center justify-between gap-2 pb-1.5 border-b-2 border-black">
+      {/* Top Header + Prefix Code Badge */}
+      <div className="flex items-center justify-between gap-2 pb-1 border-b-[1.5px] border-black">
         <div className="min-w-0">
-          <div className="text-[7.5px] font-extrabold uppercase tracking-[0.16em] text-zinc-700 truncate">
+          <div className="text-[7px] font-extrabold uppercase tracking-[0.14em] text-zinc-700 truncate">
             TOBACCO LAB · SISI BELAKANG
           </div>
-          <div className="text-[8.5px] font-black uppercase tracking-wider mt-0.5 truncate">
+          <div className="text-[8px] font-black uppercase tracking-wider mt-0.5 truncate">
             {cleanGrader ? `BARCODE LOT · GRADER: ${cleanGrader.toUpperCase()}` : 'BARCODE SCANNER LOT GUDANG'}
           </div>
         </div>
         <div className="bg-black text-white px-2 py-0.5 rounded-[3px] text-right shrink-0">
-          <div className="text-[6.5px] font-bold uppercase tracking-[0.14em] opacity-80">
+          <div className="text-[6px] font-bold uppercase tracking-[0.14em] opacity-80">
             PREFIX CODE
           </div>
           <div
             className={`font-mono font-black tracking-wider ${
-              compact ? 'text-[11px]' : 'text-xs'
+              compact ? 'text-[10px]' : 'text-xs'
             }`}
           >
             {prefixCode}
@@ -456,35 +451,52 @@ export const PrintableGradeCardBackPaper: React.FC<{
         </div>
       </div>
 
-      <div
-        className={`flex-1 flex flex-col justify-center ${
-          compact ? 'my-1 gap-1' : 'my-1.5 gap-1.5'
-        }`}
-      >
-        <div className={`border-2 border-black bg-white ${compact ? 'p-1.5' : 'p-2'}`}>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <Code39BarcodeSvg code={barcodePayload} height={compact ? 42 : 62} />
-            </div>
-            <div className="shrink-0 flex flex-col items-center">
-              <LotMatrixSvg lotCode={lotNumber} size={compact ? 40 : 56} />
-              <span className="text-[6px] font-mono font-extrabold uppercase mt-0.5">
-                2D ANCHOR
-              </span>
-            </div>
+      {/* Normal-size crisp Barcode + 2D Anchor in upper section */}
+      <div className="border-[1.5px] border-black bg-white p-1.5 my-1.5">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <Code39BarcodeSvg code={barcodePayload} height={compact ? 30 : 40} />
           </div>
+          <div className="shrink-0 flex flex-col items-center">
+            <LotMatrixSvg lotCode={lotNumber} size={compact ? 28 : 36} />
+            <span className="text-[5.5px] font-mono font-extrabold uppercase mt-0.5">
+              2D ANCHOR
+            </span>
+          </div>
+        </div>
 
-          <div
-            className={`text-center font-mono font-black tracking-[0.12em] leading-none border-t border-zinc-300 truncate ${
-              compact ? 'text-xs mt-1 pt-1' : 'text-lg mt-1.5 pt-1.5'
-            }`}
-          >
-            {barcodePayload}
-          </div>
+        <div
+          className={`text-center font-mono font-black tracking-[0.12em] leading-none border-t border-zinc-300 truncate ${
+            compact ? 'text-[10.5px] mt-1 pt-0.5' : 'text-xs mt-1 pt-1'
+          }`}
+        >
+          {barcodePayload}
         </div>
       </div>
 
-      <div className="border-t-2 border-dashed border-black pt-1 flex items-center justify-between gap-2 text-[7.5px] font-mono font-bold text-zinc-700">
+      {/* Giant Multi-Line Catatan / Keterangan Detail Box directly below Barcode */}
+      <div
+        data-testid="grade-card-back-catatan-box"
+        className="flex-1 border-[1.5px] border-black px-2 py-1.5 flex flex-col justify-between min-h-[112px] mb-1.5"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[7.5px] font-black uppercase tracking-wider text-zinc-900">
+            CATATAN / KETERANGAN DETAIL (TAHAP 2)
+          </span>
+          <span className="text-[6px] font-mono font-bold text-zinc-500 uppercase">
+            RUANG TULIS EKSTRA LUAS
+          </span>
+        </div>
+        <div className="flex-1 flex flex-col justify-evenly py-1">
+          <div className="border-b border-dashed border-zinc-300 w-full h-4" />
+          <div className="border-b border-dashed border-zinc-300 w-full h-4" />
+          <div className="border-b border-dashed border-zinc-300 w-full h-4" />
+          <div className="border-b border-dashed border-zinc-300 w-full h-4" />
+          <div className="w-full h-2" />
+        </div>
+      </div>
+
+      <div className="border-t-[1.5px] border-dashed border-black pt-1 flex items-center justify-between gap-2 text-[7px] font-mono font-bold text-zinc-700">
         <span className="shrink-0">
           {cleanGrader ? `PREFIX: ${prefixCode} · GRD: ${cleanGrader.toUpperCase()}` : `PREFIX: ${prefixCode}`}
         </span>
@@ -527,6 +539,18 @@ export const ThermalGradeCardPaper: React.FC<{
   const resolvedYear = sanitizePrintYear(printYear);
   const cleanGrader = graderName.trim();
   const barcodePayload = buildGradeCardBarcodePayload(lotNumber, cleanGrader) || lotNumber;
+
+  const catatanSection = (
+    <div className="border-[1.5px] border-black px-1.5 py-1 bg-white">
+      <div className="text-[7px] font-black uppercase">CATATAN / KETERANGAN (TAHAP 2)</div>
+      <div className="space-y-3 py-1">
+        <div className="border-b border-dashed border-zinc-300 w-full h-3.5" />
+        <div className="border-b border-dashed border-zinc-300 w-full h-3.5" />
+        <div className="border-b border-dashed border-zinc-300 w-full h-3.5" />
+        <div className={is58 ? 'h-2' : 'h-3'} />
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -644,21 +668,28 @@ export const ThermalGradeCardPaper: React.FC<{
         </div>
       </div>
 
-      {/* Bigger Karakter Rasa 1-5 boxes */}
+      {/* 7 Attributes (Power..Aroma + Maturity) */}
       <div className="border-[1.5px] border-black px-1.5 py-1 mb-1.5">
         <div className={`${is58 ? 'text-[6.5px]' : 'text-[7.5px]'} font-black uppercase mb-1`}>
-          KARAKTER RASA (SILANG X ANGKA 1–5)
+          KARAKTER RASA &amp; MATURITY (1–5)
         </div>
         <div className="space-y-1.5">
           {PRINT_ATTRIBUTE_FIELDS.map((attr) => (
-            <div key={attr.key} className="flex items-center justify-between gap-1.5">
-              <span
-                className={`font-black uppercase shrink-0 ${
-                  is58 ? 'w-10 text-[8px]' : 'w-12 text-[9px]'
-                }`}
-              >
-                {attr.label}
-              </span>
+            <div key={attr.key} className="flex items-center justify-between gap-1">
+              <div className="min-w-0 shrink-0">
+                <div
+                  className={`font-black uppercase leading-none ${
+                    is58 ? 'w-11 text-[7.5px]' : 'w-14 text-[9px]'
+                  }`}
+                >
+                  {attr.label}
+                </div>
+                {attr.hint && (
+                  <div className="text-[5.5px] font-bold text-zinc-600 leading-tight">
+                    1:TdkMtg 3:Matang 5:Busuk
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-1">
                 {[1, 2, 3, 4, 5].map((num) => (
                   <span
@@ -676,7 +707,7 @@ export const ThermalGradeCardPaper: React.FC<{
         </div>
       </div>
 
-      {/* Spacious Stage 2 writing strip: Compact Bruto & Harga + Extra-Spacious Multi-Line Catatan */}
+      {/* Stage 2 — Front compact Bruto & Harga only */}
       <div className="border-t-[1.5px] border-dashed border-black pt-1.5 space-y-1.5">
         <div className="grid grid-cols-2 gap-1.5">
           <div className="border-[1.5px] border-black px-1.5 py-1">
@@ -688,35 +719,29 @@ export const ThermalGradeCardPaper: React.FC<{
             <div className={is58 ? 'h-5' : 'h-6'} />
           </div>
         </div>
-        <div className="border-[1.5px] border-black px-1.5 py-1">
-          <div className="text-[7px] font-black uppercase">CATATAN / KETERANGAN (TAHAP 2)</div>
-          <div className="space-y-3 py-1">
-            <div className="border-b border-dashed border-zinc-300 w-full h-3" />
-            <div className="border-b border-dashed border-zinc-300 w-full h-3" />
-            <div className={is58 ? 'h-2' : 'h-3'} />
-          </div>
-        </div>
+        {!includeBackBarcode && catatanSection}
       </div>
 
       {includeBackBarcode && (
-        <div className="mt-2 pt-2 border-t-2 border-dashed border-black">
-          <div className="text-center font-mono font-bold text-[6.5px] text-zinc-700 mb-1">
-            --- LIPAT KE BELAKANG / TEMPEL ---
+        <div className="mt-2 pt-2 border-t-2 border-dashed border-black space-y-1.5">
+          <div className="text-center font-mono font-bold text-[6.5px] text-zinc-700">
+            --- SISI BELAKANG: BARCODE &amp; CATATAN ---
           </div>
           <div className="border border-black p-1 bg-white space-y-1">
             <div className="bg-black text-white px-1.5 py-0.5 font-mono font-black text-[7.5px] tracking-wider flex items-center justify-between gap-1">
               <span>{prefixCode}</span>
               {cleanGrader && <span className="truncate">GRD: {cleanGrader.toUpperCase()}</span>}
             </div>
-            <Code39BarcodeSvg code={barcodePayload} height={is58 ? 40 : 52} />
+            <Code39BarcodeSvg code={barcodePayload} height={is58 ? 30 : 38} />
             <div
               className={`text-center font-mono font-black tracking-wider truncate ${
-                is58 ? 'text-[9px]' : 'text-[11px]'
+                is58 ? 'text-[8.5px]' : 'text-[10px]'
               }`}
             >
               {barcodePayload}
             </div>
           </div>
+          {catatanSection}
         </div>
       )}
 

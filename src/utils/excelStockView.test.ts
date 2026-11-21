@@ -7,7 +7,7 @@ import {
   formatExcelTaraSummary,
 } from './excelStockView';
 
-test('formatExcelSensoryRow returns all 6 clamped attributes in fixed spreadsheet order', () => {
+test('formatExcelSensoryRow returns all 7 clamped attributes in fixed spreadsheet order', () => {
   const row = formatExcelSensoryRow({
     power: 4,
     impact: 5,
@@ -15,13 +15,17 @@ test('formatExcelSensoryRow returns all 6 clamped attributes in fixed spreadshee
     burn: 3.5,
     sugar: 0,
     aroma: 6.2,
+    maturity: 4,
   });
 
-  assert.equal(row.length, 6);
+  assert.equal(row.length, 7);
   assert.deepEqual(
     row.map((c) => `${c.code}:${c.formatted}`),
-    ['Pwr:4', 'Imp:5', 'Bit:1', 'Brn:3.5', 'Sgr:0', 'Arm:3.1']
+    ['Pwr:4', 'Imp:5', 'Bit:1', 'Brn:3.5', 'Sgr:0', 'Arm:3.1', 'Mat:4']
   );
+  assert.equal(row[2].polarity, 'negative');
+  assert.equal(row[3].polarity, 'negative');
+  assert.equal(row[6].polarity, 'maturity');
 });
 
 test('formatExcelTaraSummary handles formula and fallback cleanly', () => {

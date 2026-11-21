@@ -35,6 +35,11 @@ import {
 } from '../utils/cardExpandState';
 import { formatExcelSensoryRow, formatExcelTaraSummary } from '../utils/excelStockView';
 import {
+  getAttributeColorStyle,
+  MATURITY_LEVEL_LABELS,
+  AttributePolarity,
+} from '../utils/attributePalette';
+import {
   RawTobacco,
   FinishedTobaccoSerial,
   TobaccoRollSample,
@@ -819,6 +824,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         burn: tobacco.burnRating,
                         sugar: tobacco.sugarRating,
                         aroma: tobacco.aromaRating,
+                        maturity: tobacco.maturityRating,
                       });
                       const taraSummary = formatExcelTaraSummary(
                         tobacco.taraFormula.rawFormula,
@@ -833,6 +839,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       const burn5 = clampRating5(tobacco.burnRating ?? 4.5);
                       const sugar5 = clampRating5(tobacco.sugarRating ?? 4.0);
                       const aroma5 = clampRating5(tobacco.aromaRating ?? 4.2);
+                      const maturity5 = clampRating5(tobacco.maturityRating ?? 3.0);
 
                       const openRowHoldMenu = (anchorEl: HTMLElement) => {
                         holdMenu.openMenuImmediate({
@@ -908,7 +915,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                               id: 'grade_attr',
                               label: 'Grade & Atribut (/5)',
                               shortLabel: 'Atribut',
-                              sublabel: `Grade ${tobacco.colorGrade} · Pwr ${formatRating5(power5)} · Arm ${formatRating5(aroma5)}`,
+                              sublabel: `Grade ${tobacco.colorGrade} · Pwr ${formatRating5(power5)} · Mat ${formatRating5(maturity5)}`,
                               detailRows: [
                                 {
                                   label: 'Power · Impact · Bitter',
@@ -916,8 +923,8 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                                   tone: missingFlags.missingAttributes ? 'rose' : 'emerald',
                                 },
                                 {
-                                  label: 'Burn · Sugar · Aroma',
-                                  value: `${formatRating5(burn5)} · ${formatRating5(sugar5)} · ${formatRating5(aroma5)} /5`,
+                                  label: 'Burn · Sugar · Aroma · Mat',
+                                  value: `${formatRating5(burn5)} · ${formatRating5(sugar5)} · ${formatRating5(aroma5)} · ${formatRating5(maturity5)} /5`,
                                   tone: missingFlags.missingAttributes ? 'rose' : 'emerald',
                                 },
                               ],
@@ -1159,42 +1166,45 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                                     ? 'Atribut rasa belum diisi — klik untuk melengkapi'
                                     : undefined
                                 }
-                                className={`grid grid-cols-6 divide-x rounded text-center font-mono border ${
+                                className={`grid grid-cols-7 divide-x rounded text-center font-mono border ${
                                   missingFlags.missingAttributes
                                     ? 'divide-rose-500/40 bg-rose-950/35 border-rose-500/80 cursor-pointer hover:bg-rose-950/55'
                                     : 'divide-zinc-800 bg-black/70 border-zinc-800/90'
                                 }`}
                               >
-                                {sensoryCells.map((cell) => (
-                                  <div
-                                    key={cell.code}
-                                    title={
-                                      missingFlags.missingAttributes
-                                        ? `${cell.fullLabel}: Belum diisi (0 / 5) — Klik untuk isi`
-                                        : `${cell.fullLabel}: ${cell.formatted} / 5`
-                                    }
-                                    className="px-0.5 py-1 leading-none"
-                                  >
-                                    <span
-                                      className={`block text-[8.5px] uppercase font-bold ${
+                                {sensoryCells.map((cell) => {
+                                  const cellStyle = getAttributeColorStyle(cell.polarity, cell.value);
+                                  return (
+                                    <div
+                                      key={cell.code}
+                                      title={
                                         missingFlags.missingAttributes
-                                          ? 'text-rose-300/90'
-                                          : 'text-zinc-400'
-                                      }`}
+                                          ? `${cell.fullLabel}: Belum diisi (0 / 5) — Klik untuk isi`
+                                          : `${cell.fullLabel}: ${cell.formatted} / 5 (${cellStyle.levelLabel})`
+                                      }
+                                      className="px-0.5 py-1 leading-none"
                                     >
-                                      {cell.code}
-                                    </span>
-                                    <span
-                                      className={`block text-xs font-black mt-0.5 ${
-                                        missingFlags.missingAttributes
-                                          ? 'text-rose-400'
-                                          : 'text-amber-300'
-                                      }`}
-                                    >
-                                      {cell.formatted}
-                                    </span>
-                                  </div>
-                                ))}
+                                      <span
+                                        className={`block text-[8.5px] uppercase font-bold ${
+                                          missingFlags.missingAttributes
+                                            ? 'text-rose-300/90'
+                                            : 'text-zinc-400'
+                                        }`}
+                                      >
+                                        {cell.code}
+                                      </span>
+                                      <span
+                                        className={`block text-xs font-black mt-0.5 ${
+                                          missingFlags.missingAttributes
+                                            ? 'text-rose-400'
+                                            : cellStyle.textClass
+                                        }`}
+                                      >
+                                        {cell.formatted}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </td>
                             <td
@@ -1425,6 +1435,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 const burn5 = clampRating5(tobacco.burnRating ?? 4.5);
                 const sugar5 = clampRating5(tobacco.sugarRating ?? 4.0);
                 const aroma5 = clampRating5(tobacco.aromaRating ?? 4.2);
+                const maturity5 = clampRating5(tobacco.maturityRating ?? 3.0);
                 const pkgName = tobacco.taraFormula.packagingType || 'Keranjang';
                 const m = getRawWeightMetrics(tobacco);
                 const missingFlags = getRawTobaccoMissingFlags(tobacco);
@@ -1514,7 +1525,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     id: 'grade_attr',
                     label: 'Grade & Atribut (/5)',
                     shortLabel: 'Atribut',
-                    sublabel: `Grade ${tobacco.colorGrade} · Pwr ${formatRating5(power5)} · Arm ${formatRating5(aroma5)}`,
+                    sublabel: `Grade ${tobacco.colorGrade} · Pwr ${formatRating5(power5)} · Mat ${formatRating5(maturity5)}`,
                     detailRows: [
                       {
                         label: 'Grade Warna',
@@ -1529,8 +1540,8 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                           | 'rose',
                       },
                       {
-                        label: 'Burn · Sugar · Aroma',
-                        value: `${formatRating5(burn5)} · ${formatRating5(sugar5)} · ${formatRating5(aroma5)} /5`,
+                        label: 'Burn · Sugar · Aroma · Mat',
+                        value: `${formatRating5(burn5)} · ${formatRating5(sugar5)} · ${formatRating5(aroma5)} · ${formatRating5(maturity5)} /5`,
                         tone: (missingFlags.missingAttributes ? 'rose' : 'emerald') as
                           | 'emerald'
                           | 'rose',
@@ -1663,12 +1674,13 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     label: 'Atribut (/5)',
                     value: '',
                     characterParams: [
-                      { label: 'Power', shortLabel: 'Pwr', value: power5 },
-                      { label: 'Impact', shortLabel: 'Imp', value: impact5 },
-                      { label: 'Bitter', shortLabel: 'Bit', value: bitter5 },
-                      { label: 'Burn', shortLabel: 'Brn', value: burn5 },
-                      { label: 'Sugar', shortLabel: 'Sgr', value: sugar5 },
-                      { label: 'Aroma', shortLabel: 'Arm', value: aroma5 },
+                      { label: 'Power', shortLabel: 'Pwr', value: power5, polarity: 'positive' as AttributePolarity },
+                      { label: 'Impact', shortLabel: 'Imp', value: impact5, polarity: 'positive' as AttributePolarity },
+                      { label: 'Bitter', shortLabel: 'Bit', value: bitter5, polarity: 'negative' as AttributePolarity },
+                      { label: 'Burn', shortLabel: 'Brn', value: burn5, polarity: 'negative' as AttributePolarity },
+                      { label: 'Sugar', shortLabel: 'Sgr', value: sugar5, polarity: 'positive' as AttributePolarity },
+                      { label: 'Aroma', shortLabel: 'Arm', value: aroma5, polarity: 'positive' as AttributePolarity },
+                      { label: 'Maturity', shortLabel: 'Mat', value: maturity5, polarity: 'maturity' as AttributePolarity },
                     ],
                   },
                   {
@@ -2569,7 +2581,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       </div>
                     </div>
 
-                    {/* 6 Sensory Ratings (/5) */}
+                    {/* 7 Sensory Ratings (/5) */}
                     <div
                       className={`bg-black p-3.5 rounded-xl border ${
                         missingFlags.missingAttributes ? 'border-rose-500/60' : 'border-zinc-800'
@@ -2580,42 +2592,56 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                           missingFlags.missingAttributes ? 'text-rose-400' : 'text-zinc-200'
                         }`}
                       >
-                        <span>Parameter Karakteristik (/5)</span>
+                        <span>7 Parameter Karakteristik &amp; Maturity (/5)</span>
                         {missingFlags.missingAttributes && (
                           <span className="font-mono">Belum Diisi</span>
                         )}
                       </div>
-                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center">
-                        {[
-                          { lbl: 'Power', val: clampRating5(t.powerRating) },
-                          { lbl: 'Impact', val: clampRating5(t.impactRating) },
-                          { lbl: 'Bitter', val: clampRating5(t.bitterRating) },
-                          { lbl: 'Burn', val: clampRating5(t.burnRating ?? 0) },
-                          { lbl: 'Sugar', val: clampRating5(t.sugarRating ?? 0) },
-                          { lbl: 'Aroma', val: clampRating5(t.aromaRating ?? 0) },
-                        ].map((r) => (
-                          <div
-                            key={r.lbl}
-                            className={`bg-zinc-950 py-2 px-1.5 rounded-lg border ${
-                              r.val <= 0 ? 'border-rose-500/60' : 'border-zinc-800'
-                            }`}
-                          >
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 text-center">
+                        {(
+                          [
+                            { lbl: 'Power', val: clampRating5(t.powerRating), polarity: 'positive' as AttributePolarity },
+                            { lbl: 'Impact', val: clampRating5(t.impactRating), polarity: 'positive' as AttributePolarity },
+                            { lbl: 'Bitter', val: clampRating5(t.bitterRating), polarity: 'negative' as AttributePolarity },
+                            { lbl: 'Burn', val: clampRating5(t.burnRating ?? 0), polarity: 'negative' as AttributePolarity },
+                            { lbl: 'Sugar', val: clampRating5(t.sugarRating ?? 0), polarity: 'positive' as AttributePolarity },
+                            { lbl: 'Aroma', val: clampRating5(t.aromaRating ?? 0), polarity: 'positive' as AttributePolarity },
+                            { lbl: 'Maturity', val: clampRating5(t.maturityRating ?? 0), polarity: 'maturity' as AttributePolarity },
+                          ] as const
+                        ).map((r) => {
+                          const cellStyle = getAttributeColorStyle(r.polarity, r.val);
+                          const subStage =
+                            r.polarity === 'maturity' && r.val > 0
+                              ? MATURITY_LEVEL_LABELS[Math.round(r.val)]
+                              : null;
+                          return (
                             <div
-                              className={`text-[9px] uppercase font-bold ${
-                                r.val <= 0 ? 'text-rose-400' : 'text-zinc-400'
+                              key={r.lbl}
+                              title={`${r.lbl}: ${formatRating5(r.val)}/5 (${cellStyle.levelLabel})`}
+                              className={`bg-zinc-950 py-2 px-1.5 rounded-lg border ${
+                                r.val <= 0 ? 'border-rose-500/60' : 'border-zinc-800'
                               }`}
                             >
-                              {r.lbl}
+                              <div
+                                className={`text-[9px] uppercase font-bold ${
+                                  r.val <= 0 ? 'text-rose-400' : 'text-zinc-400'
+                                }`}
+                              >
+                                {r.lbl}
+                              </div>
+                              <div
+                                className={`font-mono font-black text-base sm:text-lg mt-0.5 ${cellStyle.textClass}`}
+                              >
+                                {formatRating5(r.val)}
+                              </div>
+                              {subStage && (
+                                <div className={`text-[9px] font-bold truncate mt-0.5 ${cellStyle.textClass}`}>
+                                  {subStage}
+                                </div>
+                              )}
                             </div>
-                            <div
-                              className={`font-mono font-black text-base sm:text-lg mt-0.5 ${
-                                r.val <= 0 ? 'text-rose-400' : 'text-amber-400'
-                              }`}
-                            >
-                              {formatRating5(r.val)}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
 

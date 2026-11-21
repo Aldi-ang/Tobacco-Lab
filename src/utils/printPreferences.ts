@@ -16,7 +16,7 @@ export interface GradeCardPrintPreferences {
 export const DEFAULT_PRINT_PREFERENCES: GradeCardPrintPreferences = {
   paperFormat: 'A4_6',
   duplexMode: 'LONG_EDGE',
-  printCount: 4,
+  printCount: 6,
   includeThermalBarcode: true,
   hasCustomizedBefore: false,
   printYear: new Date().getFullYear(),
@@ -48,7 +48,7 @@ export function sanitizePrintPreferences(
     Number.isFinite(parsedCount) && parsedCount >= 1 && parsedCount <= 60
       ? snapPrintCountForFormat(parsedCount, paperFormat)
       : isThermalPaperFormat(paperFormat)
-      ? 4
+      ? 6
       : DEFAULT_PRINT_PREFERENCES.printCount;
 
   const includeThermalBarcode =
@@ -106,5 +106,5 @@ export function formatPaperSummaryLabel(prefs: GradeCardPrintPreferences): strin
       : prefs.duplexMode === 'LONG_EDGE'
       ? '2 Sisi (Long Edge)'
       : '2 Sisi (Short Edge)';
-  return `A4 (4/Hal) • ${sides}`;
+  return `A4 (6/Hal) • ${sides}`;
 }

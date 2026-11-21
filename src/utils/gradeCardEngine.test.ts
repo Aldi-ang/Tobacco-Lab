@@ -550,3 +550,87 @@ test('v4.4.0 Barcode-bound fixed Grader overrides OCR misread ("Adi" -> "Aldi") 
   assert.equal(viaMetadata[0].graderBoundFromBarcode, true);
 });
 
+test('v4.5.0 7th attribute Maturity (1-5 Imbon) is extracted, diffed on UPDATE_MENYUSUL, and materialized cleanly', () => {
+  const existingRecord: RawTobacco = {
+    id: 'raw-mat-1',
+    lotNumber: 'MTL010',
+    name: 'Tembakau Muntilan Halus',
+    origin: 'Muntilan',
+    sellerName: 'Pak Yohan',
+    graderName: 'Aldi',
+    purchaseDate: '2026-11-18',
+    grossWeightKg: 50,
+    taraFormula: { rawFormula: '3 kg', percent: 0, flatKg: 3, pricingBasis: 'NET_WEIGHT', packagingType: 'KRJ MUNTILAN', packagingMassKg: 3 },
+    deductionKg: 3,
+    netWeightKg: 47,
+    currentStockNetKg: 47,
+    pricePerKgPurchase: 80000,
+    totalModalAsal: 3760000,
+    additionalPurchaseCost: 0,
+    realCostPerNetKg: 80000,
+    powerRating: 4,
+    impactRating: 4,
+    bitterRating: 2,
+    burnRating: 4,
+    sugarRating: 4,
+    aromaRating: 4,
+    maturityRating: 2, // Lumayan Matang
+    colorGrade: 'D+',
+    characterNotes: '',
+  };
+
+  // New card with Maturity 3 (Matang)
+  const newReview = classifyScannedCardsForReview({
+    scannedCards: [
+      {
+        lotNumber: 'MTL011',
+        graderName: 'Aldi',
+        name: 'Temanggung Super',
+        origin: 'Temanggung',
+        colorGrade: 'E',
+        powerRating: 5,
+        impactRating: 4,
+        bitterRating: 1,
+        burnRating: 5,
+        sugarRating: 4,
+        aromaRating: 5,
+        maturityRating: 4, // Keluwasen
+        characterNotes: 'Imbon agak lama di keranjang bambu',
+        confidenceScore: 95,
+      },
+    ],
+    rawTobaccos: [],
+    packagingList: SAMPLE_PACKAGINGS,
+  });
+
+  assert.equal(newReview[0].maturityRating, 4);
+  const materializedNew = materializeRawTobaccoFromReview({
+    card: newReview[0],
+    packagingList: SAMPLE_PACKAGINGS,
+  });
+  assert.equal(materializedNew.maturityRating, 4);
+
+  // Rescan existing card where Maturity changed from 2 -> 3
+  const updatedReview = classifyScannedCardsForReview({
+    scannedCards: [
+      {
+        lotNumber: 'MTL010',
+        powerRating: 4,
+        impactRating: 4,
+        bitterRating: 2,
+        burnRating: 4,
+        sugarRating: 4,
+        aromaRating: 4,
+        maturityRating: 3, // Matang
+        confidenceScore: 93,
+      },
+    ],
+    rawTobaccos: [existingRecord],
+    packagingList: SAMPLE_PACKAGINGS,
+  });
+
+  assert.equal(updatedReview[0].matchStatus, 'UPDATE_MENYUSUL');
+  assert.equal(updatedReview[0].maturityRating, 3);
+  assert.ok(updatedReview[0].updateDiffSummary.some((d) => d.includes('Maturity 2→3')));
+});
+

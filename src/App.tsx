@@ -991,6 +991,7 @@ export default function App() {
       burnRating: clampRating5(tobacco.burnRating ?? 4.5),
       sugarRating: clampRating5(tobacco.sugarRating ?? 4.0),
       aromaRating: clampRating5(tobacco.aromaRating ?? 4.2),
+      maturityRating: clampRating5(tobacco.maturityRating ?? 3.0),
       colorGrade: tobacco.colorGrade,
       characterNotes: tobacco.characterNotes,
     };
@@ -1024,6 +1025,7 @@ export default function App() {
           burnRating: clampRating5(serial.weightedBurn ?? 4.5),
           sugarRating: clampRating5(serial.weightedSugar ?? 4.0),
           aromaRating: clampRating5(serial.weightedAroma ?? 4.2),
+          maturityRating: clampRating5(serial.weightedMaturity ?? 3.0),
           colorGrade: serial.compositeColorGrade,
         },
       ]);
@@ -1098,6 +1100,7 @@ export default function App() {
                   burn: firstMatch.weightedBurn,
                   sugar: firstMatch.weightedSugar,
                   aroma: firstMatch.weightedAroma ?? 4.2,
+                  maturity: firstMatch.weightedMaturity ?? 3.0,
                   colorGrade: firstMatch.compositeColorGrade,
                   hppPerKg: firstMatch.hppPerNetKg,
                 },
@@ -1126,6 +1129,7 @@ export default function App() {
             burn: firstSer.weightedBurn,
             sugar: firstSer.weightedSugar,
             aroma: firstSer.weightedAroma ?? 4.2,
+            maturity: firstSer.weightedMaturity ?? 3.0,
             colorGrade: firstSer.compositeColorGrade,
             hppPerKg: firstSer.hppPerNetKg,
           },
@@ -1427,6 +1431,7 @@ export default function App() {
           burn: avg((s) => s.weightedBurn ?? 4.5),
           sugar: avg((s) => s.weightedSugar ?? 4.0),
           aroma: avg((s) => s.weightedAroma ?? 4.2),
+          maturity: avg((s) => s.weightedMaturity ?? 3.0),
           colorGrade: serialsInRoll[0].compositeColorGrade || roll.ratingsSnapshot.colorGrade,
           hppPerKg: avgHpp || roll.ratingsSnapshot.hppPerKg,
         },
@@ -2352,6 +2357,7 @@ export default function App() {
               burnRating: d.burnRating ?? 4.5,
               sugarRating: d.sugarRating ?? 4.0,
               aromaRating: d.aromaRating ?? 4.2,
+              maturityRating: d.maturityRating ?? 3.0,
               colorGrade: d.colorGrade || 'D',
               characterNotes: d.characterNotes || 'Diinput oleh Nolan atas izin pengguna',
             });
@@ -2389,6 +2395,10 @@ export default function App() {
                   updates.characterNotes !== undefined
                     ? updates.characterNotes
                     : existing.characterNotes,
+                maturityRating:
+                  updates.maturityRating !== undefined
+                    ? updates.maturityRating
+                    : existing.maturityRating,
               });
               handleSaveRawTobacco(updatedRaw);
             }

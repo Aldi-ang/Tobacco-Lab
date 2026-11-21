@@ -35,6 +35,11 @@ import {
   formatExcelSensoryRow,
 } from '../utils/excelStockView';
 import {
+  AttributePolarity,
+  getAttributeColorStyle,
+  MATURITY_LEVEL_LABELS,
+} from '../utils/attributePalette';
+import {
   FinishedTobaccoSerial,
   TobaccoRollSample,
   PackagingMaster,
@@ -208,6 +213,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
     const burn5 = clampRating5(batch.weightedBurn ?? 4.5);
     const sugar5 = clampRating5(batch.weightedSugar ?? 4.0);
     const aroma5 = clampRating5(batch.weightedAroma ?? 4.2);
+    const maturity5 = clampRating5(batch.weightedMaturity ?? 3.0);
 
     const tickerItems = [
       {
@@ -216,12 +222,13 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
         label: 'Atribut (/5)',
         value: '',
         characterParams: [
-          { label: 'Power', shortLabel: 'Pwr', value: power5 },
-          { label: 'Impact', shortLabel: 'Imp', value: impact5 },
-          { label: 'Bitter', shortLabel: 'Bit', value: bitter5 },
-          { label: 'Burn', shortLabel: 'Brn', value: burn5 },
-          { label: 'Sugar', shortLabel: 'Sgr', value: sugar5 },
-          { label: 'Aroma', shortLabel: 'Arm', value: aroma5 },
+          { label: 'Power', shortLabel: 'Pwr', value: power5, polarity: 'positive' as AttributePolarity },
+          { label: 'Impact', shortLabel: 'Imp', value: impact5, polarity: 'positive' as AttributePolarity },
+          { label: 'Bitter', shortLabel: 'Bit', value: bitter5, polarity: 'negative' as AttributePolarity },
+          { label: 'Burn', shortLabel: 'Brn', value: burn5, polarity: 'negative' as AttributePolarity },
+          { label: 'Sugar', shortLabel: 'Sgr', value: sugar5, polarity: 'positive' as AttributePolarity },
+          { label: 'Aroma', shortLabel: 'Arm', value: aroma5, polarity: 'positive' as AttributePolarity },
+          { label: 'Maturity', shortLabel: 'Mat', value: maturity5, polarity: 'maturity' as AttributePolarity },
         ],
       },
       {
@@ -598,6 +605,7 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
               burn: batch.weightedBurn,
               sugar: batch.weightedSugar,
               aroma: batch.weightedAroma,
+              maturity: batch.weightedMaturity,
             });
             const ingredientsSummary = formatExcelIngredientsSummary(batch.ingredients);
             const missingFlags = getSerialMissingFlags(batch);
@@ -714,34 +722,37 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                   </td>
                   <td className="py-1.5 px-1.5 border-r border-zinc-800 align-middle overflow-hidden">
                     <div
-                      className={`grid grid-cols-6 divide-x rounded text-center font-mono border ${
+                      className={`grid grid-cols-7 divide-x rounded text-center font-mono border ${
                         missingFlags.missingAttributes
                           ? 'divide-rose-500/40 bg-rose-950/35 border-rose-500/80'
                           : 'divide-zinc-800 bg-black/70 border-zinc-800/90'
                       }`}
                     >
-                      {sensoryCells.map((cell) => (
-                        <div
-                          key={cell.code}
-                          title={`${cell.fullLabel}: ${cell.formatted} / 5`}
-                          className="px-0.5 py-1 leading-none"
-                        >
-                          <span
-                            className={`block text-[8.5px] uppercase font-bold ${
-                              missingFlags.missingAttributes ? 'text-rose-300/90' : 'text-zinc-400'
-                            }`}
+                      {sensoryCells.map((cell) => {
+                        const cellStyle = getAttributeColorStyle(cell.polarity, cell.value);
+                        return (
+                          <div
+                            key={cell.code}
+                            title={`${cell.fullLabel}: ${cell.formatted} / 5 (${cellStyle.levelLabel})`}
+                            className="px-0.5 py-1 leading-none"
                           >
-                            {cell.code}
-                          </span>
-                          <span
-                            className={`block text-xs font-black mt-0.5 ${
-                              missingFlags.missingAttributes ? 'text-rose-400' : 'text-amber-300'
-                            }`}
-                          >
-                            {cell.formatted}
-                          </span>
-                        </div>
-                      ))}
+                            <span
+                              className={`block text-[8.5px] uppercase font-bold ${
+                                missingFlags.missingAttributes ? 'text-rose-300/90' : 'text-zinc-400'
+                              }`}
+                            >
+                              {cell.code}
+                            </span>
+                            <span
+                              className={`block text-xs font-black mt-0.5 ${
+                                missingFlags.missingAttributes ? 'text-rose-400' : cellStyle.textClass
+                              }`}
+                            >
+                              {cell.formatted}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </td>
                   <td rowSpan={2} className="py-1.5 px-1.5 align-middle text-center bg-[#080a10]">
@@ -1469,32 +1480,48 @@ export const FinishedTobaccoList: React.FC<FinishedTobaccoListProps> = ({
                   })()}
                 </div>
 
-                {/* 6 Sensory Ratings (/5) */}
+                {/* 7 Sensory Ratings (/5) */}
                 <div className="bg-black p-3.5 rounded-xl border border-zinc-800 space-y-2">
                   <span className="text-[10px] font-extrabold uppercase text-zinc-200 block">
-                    Parameter Karakteristik Rasa (/5)
+                    7 Parameter Karakteristik &amp; Maturity (/5)
                   </span>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center">
-                    {[
-                      { lbl: 'Power', val: clampRating5(activeSerial.weightedPower) },
-                      { lbl: 'Impact', val: clampRating5(activeSerial.weightedImpact) },
-                      { lbl: 'Bitter', val: clampRating5(activeSerial.weightedBitter) },
-                      { lbl: 'Burn', val: clampRating5(activeSerial.weightedBurn ?? 4.5) },
-                      { lbl: 'Sugar', val: clampRating5(activeSerial.weightedSugar ?? 4.0) },
-                      { lbl: 'Aroma', val: clampRating5(activeSerial.weightedAroma ?? 4.2) },
-                    ].map((r) => (
-                      <div
-                        key={r.lbl}
-                        className="bg-zinc-950 py-2 px-1.5 rounded-lg border border-zinc-800"
-                      >
-                        <div className="text-[9px] text-zinc-400 uppercase font-bold">
-                          {r.lbl}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 text-center">
+                    {(
+                      [
+                        { lbl: 'Power', val: clampRating5(activeSerial.weightedPower), polarity: 'positive' as AttributePolarity },
+                        { lbl: 'Impact', val: clampRating5(activeSerial.weightedImpact), polarity: 'positive' as AttributePolarity },
+                        { lbl: 'Bitter', val: clampRating5(activeSerial.weightedBitter), polarity: 'negative' as AttributePolarity },
+                        { lbl: 'Burn', val: clampRating5(activeSerial.weightedBurn ?? 4.5), polarity: 'negative' as AttributePolarity },
+                        { lbl: 'Sugar', val: clampRating5(activeSerial.weightedSugar ?? 4.0), polarity: 'positive' as AttributePolarity },
+                        { lbl: 'Aroma', val: clampRating5(activeSerial.weightedAroma ?? 4.2), polarity: 'positive' as AttributePolarity },
+                        { lbl: 'Maturity', val: clampRating5(activeSerial.weightedMaturity ?? 3.0), polarity: 'maturity' as AttributePolarity },
+                      ] as const
+                    ).map((r) => {
+                      const cellStyle = getAttributeColorStyle(r.polarity, r.val);
+                      const subStage =
+                        r.polarity === 'maturity' && r.val > 0
+                          ? MATURITY_LEVEL_LABELS[Math.round(r.val)]
+                          : null;
+                      return (
+                        <div
+                          key={r.lbl}
+                          title={`${r.lbl}: ${formatRating5(r.val)}/5 (${cellStyle.levelLabel})`}
+                          className="bg-zinc-950 py-2 px-1.5 rounded-lg border border-zinc-800"
+                        >
+                          <div className="text-[9px] text-zinc-400 uppercase font-bold">
+                            {r.lbl}
+                          </div>
+                          <div className={`font-mono font-black text-base sm:text-lg mt-0.5 ${cellStyle.textClass}`}>
+                            {formatRating5(r.val)}
+                          </div>
+                          {subStage && (
+                            <div className={`text-[9px] font-bold truncate mt-0.5 ${cellStyle.textClass}`}>
+                              {subStage}
+                            </div>
+                          )}
                         </div>
-                        <div className="font-mono font-black text-amber-400 text-base sm:text-lg mt-0.5">
-                          {formatRating5(r.val)}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 

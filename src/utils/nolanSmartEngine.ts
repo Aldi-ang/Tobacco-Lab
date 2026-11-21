@@ -300,6 +300,7 @@ export function detectPendingActionFromText(params: {
         burnRating: 4.5,
         sugarRating: 4.0,
         aromaRating: 4.0,
+        maturityRating: 3.0,
         characterNotes: 'Diinput melalui perintah Nolan',
       },
     };
@@ -755,6 +756,7 @@ export function runNolanSmartEngine(params: {
         burn: clampRating5(weightedSensory('burnRating', 4.5)),
         sugar: clampRating5(weightedSensory('sugarRating', 4.0)),
         aroma: clampRating5(weightedSensory('aromaRating', 4.2)),
+        maturity: clampRating5(weightedSensory('maturityRating', 3)),
       },
       reasoning: `Disusun dari ${activeRaw.length} stok aktif dengan HPP rata-rata ${formatRupiah(projectedHppPerKg)}/kg.`,
       ingredients: rawIngs.map((x) => ({

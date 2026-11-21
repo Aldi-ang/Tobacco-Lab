@@ -403,6 +403,7 @@ function detectPendingActionServer(params: {
         burnRating: 4.5,
         sugarRating: 4.0,
         aromaRating: 4.2,
+        maturityRating: 3.0,
         characterNotes: 'Diinput melalui perintah Nolan AI',
       },
     };
@@ -1491,7 +1492,7 @@ app.get('/api/health', async (req: Request, res: Response) => {
   const envInfo = inspectGeminiEnv(process.env);
   const basePayload: Record<string, unknown> = {
     ok: true,
-    version: 'v4.4.2',
+    version: 'v4.5.0',
     runtime: getServerRuntimeLabel(process.env),
     geminiConfigured: envInfo.validKeys.length > 0,
     keyCount: envInfo.validKeys.length,
@@ -2091,6 +2092,7 @@ ${JSON.stringify(
       burn: t.burnRating,
       sugar: t.sugarRating,
       aroma: t.aromaRating,
+      maturity: t.maturityRating ?? 3,
     },
     notes: t.characterNotes,
   })),
@@ -2248,6 +2250,7 @@ MEMORI & ATURAN YANG SUDAH DIPELAJARI NOLAN (A-BRAIN MEMORY):
               burnRating: matchedTobacco.burnRating || 4.5,
               sugarRating: matchedTobacco.sugarRating || 4.0,
               aromaRating: matchedTobacco.aromaRating || 4.2,
+              maturityRating: matchedTobacco.maturityRating || 3.0,
             });
           }
         }
@@ -2291,6 +2294,7 @@ MEMORI & ATURAN YANG SUDAH DIPELAJARI NOLAN (A-BRAIN MEMORY):
               burn: weightedAvg('burnRating'),
               sugar: weightedAvg('sugarRating'),
               aroma: weightedAvg('aromaRating'),
+              maturity: weightedAvg('maturityRating'),
             },
             reasoning: humanizeServerText(
               sourceBlend.reasoning ||
@@ -2477,11 +2481,12 @@ ATURAN PEMBACAAN SUPER KETAT (IKUTI STEP-BY-STEP):
 4. Kemasan (packagingType):
    - Cari kotak [ ] yang disilang (X) / dicentang pada bagian KEMASAN.
    - Cocokkan ke daftar Master Kemasan gudang ini: [${packagingsList || 'KRJ MUNTILAN, BAL, KARUNG, PETI'}]. Jika kotak "Lainnya" dicentang, baca tulisan tangan di sebelahnya.
-5. 6 Atribut Karakter (powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating):
+5. 7 Atribut Karakter (powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating, maturityRating):
    - WAJIB BILANGAN BULAT 1, 2, 3, 4, atau 5 SAJA (TANPA DESIMAL!).
-   - Setiap baris (POWER, IMPACT, BITTER, BURN, SUGAR, AROMA) memiliki 5 kotak persegi bernomor dari kiri ke kanan: [1]  [2]  [3]  [4]  [5].
+   - Setiap baris (POWER, IMPACT, BITTER, BURN, SUGAR, AROMA, MATURITY) memiliki 5 kotak persegi bernomor dari kiri ke kanan: [1]  [2]  [3]  [4]  [5].
+   - Untuk MATURITY (kematangan imbon): 1 = Tidak Matang, 2 = Lumayan Matang, 3 = Matang, 4 = Keluwasen, 5 = Busuk.
    - PERIKSA SATU BARIS DEMI SATU BARIS secara terpisah:
-     * Lihat label di ujung kiri baris (misal POWER).
+     * Lihat label di ujung kiri baris (misal POWER atau MATURITY).
      * Telusuri ke kanan kotak [1], [2], [3], [4], [5] pada baris yang SAMA persis (jangan loncat ke baris atas/bawah!).
      * Pilih angka yang tercetak DI DALAM kotak yang benar-benar ada coretan pena (X, /, ✓, lingkaran, atau arsir).
      * Abaikan kotak yang bersih/putih kosong. Jika seluruh 5 kotak pada baris itu bersih tanpa tanda pena, isi 0.
@@ -2490,13 +2495,13 @@ ATURAN PEMBACAAN SUPER KETAT (IKUTI STEP-BY-STEP):
    - Cocokkan Penjual dengan daftar penjual gudang ini jika ejaannya mirip: [${sellersList || 'bebas'}].
    - Cocokkan Daerah Asal dengan daftar daerah ini (Mtl -> Muntilan, Tmg -> Temanggung, Wds -> Windusari): [${originsList || 'Muntilan, Temanggung, Windusari, Boyolali, Madura, Pamekasan, Bojonegoro, Jember'}].
    - Referensi nama tembakau yang biasa masuk: [${tobaccoNamesList || 'bebas'}].
-7. Tanggal & Tahap 2 (Timbangan & Harga):
+7. Tanggal, Tahap 2 (Timbangan & Harga), & Catatan Belakang Kartu:
    - purchaseDate: baca tanggal di "TGL: ___ / ___ / 2026" atau "TANGGAL" (contoh "18 / 11 / 2026" -> "2026-11-18"). Jika tgl/bln masih kosong, isi "".
-   - grossWeightKg: angka Bruto (kg) di baris ringkas bagian bawah. Isi 0 jika masih kosong / belum ditimbang.
+   - grossWeightKg: angka Bruto (kg) di baris ringkas bagian bawah sisi depan. Isi 0 jika masih kosong / belum ditimbang.
    - pricePerKgPurchase: harga per kg dalam Rupiah penuh ("85k", "85rb", "85.000" -> 85000). Isi 0 jika masih kosong.
-   - notes: baca seluruh tulisan tangan multi-baris di dalam kotak penuh paling bawah "CATATAN / KETERANGAN DETAIL (TAHAP 2)". Gabungkan semua baris catatan dengan rapi.
+   - characterNotes: baca seluruh tulisan tangan multi-baris di dalam kotak "CATATAN / KETERANGAN DETAIL (TAHAP 2)" — baik yang tercetak di SISI BELAKANG kartu tepat DI BAWAH BARCODE 1D, maupun di bagian bawah kartu depan jika menggunakan kartu versi lama. Gabungkan semua baris catatan dengan rapi.
 8. Keraguan (uncertainFields & confidenceScore):
-   - Jika ada kotak/tulisan yang buram, miring, dua kotak tercoret, atau ragu, WAJIB masukkan nama field-nya ke uncertainFields (pilih dari: lotNumber, purchaseDate, graderName, name, origin, sellerName, colorGrade, packagingType, grossWeightKg, pricePerKgPurchase, powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating) dan turunkan confidenceScore (10-100).
+   - Jika ada kotak/tulisan yang buram, miring, dua kotak tercoret, atau ragu, WAJIB masukkan nama field-nya ke uncertainFields (pilih dari: lotNumber, purchaseDate, graderName, name, origin, sellerName, colorGrade, packagingType, grossWeightKg, pricePerKgPurchase, powerRating, impactRating, bitterRating, burnRating, sugarRating, aromaRating, maturityRating) dan turunkan confidenceScore (10-100).
    - Jika foto terlalu gelap/buram atau bukan Kartu Grade / Barcode, isi cards = [], detectedCount = 0, dan jelaskan di imageQualityWarning.`;
 
       const rawMime = dataUrlMimeMatch?.[1] || (typeof mimeType === 'string' ? mimeType.trim() : '');
@@ -2559,6 +2564,7 @@ ATURAN PEMBACAAN SUPER KETAT (IKUTI STEP-BY-STEP):
                     burnRating: { type: Type.INTEGER },
                     sugarRating: { type: Type.INTEGER },
                     aromaRating: { type: Type.INTEGER },
+                    maturityRating: { type: Type.INTEGER },
                     characterNotes: { type: Type.STRING },
                     confidenceScore: { type: Type.INTEGER },
                     uncertainFields: {

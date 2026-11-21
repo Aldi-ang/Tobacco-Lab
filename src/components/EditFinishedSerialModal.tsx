@@ -30,6 +30,11 @@ import {
   formatTaraFormula,
 } from '../utils/tobaccoMath';
 import { NumericInput } from './NumericInput';
+import {
+  AttributePolarity,
+  getAttributeColorStyle,
+  MATURITY_LEVEL_LABELS,
+} from '../utils/attributePalette';
 
 interface EditFinishedSerialModalProps {
   serial: FinishedTobaccoSerial | null;
@@ -59,7 +64,8 @@ type LockableFieldKey =
   | 'bitter'
   | 'burn'
   | 'sugar'
-  | 'aroma';
+  | 'aroma'
+  | 'maturity';
 
 const ALL_LOCKABLE_KEYS: LockableFieldKey[] = [
   'serialNumber',
@@ -80,6 +86,7 @@ const ALL_LOCKABLE_KEYS: LockableFieldKey[] = [
   'burn',
   'sugar',
   'aroma',
+  'maturity',
 ];
 
 type SerialEditTab = 'main' | 'weights' | 'character' | 'all';
@@ -118,6 +125,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
   const [burn, setBurn] = useState(5);
   const [sugar, setSugar] = useState(4);
   const [aroma, setAroma] = useState(4);
+  const [maturity, setMaturity] = useState(3);
 
   // Refs for Enter-to-Advance focus sequencing
   const factoryPriceInputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +192,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
     setBurn(clampRating5(serial.weightedBurn ?? 4.5));
     setSugar(clampRating5(serial.weightedSugar ?? 4.0));
     setAroma(clampRating5(serial.weightedAroma ?? 4.2));
+    setMaturity(clampRating5(serial.weightedMaturity ?? 3.0));
 
     if (initialSection === 'weights') {
       setUnlockedFields({
@@ -205,6 +214,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
         burn: true,
         sugar: true,
         aroma: true,
+        maturity: true,
       });
     } else {
       setUnlockedFields({});
@@ -427,6 +437,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
       weightedBurn: clampRating5(burn),
       weightedSugar: clampRating5(sugar),
       weightedAroma: clampRating5(aroma),
+      weightedMaturity: clampRating5(maturity),
     };
 
     onSave(updated);
@@ -897,34 +908,45 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
               <div className="bg-black p-3 rounded-xl border border-zinc-800 space-y-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
                   <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                  Karakteristik Rasa (/5)
+                  7 Parameter Karakteristik &amp; Maturity (/5)
                 </span>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
                   {(
                     [
-                      { key: 'power' as LockableFieldKey, lbl: 'Power', val: power, set: setPower },
-                      { key: 'impact' as LockableFieldKey, lbl: 'Impact', val: impact, set: setImpact },
-                      { key: 'bitter' as LockableFieldKey, lbl: 'Bitter', val: bitter, set: setBitter },
-                      { key: 'burn' as LockableFieldKey, lbl: 'Burn', val: burn, set: setBurn },
-                      { key: 'sugar' as LockableFieldKey, lbl: 'Sugar', val: sugar, set: setSugar },
-                      { key: 'aroma' as LockableFieldKey, lbl: 'Aroma', val: aroma, set: setAroma },
+                      { key: 'power' as LockableFieldKey, lbl: 'Power', val: power, set: setPower, polarity: 'positive' as AttributePolarity },
+                      { key: 'impact' as LockableFieldKey, lbl: 'Impact', val: impact, set: setImpact, polarity: 'positive' as AttributePolarity },
+                      { key: 'bitter' as LockableFieldKey, lbl: 'Bitter', val: bitter, set: setBitter, polarity: 'negative' as AttributePolarity },
+                      { key: 'burn' as LockableFieldKey, lbl: 'Burn', val: burn, set: setBurn, polarity: 'negative' as AttributePolarity },
+                      { key: 'sugar' as LockableFieldKey, lbl: 'Sugar', val: sugar, set: setSugar, polarity: 'positive' as AttributePolarity },
+                      { key: 'aroma' as LockableFieldKey, lbl: 'Aroma', val: aroma, set: setAroma, polarity: 'positive' as AttributePolarity },
+                      { key: 'maturity' as LockableFieldKey, lbl: 'Maturity', val: maturity, set: setMaturity, polarity: 'maturity' as AttributePolarity },
                     ] as const
-                  ).map((item) => (
-                    <div key={item.lbl} className="text-center">
-                      {renderFieldLabel(item.lbl, item.key, true)}
-                      <NumericInput
-                        value={item.val}
-                        onChange={(v) => item.set(Math.max(0, Math.min(5, Math.round(clampRating5(v)))))}
-                        disabled={!isUnlocked(item.key)}
-                        className={getLockedInputClass(
-                          item.key,
-                          `text-center font-mono font-black !px-1.5 ${
-                            item.val <= 0 ? '!text-rose-400 !border-rose-500/70' : ''
-                          }`
+                  ).map((item) => {
+                    const colorStyle = getAttributeColorStyle(item.polarity, item.val);
+                    const subStage =
+                      item.polarity === 'maturity' && item.val > 0
+                        ? MATURITY_LEVEL_LABELS[Math.round(item.val)]
+                        : null;
+                    return (
+                      <div key={item.lbl} className="text-center">
+                        {renderFieldLabel(item.lbl, item.key, true)}
+                        <NumericInput
+                          value={item.val}
+                          onChange={(v) => item.set(Math.max(0, Math.min(5, Math.round(clampRating5(v)))))}
+                          disabled={!isUnlocked(item.key)}
+                          className={getLockedInputClass(
+                            item.key,
+                            `text-center font-mono font-black !px-1.5 ${colorStyle.badgeClass}`
+                          )}
+                        />
+                        {subStage && (
+                          <div className={`text-[9px] font-bold truncate mt-0.5 ${colorStyle.textClass}`}>
+                            {subStage}
+                          </div>
                         )}
-                      />
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

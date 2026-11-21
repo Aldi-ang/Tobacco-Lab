@@ -317,6 +317,7 @@ export function pruneCandidatePoolForFastAutoBlend(params: {
     burn: number;
     sugar: number;
     aroma: number;
+    maturity?: number;
   };
   targetPricePerKg: number;
   prioritizeWeightProfit?: boolean;
@@ -351,6 +352,7 @@ export function pruneCandidatePoolForFastAutoBlend(params: {
     (t) => clampRating5(t.burnRating ?? 4.5),
     (t) => clampRating5(t.sugarRating ?? 4.0),
     (t) => clampRating5(t.aromaRating ?? 4.2),
+    (t) => clampRating5(t.maturityRating ?? 3),
     (t) => Number(t.realCostPerNetKg || 0),
   ];
 
@@ -386,7 +388,10 @@ export function pruneCandidatePoolForFastAutoBlend(params: {
         Math.abs(clampRating5(t.bitterRating) - targetSensory.bitter) +
         Math.abs(clampRating5(t.burnRating ?? 4.5) - targetSensory.burn) +
         Math.abs(clampRating5(t.sugarRating ?? 4.0) - targetSensory.sugar) +
-        Math.abs(clampRating5(t.aromaRating ?? 4.2) - targetSensory.aroma);
+        Math.abs(clampRating5(t.aromaRating ?? 4.2) - targetSensory.aroma) +
+        (targetSensory.maturity !== undefined
+          ? Math.abs(clampRating5(t.maturityRating ?? 3) - targetSensory.maturity)
+          : 0);
 
       const priceDist =
         targetPricePerKg > 0 && t.realCostPerNetKg > 0

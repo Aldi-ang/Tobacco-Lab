@@ -433,14 +433,27 @@ export function renderThermalCardToCanvas(params: {
   const gradeBoxH = isNarrow ? 82 : 96;
   const attrRowStep = isNarrow ? 29 : 35;
   const attrSqSize = isNarrow ? 24 : 30;
-  const attrBoxH = 28 + 6 * attrRowStep;
-  const stage2H = isNarrow ? 38 : 44; // Compact Tahap 2 strip
+  const attrBoxH = 28 + 7 * attrRowStep;
+  const stage2H = isNarrow ? 38 : 44; // Front Tahap 2 strip: Bruto + Harga only
+  const catatanBoxH = isNarrow ? 92 : 110;
 
   const headerH = isNarrow ? 102 : 114;
   const identityH = (isNarrow ? 42 : 46) * 3 + 18;
+  const frontCatatanExtra = includeBackBarcode ? 0 : catatanBoxH + 8;
   const frontHeightDots =
-    pad + headerH + identityH + gradeBoxH + 8 + pkgBoxH + 8 + attrBoxH + 8 + stage2H + 34;
-  const barcodeSectionH = includeBackBarcode ? (isNarrow ? 205 : 238) : 0;
+    pad +
+    headerH +
+    identityH +
+    gradeBoxH +
+    8 +
+    pkgBoxH +
+    8 +
+    attrBoxH +
+    8 +
+    stage2H +
+    frontCatatanExtra +
+    34;
+  const barcodeSectionH = includeBackBarcode ? (isNarrow ? 185 + catatanBoxH : 210 + catatanBoxH) : 0;
   const heightDots = frontHeightDots + barcodeSectionH;
 
   const canvas = document.createElement('canvas');
@@ -552,15 +565,15 @@ export function renderThermalCardToCanvas(params: {
   });
   y += pkgBoxH + 7;
 
-  // 6 Karakter Rasa — BIG wide-spaced square numbered boxes [1][2][3][4][5]
-  const attrs = ['POWER', 'IMPACT', 'BITTER', 'BURN', 'SUGAR', 'AROMA'];
-  drawBox('KARAKTER RASA (SILANG X ANGKA 1-5)', pad, y, innerW, attrBoxH);
-  const labelColumnW = isNarrow ? 68 : 94;
+  // 7 Attributes (Power..Aroma + Maturity) — wide-spaced square numbered boxes [1][2][3][4][5]
+  const attrs = ['POWER', 'IMPACT', 'BITTER', 'BURN', 'SUGAR', 'AROMA', 'MATURITY'];
+  drawBox('KARAKTER RASA & MATURITY (1-5)', pad, y, innerW, attrBoxH);
+  const labelColumnW = isNarrow ? 82 : 114;
   const startX = pad + 8 + labelColumnW;
-  const boxGap = isNarrow ? 7 : 12;
+  const boxGap = isNarrow ? 5 : 10;
   attrs.forEach((attr, rIdx) => {
     const ry = y + 22 + rIdx * attrRowStep;
-    ctx.font = `900 ${isNarrow ? 12 : 14}px sans-serif`;
+    ctx.font = `900 ${isNarrow ? 11.5 : 13.5}px sans-serif`;
     ctx.fillText(attr, pad + 8, ry + Math.round(attrSqSize * 0.72));
     for (let d = 1; d <= 5; d++) {
       const bx = startX + (d - 1) * (attrSqSize + boxGap);
@@ -576,15 +589,34 @@ export function renderThermalCardToCanvas(params: {
   });
   y += attrBoxH + 7;
 
-  // Stage 2 — Compact small bottom strip (Bruto + Harga)
+  // Stage 2 — Compact bottom strip (Bruto + Harga)
   const halfW = (innerW - 6) / 2;
   drawBox('BRUTO (KG)', pad, y, halfW, stage2H);
   drawBox('HARGA / KG (RP)', pad + halfW + 6, y, halfW, stage2H);
+  y += stage2H + 8;
 
-  if (includeBackBarcode) {
+  const drawCatatanBox = (boxY: number) => {
+    drawBox('CATATAN / KETERANGAN DETAIL (TAHAP 2)', pad, boxY, innerW, catatanBoxH);
+    ctx.save();
+    ctx.strokeStyle = '#9ca3af';
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1.2;
+    for (let l = 1; l <= 3; l++) {
+      const ly = boxY + 22 + ((catatanBoxH - 28) * l) / 4;
+      ctx.beginPath();
+      ctx.moveTo(pad + 6, ly);
+      ctx.lineTo(widthDots - pad - 6, ly);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  if (!includeBackBarcode) {
+    drawCatatanBox(y);
+  } else {
     const foldY = frontHeightDots - 6;
     ctx.font = `bold ${isNarrow ? 10 : 11}px monospace`;
-    ctx.fillText('--- LIPAT KE BELAKANG / LABEL ---', pad + 18, foldY);
+    ctx.fillText('--- SISI BELAKANG: BARCODE & CATATAN ---', pad + 8, foldY);
 
     const bTop = frontHeightDots + 8;
     ctx.lineWidth = 3;
@@ -601,7 +633,7 @@ export function renderThermalCardToCanvas(params: {
       bTop + (isNarrow ? 24 : 28)
     );
 
-    // Render big Code 39 1D linear barcode encoding Lot + Fixed Grader
+    // Render normal-size Code 39 1D linear barcode encoding Lot + Fixed Grader
     ctx.fillStyle = '#000000';
     const runs = encodeCode39Modules(barcodePayload);
     const totalUnits = computeCode39TotalUnits(runs);
@@ -609,8 +641,8 @@ export function renderThermalCardToCanvas(params: {
     const unitPx = Math.max(1, barAreaW / totalUnits);
     const renderedW = unitPx * totalUnits;
     let curX = pad + Math.floor((innerW - renderedW) / 2);
-    const barY = bTop + (isNarrow ? 40 : 46);
-    const barH = isNarrow ? 82 : 96;
+    const barY = bTop + (isNarrow ? 38 : 44);
+    const barH = isNarrow ? 54 : 66;
     for (const run of runs) {
       const w = run.units * unitPx;
       if (run.isBar) {
@@ -619,8 +651,11 @@ export function renderThermalCardToCanvas(params: {
       curX += w;
     }
 
-    ctx.font = `900 ${isNarrow ? 16 : 22}px monospace`;
-    ctx.fillText(barcodePayload, pad + 8, barY + barH + (isNarrow ? 22 : 28));
+    ctx.font = `900 ${isNarrow ? 14 : 18}px monospace`;
+    ctx.fillText(barcodePayload, pad + 8, barY + barH + (isNarrow ? 18 : 22));
+
+    // Place large multi-line Catatan directly below the barcode!
+    drawCatatanBox(barY + barH + (isNarrow ? 28 : 34));
   }
 
   // Cut line at bottom

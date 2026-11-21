@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeftRight, ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import { formatRating5 } from '../utils/tobaccoMath';
+import { AttributePolarity, getAttributeColorStyle } from '../utils/attributePalette';
 
 export interface CharacterParamBadge {
   label: string;
   shortLabel: string;
   value: number; // out of 5
+  polarity?: AttributePolarity;
 }
 
 export interface StatTickerItem {
@@ -136,22 +138,39 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
             {current.characterParams && current.characterParams.length > 0 ? (
               <div
                 className={`grid ${
-                  current.characterParams.length >= 6 ? 'grid-cols-6' : 'grid-cols-5'
+                  current.characterParams.length >= 7
+                    ? 'grid-cols-7'
+                    : current.characterParams.length >= 6
+                      ? 'grid-cols-6'
+                      : 'grid-cols-5'
                 } gap-1 text-center`}
               >
-                {current.characterParams.map((param) => (
-                  <div
-                    key={param.label}
-                    className="bg-zinc-950 border border-zinc-800/90 rounded-lg py-1 px-0.5 flex flex-col items-center justify-center"
-                  >
-                    <span className="text-[8px] sm:text-[9px] font-bold uppercase text-zinc-400 leading-none truncate max-w-full">
-                      {param.shortLabel}
-                    </span>
-                    <span className="font-mono font-black text-xs sm:text-sm text-amber-400 leading-tight mt-0.5">
-                      {formatRating5(param.value)}
-                    </span>
-                  </div>
-                ))}
+                {current.characterParams.map((param) => {
+                  const colorStyle = getAttributeColorStyle(
+                    param.polarity || 'positive',
+                    param.value
+                  );
+                  return (
+                    <div
+                      key={param.label}
+                      title={`${param.label}: ${formatRating5(param.value)}/5 (${colorStyle.levelLabel})`}
+                      className={`rounded-lg py-1 px-0.5 flex flex-col items-center justify-center border ${
+                        param.value <= 0
+                          ? 'bg-rose-950/35 border-rose-500/60'
+                          : 'bg-zinc-950 border-zinc-800/90'
+                      }`}
+                    >
+                      <span className="text-[8px] sm:text-[9px] font-bold uppercase text-zinc-400 leading-none truncate max-w-full">
+                        {param.shortLabel}
+                      </span>
+                      <span
+                        className={`font-mono font-black text-xs sm:text-sm leading-tight mt-0.5 ${colorStyle.textClass}`}
+                      >
+                        {formatRating5(param.value)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="space-y-1">

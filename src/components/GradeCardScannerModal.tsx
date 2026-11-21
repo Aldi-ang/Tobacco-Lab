@@ -25,6 +25,11 @@ import {
   formatRupiah,
 } from '../utils/tobaccoMath';
 import {
+  AttributePolarity,
+  MATURITY_LEVEL_LABELS,
+  getAttributeColorStyle,
+} from '../utils/attributePalette';
+import {
   ReviewedScannedGradeCard,
   ScannedGradeCardRawInput,
   buildEditableReviewCardFromExistingStock,
@@ -71,16 +76,19 @@ const ATTRIBUTE_FIELDS: {
     | 'bitterRating'
     | 'burnRating'
     | 'sugarRating'
-    | 'aromaRating';
+    | 'aromaRating'
+    | 'maturityRating';
   label: string;
   shortLabel: string;
+  polarity: AttributePolarity;
 }[] = [
-  { key: 'powerRating', label: 'Power', shortLabel: 'PWR' },
-  { key: 'impactRating', label: 'Impact', shortLabel: 'IMP' },
-  { key: 'bitterRating', label: 'Bitter', shortLabel: 'BIT' },
-  { key: 'burnRating', label: 'Burn', shortLabel: 'BRN' },
-  { key: 'sugarRating', label: 'Sugar', shortLabel: 'SGR' },
-  { key: 'aromaRating', label: 'Aroma', shortLabel: 'ARM' },
+  { key: 'powerRating', label: 'Power', shortLabel: 'PWR', polarity: 'positive' },
+  { key: 'impactRating', label: 'Impact', shortLabel: 'IMP', polarity: 'positive' },
+  { key: 'bitterRating', label: 'Bitter', shortLabel: 'BIT', polarity: 'negative' },
+  { key: 'burnRating', label: 'Burn', shortLabel: 'BRN', polarity: 'negative' },
+  { key: 'sugarRating', label: 'Sugar', shortLabel: 'SGR', polarity: 'positive' },
+  { key: 'aromaRating', label: 'Aroma', shortLabel: 'ARM', polarity: 'positive' },
+  { key: 'maturityRating', label: 'Maturity', shortLabel: 'MAT', polarity: 'maturity' },
 ];
 
 const UNCERTAIN_FIELD_LABELS: Record<string, string> = {
@@ -100,6 +108,7 @@ const UNCERTAIN_FIELD_LABELS: Record<string, string> = {
   burnRating: 'Burn',
   sugarRating: 'Sugar',
   aromaRating: 'Aroma',
+  maturityRating: 'Maturity',
 };
 
 function loadImageElementFromDataOrUrl(src: string): Promise<HTMLImageElement> {
@@ -467,6 +476,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
           burnRating: 0,
           sugarRating: 0,
           aromaRating: 0,
+          maturityRating: 0,
           uncertainFields: ['name', 'origin', 'grossWeightKg', 'pricePerKgPurchase'],
         },
       ],
@@ -1959,12 +1969,17 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                               {/* Whole-Number Attribute Tap Selectors (0-5 NO DECIMAL) */}
                               <div className="pt-2 border-t border-zinc-800/80">
                                 <div className="text-[10px] font-extrabold uppercase text-zinc-400 mb-1.5">
-                                  Atribut Karakter (Skala Bulat 0–5)
+                                  7 Atribut Karakter &amp; Maturity (Skala Bulat 0–5)
                                 </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                                   {ATTRIBUTE_FIELDS.map((attr) => {
                                     const currentVal = card[attr.key];
                                     const fieldUncertain = isUncertain(attr.key);
+                                    const attrStyle = getAttributeColorStyle(attr.polarity, currentVal);
+                                    const levelChip =
+                                      attr.key === 'maturityRating'
+                                        ? MATURITY_LEVEL_LABELS[Math.round(currentVal)] || attrStyle.levelLabel
+                                        : attrStyle.levelLabel;
                                     return (
                                       <div
                                         key={attr.key}
@@ -1974,32 +1989,52 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                                             : 'bg-black border-zinc-800'
                                         }`}
                                       >
-                                        <div className="flex items-center justify-between text-[10px] font-black mb-1">
-                                          <span className="text-zinc-300">{attr.label}</span>
-                                          <span className="text-amber-400 font-mono">
+                                        <div className="flex items-center justify-between gap-1 text-[10px] font-black mb-1">
+                                          <div className="flex items-center gap-1 min-w-0">
+                                            <span className="text-zinc-200 truncate">{attr.label}</span>
+                                            {currentVal > 0 && (
+                                              <span
+                                                className={`px-1 py-0.2 rounded border text-[8.5px] font-bold truncate ${attrStyle.badgeClass}`}
+                                              >
+                                                {levelChip}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <span
+                                            className={`px-1.5 py-0.5 rounded border font-mono text-[10px] font-black shrink-0 ${attrStyle.badgeClass}`}
+                                          >
                                             {formatRating5(currentVal)}/5
                                           </span>
                                         </div>
                                         <div className="grid grid-cols-6 gap-1">
-                                          {[0, 1, 2, 3, 4, 5].map((digit) => (
-                                            <button
-                                              key={digit}
-                                              type="button"
-                                              onClick={() =>
-                                                updateReviewedCard(card.reviewId, {
-                                                  [attr.key]: digit,
-                                                  attributesConfirmed: true,
-                                                } as Partial<ReviewedScannedGradeCard>)
-                                              }
-                                              className={`h-6 rounded-md font-mono text-[11px] font-black border cursor-pointer transition-colors ${
-                                                currentVal === digit
-                                                  ? 'bg-[#0d0f14] text-amber-300 border-amber-500/80'
-                                                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border-zinc-800'
-                                              }`}
-                                            >
-                                              {digit}
-                                            </button>
-                                          ))}
+                                          {[0, 1, 2, 3, 4, 5].map((digit) => {
+                                            const digitStyle = getAttributeColorStyle(attr.polarity, digit);
+                                            const isDigitActive = currentVal === digit;
+                                            return (
+                                              <button
+                                                key={digit}
+                                                type="button"
+                                                title={
+                                                  attr.key === 'maturityRating' && digit > 0
+                                                    ? `${digit} — ${MATURITY_LEVEL_LABELS[digit]}`
+                                                    : `${digit} — ${digitStyle.levelLabel}`
+                                                }
+                                                onClick={() =>
+                                                  updateReviewedCard(card.reviewId, {
+                                                    [attr.key]: digit,
+                                                    attributesConfirmed: true,
+                                                  } as Partial<ReviewedScannedGradeCard>)
+                                                }
+                                                className={`h-6 rounded-md font-mono text-[11px] font-black border cursor-pointer transition-colors ${
+                                                  isDigitActive
+                                                    ? digitStyle.activeStepClass
+                                                    : digitStyle.idleStepClass
+                                                }`}
+                                              >
+                                                {digit}
+                                              </button>
+                                            );
+                                          })}
                                         </div>
                                       </div>
                                     );

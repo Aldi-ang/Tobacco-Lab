@@ -16,6 +16,11 @@ import {
   RawTobacco,
 } from '../types/tobacco';
 import { GRADE_LABELS, TOBACCO_GRADE_ORDER, formatRupiah, clampRating5, formatRating5 } from '../utils/tobaccoMath';
+import {
+  AttributePolarity,
+  getAttributeColorStyle,
+  MATURITY_LEVEL_LABELS,
+} from '../utils/attributePalette';
 
 export interface GradeCompositionGroup {
   grade: TobaccoGrade;
@@ -30,6 +35,7 @@ export interface GradeCompositionGroup {
     burn: number;
     sugar: number;
     aroma: number;
+    maturity: number;
   };
   ingredients: {
     tobaccoId: string;
@@ -46,6 +52,7 @@ export interface GradeCompositionGroup {
     burnRating: number;
     sugarRating: number;
     aromaRating: number;
+    maturityRating: number;
   }[];
 }
 
@@ -151,6 +158,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
           burnRating: clampRating5(ing.burnRating ?? 4.5),
           sugarRating: clampRating5(ing.sugarRating ?? 4.0),
           aromaRating: clampRating5(ing.aromaRating ?? rawMatch?.aromaRating ?? 4.2),
+          maturityRating: clampRating5(ing.maturityRating ?? rawMatch?.maturityRating ?? 3.0),
         };
       });
 
@@ -176,6 +184,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
             burn: clampRating5(roll.ratingsSnapshot?.burn ?? 4.5),
             sugar: clampRating5(roll.ratingsSnapshot?.sugar ?? 4.0),
             aroma: clampRating5(roll.ratingsSnapshot?.aroma ?? 4.2),
+            maturity: clampRating5(roll.ratingsSnapshot?.maturity ?? 3.0),
           },
           ingredients: mappedIngs,
         },
@@ -212,6 +221,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
           burnRating: number;
           sugarRating: number;
           aromaRating: number;
+          maturityRating: number;
         }
       >();
 
@@ -222,6 +232,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
       let brnSum = 0;
       let sgrSum = 0;
       let armSum = 0;
+      let matSum = 0;
 
       for (const ser of gSerials) {
         const serNetKg =
@@ -237,6 +248,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
         brnSum += w * clampRating5(ser.weightedBurn ?? 4.5);
         sgrSum += w * clampRating5(ser.weightedSugar ?? 4.0);
         armSum += w * clampRating5(ser.weightedAroma ?? 4.2);
+        matSum += w * clampRating5(ser.weightedMaturity ?? 3.0);
 
         const serIngs =
           ser.ingredients && ser.ingredients.length > 0
@@ -265,6 +277,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
               burnRating: clampRating5(ing.burnRating ?? 4.5),
               sugarRating: clampRating5(ing.sugarRating ?? 4.0),
               aromaRating: clampRating5(ing.aromaRating ?? rawMatch?.aromaRating ?? 4.2),
+              maturityRating: clampRating5(ing.maturityRating ?? rawMatch?.maturityRating ?? 3.0),
             });
           }
         }
@@ -307,6 +320,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
           burn: Number((brnSum / safeDiv).toFixed(1)),
           sugar: Number((sgrSum / safeDiv).toFixed(1)),
           aroma: Number((armSum / safeDiv).toFixed(1)),
+          maturity: Number((matSum / safeDiv).toFixed(1)),
         },
         ingredients,
       };
@@ -326,6 +340,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
         burn: clampRating5(roll.ratingsSnapshot?.burn ?? 4.5),
         sugar: clampRating5(roll.ratingsSnapshot?.sugar ?? 4.0),
         aroma: clampRating5(roll.ratingsSnapshot?.aroma ?? 4.2),
+        maturity: clampRating5(roll.ratingsSnapshot?.maturity ?? 3.0),
       };
     }
     let totalW = 0;
@@ -335,6 +350,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
     let br = 0;
     let su = 0;
     let ar = 0;
+    let ma = 0;
     for (const s of serialsInRoll) {
       const w =
         s.packaging?.netTobaccoWeightKg ??
@@ -347,6 +363,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
       br += w * clampRating5(s.weightedBurn ?? 4.5);
       su += w * clampRating5(s.weightedSugar ?? 4.0);
       ar += w * clampRating5(s.weightedAroma ?? 4.2);
+      ma += w * clampRating5(s.weightedMaturity ?? 3.0);
     }
     const d = totalW > 0 ? totalW : 1;
     return {
@@ -356,6 +373,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
       burn: Number((br / d).toFixed(1)),
       sugar: Number((su / d).toFixed(1)),
       aroma: Number((ar / d).toFixed(1)),
+      maturity: Number((ma / d).toFixed(1)),
     };
   })();
 
@@ -383,6 +401,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
       burnScore: overallAvg.burn,
       sugarScore: overallAvg.sugar,
       aromaScore: overallAvg.aroma,
+      maturityScore: overallAvg.maturity,
       tastingNotes,
       factoryVerdict: roll.smokingTest?.factoryVerdict || 'Diterima Penuh',
     });
@@ -419,29 +438,35 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center">
-          {[
-            { label: 'Power', val: overallAvg.power, desc: 'Kekuatan Body' },
-            { label: 'Impact', val: overallAvg.impact, desc: 'Tarikan' },
-            { label: 'Bitter', val: overallAvg.bitter, desc: 'Pahit / Gurih' },
-            { label: 'Burn', val: overallAvg.burn, desc: 'Daya Bakar' },
-            { label: 'Sugar', val: overallAvg.sugar, desc: 'Manis Alami' },
-            { label: 'Aroma', val: overallAvg.aroma, desc: 'Karakter Aroma' },
-          ].map((item) => (
-            <div
-              key={item.label}
-              className="bg-zinc-950 p-3.5 sm:p-4 rounded-xl border border-zinc-800 flex flex-col items-center justify-center shadow-xs"
-            >
-              <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-zinc-200">
-                {item.label}
-              </span>
-              <span className="font-mono font-black text-amber-400 text-2xl sm:text-3xl mt-1">
-                {formatRating5(item.val)}
-                <span className="text-xs sm:text-sm text-zinc-400 font-bold">/5</span>
-              </span>
-              <span className="text-xs text-zinc-400 mt-1 font-medium">{item.desc}</span>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-center">
+          {(
+            [
+              { label: 'Power', val: overallAvg.power, desc: 'Kekuatan Body', polarity: 'positive' as AttributePolarity },
+              { label: 'Impact', val: overallAvg.impact, desc: 'Tarikan', polarity: 'positive' as AttributePolarity },
+              { label: 'Bitter', val: overallAvg.bitter, desc: 'Pahit / Gurih', polarity: 'negative' as AttributePolarity },
+              { label: 'Burn', val: overallAvg.burn, desc: 'Daya Bakar', polarity: 'negative' as AttributePolarity },
+              { label: 'Sugar', val: overallAvg.sugar, desc: 'Manis Alami', polarity: 'positive' as AttributePolarity },
+              { label: 'Aroma', val: overallAvg.aroma, desc: 'Karakter Aroma', polarity: 'positive' as AttributePolarity },
+              { label: 'Maturity', val: overallAvg.maturity, desc: MATURITY_LEVEL_LABELS[Math.round(overallAvg.maturity)] || 'Imbon', polarity: 'maturity' as AttributePolarity },
+            ] as const
+          ).map((item) => {
+            const st = getAttributeColorStyle(item.polarity, item.val);
+            return (
+              <div
+                key={item.label}
+                className="bg-zinc-950 p-3 sm:p-3.5 rounded-xl border border-zinc-800 flex flex-col items-center justify-center shadow-xs"
+              >
+                <span className="text-xs font-black uppercase tracking-wider text-zinc-200">
+                  {item.label}
+                </span>
+                <span className={`font-mono font-black text-2xl sm:text-3xl mt-1 ${st.textClass}`}>
+                  {formatRating5(item.val)}
+                  <span className="text-xs sm:text-sm text-zinc-400 font-bold">/5</span>
+                </span>
+                <span className="text-[11px] text-zinc-400 mt-1 font-medium truncate max-w-full">{item.desc}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -520,30 +545,36 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
                     )}
                   </div>
 
-                  {/* Readable 6-parameter fixed average strip for this Grade */}
+                  {/* Readable 7-parameter fixed average strip for this Grade */}
                   <div className="bg-black p-3 rounded-xl border border-zinc-800/90 space-y-2">
                     <div className="text-xs font-extrabold uppercase tracking-wider text-zinc-300">
                       Rata-Rata Karakter Grade {grp.grade} (Tetap):
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-center font-mono">
-                      {[
-                        { label: 'Power', val: grp.avgCharacter.power },
-                        { label: 'Impact', val: grp.avgCharacter.impact },
-                        { label: 'Bitter', val: grp.avgCharacter.bitter },
-                        { label: 'Burn', val: grp.avgCharacter.burn },
-                        { label: 'Sugar', val: grp.avgCharacter.sugar },
-                        { label: 'Aroma', val: grp.avgCharacter.aroma },
-                      ].map((pItem) => (
-                        <div
-                          key={pItem.label}
-                          className="px-2.5 py-2 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-between sm:justify-center gap-1.5"
-                        >
-                          <span className="text-xs text-zinc-300 font-bold">{pItem.label}:</span>
-                          <b className="text-sm sm:text-base text-amber-400 font-black">
-                            {pItem.val}
-                          </b>
-                        </div>
-                      ))}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center font-mono">
+                      {(
+                        [
+                          { label: 'Power', val: grp.avgCharacter.power, polarity: 'positive' as AttributePolarity },
+                          { label: 'Impact', val: grp.avgCharacter.impact, polarity: 'positive' as AttributePolarity },
+                          { label: 'Bitter', val: grp.avgCharacter.bitter, polarity: 'negative' as AttributePolarity },
+                          { label: 'Burn', val: grp.avgCharacter.burn, polarity: 'negative' as AttributePolarity },
+                          { label: 'Sugar', val: grp.avgCharacter.sugar, polarity: 'positive' as AttributePolarity },
+                          { label: 'Aroma', val: grp.avgCharacter.aroma, polarity: 'positive' as AttributePolarity },
+                          { label: 'Maturity', val: grp.avgCharacter.maturity, polarity: 'maturity' as AttributePolarity },
+                        ] as const
+                      ).map((pItem) => {
+                        const st = getAttributeColorStyle(pItem.polarity, pItem.val);
+                        return (
+                          <div
+                            key={pItem.label}
+                            className="px-2 py-2 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-between sm:justify-center gap-1"
+                          >
+                            <span className="text-[11px] text-zinc-300 font-bold">{pItem.label}:</span>
+                            <b className={`text-sm sm:text-base font-black ${st.textClass}`}>
+                              {pItem.val}
+                            </b>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -607,24 +638,24 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
                             {ing.percentageInGrade}% ({ing.usedNetKg} KG)
                           </div>
                           <div className="text-xs text-zinc-300 font-mono flex flex-wrap sm:justify-end gap-2.5">
-                            <span>
-                              Power:<b className="text-white ml-0.5">{ing.powerRating}</b>
-                            </span>
-                            <span>
-                              Impact:<b className="text-white ml-0.5">{ing.impactRating}</b>
-                            </span>
-                            <span>
-                              Bitter:<b className="text-white ml-0.5">{ing.bitterRating}</b>
-                            </span>
-                            <span>
-                              Burn:<b className="text-white ml-0.5">{ing.burnRating}</b>
-                            </span>
-                            <span>
-                              Sugar:<b className="text-white ml-0.5">{ing.sugarRating}</b>
-                            </span>
-                            <span>
-                              Aroma:<b className="text-white ml-0.5">{ing.aromaRating}</b>
-                            </span>
+                            {(
+                              [
+                                { lbl: 'Power', val: ing.powerRating, polarity: 'positive' as AttributePolarity },
+                                { lbl: 'Impact', val: ing.impactRating, polarity: 'positive' as AttributePolarity },
+                                { lbl: 'Bitter', val: ing.bitterRating, polarity: 'negative' as AttributePolarity },
+                                { lbl: 'Burn', val: ing.burnRating, polarity: 'negative' as AttributePolarity },
+                                { lbl: 'Sugar', val: ing.sugarRating, polarity: 'positive' as AttributePolarity },
+                                { lbl: 'Aroma', val: ing.aromaRating, polarity: 'positive' as AttributePolarity },
+                                { lbl: 'Maturity', val: ing.maturityRating, polarity: 'maturity' as AttributePolarity },
+                              ] as const
+                            ).map((badge) => {
+                              const st = getAttributeColorStyle(badge.polarity, badge.val);
+                              return (
+                                <span key={badge.lbl}>
+                                  {badge.lbl}:<b className={`${st.textClass} ml-0.5`}>{badge.val}</b>
+                                </span>
+                              );
+                            })}
                           </div>
                         </div>
                       </div>

@@ -43,6 +43,11 @@ import {
 import { NumericInput } from './NumericInput';
 import { SegmentedControl } from './RatingSegmentSlider';
 import {
+  AttributePolarity,
+  getAttributeColorStyle,
+  MATURITY_LEVEL_LABELS,
+} from '../utils/attributePalette';
+import {
   CalculationDetailModal,
   CalculationDetailData,
   CalcSymbolBadge,
@@ -421,6 +426,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
       burnRating: clampRating5(raw.burnRating ?? 4.5),
       sugarRating: clampRating5(raw.sugarRating ?? 4.0),
       aromaRating: clampRating5(raw.aromaRating ?? 4.2),
+      maturityRating: clampRating5(raw.maturityRating ?? 3.0),
       colorGrade: raw.colorGrade,
       characterNotes: raw.characterNotes,
     };
@@ -453,6 +459,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
         burnRating: clampRating5(raw.burnRating ?? 4.5),
         sugarRating: clampRating5(raw.sugarRating ?? 4.0),
         aromaRating: clampRating5(raw.aromaRating ?? 4.2),
+        maturityRating: clampRating5(raw.maturityRating ?? 3.0),
         colorGrade: raw.colorGrade,
         characterNotes: raw.characterNotes,
       });
@@ -585,6 +592,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
         weightedBurn: metrics.weightedBurn,
         weightedSugar: metrics.weightedSugar,
         weightedAroma: metrics.weightedAroma,
+        weightedMaturity: metrics.weightedMaturity,
         compositeColorGrade: pkg.grade || metrics.compositeColorGrade,
         totalMaterialCost: packageMaterialCost,
         additionalCosts: [
@@ -1050,24 +1058,24 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                           >
                             <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 text-[11px] text-zinc-300 space-y-1">
                               <div className="flex flex-wrap gap-3 font-mono">
-                                <span>
-                                  Power: <b className="text-white">{clampRating5(item.powerRating)}/5</b>
-                                </span>
-                                <span>
-                                  Impact: <b className="text-white">{clampRating5(item.impactRating)}/5</b>
-                                </span>
-                                <span>
-                                  Bitter: <b className="text-white">{clampRating5(item.bitterRating)}/5</b>
-                                </span>
-                                <span>
-                                  Burn: <b className="text-white">{clampRating5(item.burnRating ?? 4.5)}/5</b>
-                                </span>
-                                <span>
-                                  Sugar: <b className="text-white">{clampRating5(item.sugarRating ?? 4.0)}/5</b>
-                                </span>
-                                <span>
-                                  Aroma: <b className="text-white">{clampRating5(item.aromaRating ?? 4.2)}/5</b>
-                                </span>
+                                {(
+                                  [
+                                    { label: 'Power', val: clampRating5(item.powerRating), polarity: 'positive' as AttributePolarity },
+                                    { label: 'Impact', val: clampRating5(item.impactRating), polarity: 'positive' as AttributePolarity },
+                                    { label: 'Bitter', val: clampRating5(item.bitterRating), polarity: 'negative' as AttributePolarity },
+                                    { label: 'Burn', val: clampRating5(item.burnRating ?? 4.5), polarity: 'negative' as AttributePolarity },
+                                    { label: 'Sugar', val: clampRating5(item.sugarRating ?? 4.0), polarity: 'positive' as AttributePolarity },
+                                    { label: 'Aroma', val: clampRating5(item.aromaRating ?? 4.2), polarity: 'positive' as AttributePolarity },
+                                    { label: 'Maturity', val: clampRating5(item.maturityRating ?? 3.0), polarity: 'maturity' as AttributePolarity },
+                                  ] as const
+                                ).map((attr) => {
+                                  const st = getAttributeColorStyle(attr.polarity, attr.val);
+                                  return (
+                                    <span key={attr.label}>
+                                      {attr.label}: <b className={st.textClass}>{attr.val}/5</b>
+                                    </span>
+                                  );
+                                })}
                               </div>
                               {(item.characterNotes || rawData?.characterNotes) && (
                                 <p className="text-zinc-400 flex items-center gap-1 pt-1">
@@ -1535,30 +1543,47 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                     exit={{ opacity: 0, height: 0 }}
                     className="space-y-2 overflow-hidden pt-1"
                   >
-                    {[
-                      { label: 'Power (Kekuatan)', val: metrics.weightedPower },
-                      { label: 'Impact (Tarikan)', val: metrics.weightedImpact },
-                      { label: 'Bitter (Pahit/Gurih)', val: metrics.weightedBitter },
-                      { label: 'Burn (Daya Bakar)', val: metrics.weightedBurn },
-                      { label: 'Sugar (Manis)', val: metrics.weightedSugar },
-                      { label: 'Aroma (Karakter Wangi)', val: metrics.weightedAroma },
-                    ].map((s) => (
-                      <div
-                        key={s.label}
-                        className="bg-black/90 p-2 rounded-xl border border-zinc-800"
-                      >
-                        <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="text-white font-semibold">{s.label}:</span>
-                          <span className="font-mono font-black text-amber-400">{s.val} / 5</span>
+                    {(
+                      [
+                        { label: 'Power (Kekuatan)', val: metrics.weightedPower, polarity: 'positive' as AttributePolarity },
+                        { label: 'Impact (Tarikan)', val: metrics.weightedImpact, polarity: 'positive' as AttributePolarity },
+                        { label: 'Bitter (Pahit/Gurih)', val: metrics.weightedBitter, polarity: 'negative' as AttributePolarity },
+                        { label: 'Burn (Daya Bakar)', val: metrics.weightedBurn, polarity: 'negative' as AttributePolarity },
+                        { label: 'Sugar (Manis)', val: metrics.weightedSugar, polarity: 'positive' as AttributePolarity },
+                        { label: 'Aroma (Karakter Wangi)', val: metrics.weightedAroma, polarity: 'positive' as AttributePolarity },
+                        { label: 'Maturity (Imbon)', val: metrics.weightedMaturity, polarity: 'maturity' as AttributePolarity },
+                      ] as const
+                    ).map((s) => {
+                      const st = getAttributeColorStyle(s.polarity, s.val);
+                      const matStage =
+                        s.polarity === 'maturity' && s.val > 0
+                          ? MATURITY_LEVEL_LABELS[Math.round(s.val)]
+                          : null;
+                      return (
+                        <div
+                          key={s.label}
+                          className="bg-black/90 p-2 rounded-xl border border-zinc-800"
+                        >
+                          <div className="flex items-center justify-between text-xs mb-1 gap-1.5">
+                            <span className="text-white font-semibold truncate">{s.label}:</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {matStage && (
+                                <span className={`px-1.5 py-0.2 rounded border text-[9px] font-bold ${st.badgeClass}`}>
+                                  {matStage}
+                                </span>
+                              )}
+                              <span className={`font-mono font-black ${st.textClass}`}>{s.val} / 5</span>
+                            </div>
+                          </div>
+                          <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className={`${st.barClass} h-full rounded-full transition-all`}
+                              style={{ width: `${Math.min(100, (s.val / 5) * 100)}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
-                          <div
-                            className="bg-amber-500 h-full rounded-full transition-all"
-                            style={{ width: `${Math.min(100, (s.val / 5) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </motion.div>
                 )}
               </AnimatePresence>

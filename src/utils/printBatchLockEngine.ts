@@ -39,16 +39,16 @@ function normalizePrefix(prefix?: string): string {
 }
 
 /**
- * Snaps card count for fixed 4-card A4 layout into exact multiples of 4 [4..60],
+ * Snaps card count for fixed 6-card A4 layout into exact multiples of 6 [6..60],
  * or preserves 1..60 for single-roll Thermal modes.
  */
 export function snapPrintCountForFormat(count: number, format: PrintPaperFormat): number {
-  const num = Number.isFinite(count) ? count : 4;
+  const num = Number.isFinite(count) ? count : 6;
   if (isThermalPaperFormat(format)) {
     return Math.max(1, Math.min(60, Math.round(num)));
   }
-  const rounded = Math.round(num / 4) * 4;
-  return Math.max(4, Math.min(60, rounded || 4));
+  const rounded = Math.round(num / 6) * 6;
+  return Math.max(6, Math.min(60, rounded || 6));
 }
 
 /**
@@ -374,7 +374,7 @@ export function buildReprintSlotPlan(params: {
     const activeFresh = freshPool.slice(0, params.requestedCount);
     const pageCount = isThermal
       ? activeFresh.length
-      : Math.max(1, Math.ceil(activeFresh.length / 4));
+      : Math.max(1, Math.ceil(activeFresh.length / 6));
     return {
       slots: activeFresh,
       reprintedLots: [],
@@ -400,8 +400,8 @@ export function buildReprintSlotPlan(params: {
     }
 
     const snappedRequested = snapPrintCountForFormat(params.requestedCount, 'A4_6');
-    const minPages = Math.ceil(reprintLots.length / 4);
-    const targetSlots = Math.max(snappedRequested, minPages * 4);
+    const minPages = Math.ceil(reprintLots.length / 6);
+    const targetSlots = Math.max(snappedRequested, minPages * 6);
     const freshNeeded = Math.max(0, targetSlots - reprintLots.length);
     const freshUsed = freshPool.slice(0, freshNeeded);
     const slots = [...reprintLots, ...freshUsed];
@@ -410,7 +410,7 @@ export function buildReprintSlotPlan(params: {
       reprintedLots: reprintLots,
       freshLotsToLock: freshUsed,
       blankUnusedSlots: false,
-      pageCount: Math.max(1, Math.ceil(slots.length / 4)),
+      pageCount: Math.max(1, Math.ceil(slots.length / 6)),
     };
   }
 
@@ -449,9 +449,9 @@ export function buildReprintSlotPlan(params: {
     }
   }
 
-  const maxIndex = Math.max(3, ...targetIndices);
-  const pageCount = Math.ceil((maxIndex + 1) / 4);
-  const totalSlots = pageCount * 4;
+  const maxIndex = Math.max(5, ...targetIndices);
+  const pageCount = Math.ceil((maxIndex + 1) / 6);
+  const totalSlots = pageCount * 6;
   const slots: (string | null)[] = new Array(totalSlots).fill(null);
   targetIndices.forEach((slotIdx, lotIdx) => {
     slots[slotIdx] = reprintLots[lotIdx];
@@ -475,8 +475,8 @@ function normalizeSingleSlotCode(raw?: string): string {
 }
 
 /**
- * Direct per-slot A4 planner where Slots 1..4 map 1-to-1 to the 4 positions on a single A4 sheet:
- * - Each slot holds its own distinct (or empty) lot number (e.g. Slot 1 = MTL008, Slot 2 = YH41, Slot 4 = BM1).
+ * Direct per-slot A4 planner where Slots 1..6 map 1-to-1 to the 6 positions on a single A4 sheet:
+ * - Each slot holds its own distinct (or empty) lot number (e.g. Slot 1 = MTL008, Slot 2 = YH41, Slot 6 = BM1).
  * - SLOT_TERPILIH prints all filled slots combined onto that 1 A4 sheet while leaving empty slots blank white.
  * - GABUNG_BARU preserves every filled slot in its exact position and fills empty slots with fresh sequential lots.
  */
@@ -487,7 +487,7 @@ export function buildSlotAssignedReprintPlan(params: {
   requestedCount: number;
   paperFormat: PrintPaperFormat;
 }): ReprintSlotPlan {
-  const fixedSlots: string[] = Array.from({ length: 4 }, (_, idx) =>
+  const fixedSlots: string[] = Array.from({ length: 6 }, (_, idx) =>
     normalizeSingleSlotCode(params.slotCodes?.[idx])
   );
   const uniqueAssignedLots = Array.from(new Set(fixedSlots.filter(Boolean)));
@@ -499,7 +499,7 @@ export function buildSlotAssignedReprintPlan(params: {
   if (uniqueAssignedLots.length === 0) {
     if (params.mode === 'SLOT_TERPILIH') {
       return {
-        slots: isThermal ? [] : [null, null, null, null],
+        slots: isThermal ? [] : [null, null, null, null, null, null],
         reprintedLots: [],
         freshLotsToLock: [],
         blankUnusedSlots: !isThermal,
@@ -512,7 +512,7 @@ export function buildSlotAssignedReprintPlan(params: {
       reprintedLots: [],
       freshLotsToLock: activeFresh,
       blankUnusedSlots: false,
-      pageCount: isThermal ? activeFresh.length : Math.max(1, Math.ceil(activeFresh.length / 4)),
+      pageCount: isThermal ? activeFresh.length : Math.max(1, Math.ceil(activeFresh.length / 6)),
     };
   }
 
@@ -554,7 +554,7 @@ export function buildSlotAssignedReprintPlan(params: {
   const freshUsed: string[] = [];
   let freshCursor = 0;
 
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 6; i++) {
     if (fixedSlots[i]) {
       slots[i] = fixedSlots[i];
     } else if (freshCursor < freshPool.length) {
@@ -563,7 +563,7 @@ export function buildSlotAssignedReprintPlan(params: {
       freshUsed.push(lot);
     }
   }
-  for (let i = 4; i < snappedTarget; i++) {
+  for (let i = 6; i < snappedTarget; i++) {
     if (freshCursor < freshPool.length) {
       const lot = freshPool[freshCursor++];
       slots[i] = lot;
@@ -576,7 +576,7 @@ export function buildSlotAssignedReprintPlan(params: {
     reprintedLots: uniqueAssignedLots,
     freshLotsToLock: freshUsed,
     blankUnusedSlots: false,
-    pageCount: Math.max(1, Math.ceil(slots.length / 4)),
+    pageCount: Math.max(1, Math.ceil(slots.length / 6)),
   };
 }
 

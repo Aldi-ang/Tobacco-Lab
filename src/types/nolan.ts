@@ -25,6 +25,7 @@ export interface NolanRecommendedBlend {
     burn: number;
     sugar: number;
     aroma: number;
+    maturity?: number;
   };
   reasoning: string;
   ingredients: NolanRecommendedIngredient[];
@@ -74,6 +75,7 @@ export interface NolanPendingAction {
     burnRating?: number;
     sugarRating?: number;
     aromaRating?: number;
+    maturityRating?: number;
     characterNotes?: string;
   };
   newRawTobacco?: {
@@ -94,6 +96,7 @@ export interface NolanPendingAction {
     burnRating?: number;
     sugarRating?: number;
     aromaRating?: number;
+    maturityRating?: number;
     characterNotes?: string;
   };
   /** Payload for EDIT_RAW_TOBACCO */
@@ -115,6 +118,7 @@ export interface NolanPendingAction {
       burnRating?: number;
       sugarRating?: number;
       aromaRating?: number;
+      maturityRating?: number;
       characterNotes?: string;
     };
   };
@@ -136,6 +140,7 @@ export interface NolanPendingAction {
       burnRating?: number;
       sugarRating?: number;
       aromaRating?: number;
+      maturityRating?: number;
       characterNotes?: string;
     };
   };

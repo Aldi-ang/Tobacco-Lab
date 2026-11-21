@@ -29,6 +29,10 @@ import { getSmartPriceGuard, getSmartWeightGuard } from '../utils/smartInputGuar
 import { NumericInput } from './NumericInput';
 import { RatingSegmentSlider } from './RatingSegmentSlider';
 import {
+  getAttributePolarity,
+  MATURITY_LEVEL_LABELS,
+} from '../utils/attributePalette';
+import {
   CalculationDetailModal,
   CalculationDetailData,
   CalcSymbolBadge,
@@ -88,6 +92,7 @@ type RawLockableFieldKey =
   | 'burnRating'
   | 'sugarRating'
   | 'aromaRating'
+  | 'maturityRating'
   | 'colorGrade'
   | 'characterNotes';
 
@@ -111,6 +116,7 @@ const ALL_RAW_FIELD_KEYS: RawLockableFieldKey[] = [
   'burnRating',
   'sugarRating',
   'aromaRating',
+  'maturityRating',
   'colorGrade',
   'characterNotes',
 ];
@@ -128,22 +134,22 @@ const QUICK_CHARACTER_PRESETS = [
   {
     id: 'ringan',
     label: 'Ringan',
-    values: { power: 2, impact: 2, bitter: 1, burn: 5, sugar: 4, aroma: 4 },
+    values: { power: 2, impact: 2, bitter: 1, burn: 1, sugar: 4, aroma: 4, maturity: 3 },
   },
   {
     id: 'sedang',
     label: 'Sedang',
-    values: { power: 3, impact: 3, bitter: 2, burn: 4, sugar: 4, aroma: 4 },
+    values: { power: 3, impact: 3, bitter: 2, burn: 2, sugar: 4, aroma: 4, maturity: 3 },
   },
   {
     id: 'mantap',
     label: 'Mantap',
-    values: { power: 5, impact: 5, bitter: 4, burn: 4, sugar: 3, aroma: 4 },
+    values: { power: 5, impact: 5, bitter: 4, burn: 2, sugar: 3, aroma: 4, maturity: 3 },
   },
   {
     id: 'manis',
     label: 'Manis Harum',
-    values: { power: 3, impact: 3, bitter: 1, burn: 5, sugar: 5, aroma: 5 },
+    values: { power: 3, impact: 3, bitter: 1, burn: 1, sugar: 5, aroma: 5, maturity: 3 },
   },
 ];
 
@@ -197,13 +203,14 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
   const [additionalCost, setAdditionalCost] = useState<number>(0);
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
 
-  // 6 sensory parameters default to 0
+  // 7 sensory parameters default to 0
   const [powerRating, setPowerRating] = useState<number>(0);
   const [impactRating, setImpactRating] = useState<number>(0);
   const [bitterRating, setBitterRating] = useState<number>(0);
   const [burnRating, setBurnRating] = useState<number>(0);
   const [sugarRating, setSugarRating] = useState<number>(0);
   const [aromaRating, setAromaRating] = useState<number>(0);
+  const [maturityRating, setMaturityRating] = useState<number>(0);
   const [colorGrade, setColorGrade] = useState<TobaccoGrade>('D');
   const [characterNotes, setCharacterNotes] = useState('');
 
@@ -319,6 +326,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setBurnRating(clampRating5(editingTobacco.burnRating ?? 0));
       setSugarRating(clampRating5(editingTobacco.sugarRating ?? 0));
       setAromaRating(clampRating5(editingTobacco.aromaRating ?? 0));
+      setMaturityRating(clampRating5(editingTobacco.maturityRating ?? 0));
       setColorGrade(editingTobacco.colorGrade || 'D');
       setCharacterNotes(editingTobacco.characterNotes || '');
 
@@ -333,7 +341,8 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setShowGradeSection(
         (editingTobacco.powerRating || 0) > 0 ||
           (editingTobacco.impactRating || 0) > 0 ||
-          (editingTobacco.aromaRating || 0) > 0
+          (editingTobacco.aromaRating || 0) > 0 ||
+          (editingTobacco.maturityRating || 0) > 0
       );
       setConfirmDiscardChanges(false);
       initialSignatureRef.current = JSON.stringify({
@@ -355,6 +364,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
         burnRating: clampRating5(editingTobacco.burnRating ?? 0),
         sugarRating: clampRating5(editingTobacco.sugarRating ?? 0),
         aromaRating: clampRating5(editingTobacco.aromaRating ?? 0),
+        maturityRating: clampRating5(editingTobacco.maturityRating ?? 0),
         colorGrade: editingTobacco.colorGrade || 'D',
         characterNotes: editingTobacco.characterNotes || '',
       });
@@ -380,6 +390,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setBurnRating(0);
       setSugarRating(0);
       setAromaRating(0);
+      setMaturityRating(0);
       setColorGrade('D');
       setCharacterNotes('');
       setLockedMap({});
@@ -405,6 +416,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
         burnRating: 0,
         sugarRating: 0,
         aromaRating: 0,
+        maturityRating: 0,
         colorGrade: 'D',
         characterNotes: '',
       });
@@ -438,6 +450,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
     burnRating,
     sugarRating,
     aromaRating,
+    maturityRating,
     colorGrade,
     characterNotes,
   });
@@ -564,6 +577,8 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
         return !sugarRating || sugarRating <= 0;
       case 'aromaRating':
         return !aromaRating || aromaRating <= 0;
+      case 'maturityRating':
+        return !maturityRating || maturityRating <= 0;
       case 'colorGrade':
         return false;
       case 'characterNotes':
@@ -591,6 +606,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
     'burnRating',
     'sugarRating',
     'aromaRating',
+    'maturityRating',
     'characterNotes',
   ];
 
@@ -848,6 +864,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       burnRating: Number(burnRating) || 0,
       sugarRating: Number(sugarRating) || 0,
       aromaRating: Number(aromaRating) || 0,
+      maturityRating: Number(maturityRating) || 0,
       colorGrade,
       characterNotes: characterNotes.trim(),
       lockedFields: activeLockedFields,
@@ -869,6 +886,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setBurnRating(0);
       setSugarRating(0);
       setAromaRating(0);
+      setMaturityRating(0);
       setCharacterNotes('');
       window.setTimeout(() => {
         nameInputRef.current?.focus();
@@ -1340,7 +1358,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                 </div>
               </div>
 
-              {/* Step C: Collapsible Grade & 6 Atribut (Clean Express Form by Default) */}
+              {/* Step C: Collapsible Grade & 7 Atribut (Clean Express Form by Default) */}
               <div className="bg-black rounded-xl border border-zinc-800 overflow-hidden">
                 <button
                   type="button"
@@ -1350,7 +1368,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                   <div className="flex items-center gap-2 min-w-0">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     <span className="text-[11px] font-bold text-zinc-200 truncate">
-                      6. Grade &amp; 6 Atribut Rasa (Opsional / Bisa Menyusul)
+                      6. Grade &amp; 7 Atribut (Rasa + Maturity Imbon)
                     </span>
                     <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] font-mono font-bold text-amber-300 shrink-0">
                       Grade {colorGrade}
@@ -1385,6 +1403,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                                 if (!isLocked('burnRating')) setBurnRating(preset.values.burn);
                                 if (!isLocked('sugarRating')) setSugarRating(preset.values.sugar);
                                 if (!isLocked('aromaRating')) setAromaRating(preset.values.aroma);
+                                if (!isLocked('maturityRating')) setMaturityRating(preset.values.maturity);
                               }}
                               className="px-2 py-0.5 rounded bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 hover:border-amber-500/60 text-[10px] font-bold text-amber-300 cursor-pointer"
                             >
@@ -1426,11 +1445,16 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                           { key: 'burnRating' as RawLockableFieldKey, label: 'Burn', value: burnRating, onChange: setBurnRating },
                           { key: 'sugarRating' as RawLockableFieldKey, label: 'Sugar', value: sugarRating, onChange: setSugarRating },
                           { key: 'aromaRating' as RawLockableFieldKey, label: 'Aroma', value: aromaRating, onChange: setAromaRating },
+                          { key: 'maturityRating' as RawLockableFieldKey, label: 'Maturity', value: maturityRating, onChange: setMaturityRating },
                         ] as const
                       ).map((param) => (
                         <RatingSegmentSlider
                           key={param.key}
                           label={param.label}
+                          polarity={getAttributePolarity(param.key)}
+                          levelLabels={
+                            param.key === 'maturityRating' ? MATURITY_LEVEL_LABELS : undefined
+                          }
                           value={param.value}
                           onChange={param.onChange}
                           disabled={isLocked(param.key)}

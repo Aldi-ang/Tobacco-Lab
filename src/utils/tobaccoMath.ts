@@ -385,6 +385,7 @@ export function calculateBlendMetrics(params: {
   weightedBurn: number;
   weightedSugar: number;
   weightedAroma: number;
+  weightedMaturity: number;
   compositeColorGrade: TobaccoGrade;
   updatedIngredients: BlendIngredient[];
 } {
@@ -410,6 +411,7 @@ export function calculateBlendMetrics(params: {
       weightedBurn: 0,
       weightedSugar: 0,
       weightedAroma: 0,
+      weightedMaturity: 0,
       compositeColorGrade: 'D',
       updatedIngredients: ingredients,
     };
@@ -423,6 +425,7 @@ export function calculateBlendMetrics(params: {
   let burnSum = 0;
   let sugarSum = 0;
   let aromaSum = 0;
+  let maturitySum = 0;
   let gradeScoreSum = 0;
 
   const updatedIngredients = ingredients.map((item) => {
@@ -438,6 +441,7 @@ export function calculateBlendMetrics(params: {
     const bu = clampRating5(item.burnRating ?? 4.0);
     const su = clampRating5(item.sugarRating ?? 3.5);
     const ar = clampRating5(item.aromaRating ?? 4.2);
+    const mat = clampRating5(item.maturityRating ?? 3);
 
     totalMaterialCost += subtotalCost;
     totalRealPaidMaterialCost += subtotalRealPaidCost;
@@ -447,6 +451,7 @@ export function calculateBlendMetrics(params: {
     burnSum += item.usedNetKg * bu;
     sugarSum += item.usedNetKg * su;
     aromaSum += item.usedNetKg * ar;
+    maturitySum += item.usedNetKg * mat;
     gradeScoreSum += item.usedNetKg * (GRADE_SCORES[item.colorGrade] || 2);
 
     return {
@@ -457,6 +462,7 @@ export function calculateBlendMetrics(params: {
       burnRating: bu,
       sugarRating: su,
       aromaRating: ar,
+      maturityRating: mat,
       percentageInBlend: Number(percentageInBlend.toFixed(1)),
       subtotalCost: Math.round(subtotalCost),
       subtotalRealPaidCost: Math.round(subtotalRealPaidCost),
@@ -477,6 +483,7 @@ export function calculateBlendMetrics(params: {
   const weightedBurn = Number((burnSum / totalBlendNetKg).toFixed(1));
   const weightedSugar = Number((sugarSum / totalBlendNetKg).toFixed(1));
   const weightedAroma = Number((aromaSum / totalBlendNetKg).toFixed(1));
+  const weightedMaturity = Number((maturitySum / totalBlendNetKg).toFixed(1));
   const averageGradeScore = gradeScoreSum / totalBlendNetKg;
   const compositeColorGrade = scoreToColorGrade(averageGradeScore);
 
@@ -496,6 +503,7 @@ export function calculateBlendMetrics(params: {
     weightedBurn,
     weightedSugar,
     weightedAroma,
+    weightedMaturity,
     compositeColorGrade,
     updatedIngredients,
   };
@@ -1085,6 +1093,7 @@ export interface AutoBlendSensoryTargets {
   burn: number;
   sugar: number;
   aroma: number;
+  maturity?: number;
 }
 
 export interface AutoBlendConfig {
@@ -1108,7 +1117,7 @@ export interface AutoBlendConfig {
 }
 
 export interface AutoBlendParameterDiagnostic {
-  key: 'power' | 'impact' | 'bitter' | 'burn' | 'sugar' | 'aroma' | 'price' | 'grade';
+  key: 'power' | 'impact' | 'bitter' | 'burn' | 'sugar' | 'aroma' | 'maturity' | 'price' | 'grade';
   label: string;
   targetValue: number;
   achievedValue: number;
@@ -1244,6 +1253,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
   const burnStats = getPoolStats((t) => clampRating5(t.burnRating ?? 4.5));
   const sugarStats = getPoolStats((t) => clampRating5(t.sugarRating ?? 4.0));
   const aromaStats = getPoolStats((t) => clampRating5(t.aromaRating ?? 4.2));
+  const maturityStats = getPoolStats((t) => clampRating5(t.maturityRating ?? 3));
   const priceStats = getPoolStats((t) => t.realCostPerNetKg);
 
   const targetGradeScore = GRADE_SCORES[targetGrade] || 6;
@@ -1268,6 +1278,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
       (t) => clampRating5(t.burnRating ?? 4.5),
       (t) => clampRating5(t.sugarRating ?? 4.0),
       (t) => clampRating5(t.aromaRating ?? 4.2),
+      (t) => clampRating5(t.maturityRating ?? 3),
       (t) => Number(t.realCostPerNetKg || 0),
     ];
 
@@ -1301,7 +1312,10 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
           Math.abs(clampRating5(t.bitterRating) - targetSensory.bitter) +
           Math.abs(clampRating5(t.burnRating ?? 4.5) - targetSensory.burn) +
           Math.abs(clampRating5(t.sugarRating ?? 4.0) - targetSensory.sugar) +
-          Math.abs(clampRating5(t.aromaRating ?? 4.2) - targetSensory.aroma);
+          Math.abs(clampRating5(t.aromaRating ?? 4.2) - targetSensory.aroma) +
+          (targetSensory.maturity !== undefined
+            ? Math.abs(clampRating5(t.maturityRating ?? 3) - targetSensory.maturity)
+            : 0);
         const pDist =
           targetPricePerKg > 0 && t.realCostPerNetKg > 0
             ? Math.abs(t.realCostPerNetKg - targetPricePerKg) / 25000
@@ -1380,6 +1394,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
   const pBurn = solverPool.map((t) => clampRating5(t.burnRating ?? 4.5));
   const pSugar = solverPool.map((t) => clampRating5(t.sugarRating ?? 4.0));
   const pAroma = solverPool.map((t) => clampRating5(t.aromaRating ?? 4.2));
+  const pMaturity = solverPool.map((t) => clampRating5(t.maturityRating ?? 3));
   const pPrice = solverPool.map((t) => t.realCostPerNetKg);
   const pGrade = solverPool.map((t) => GRADE_SCORES[t.colorGrade] || 6);
   const pWeightProfitRatio = solverPool.map((t) =>
@@ -1396,6 +1411,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
     let mBurn = 0;
     let mSugar = 0;
     let mAroma = 0;
+    let mMaturity = 0;
     let mPrice = 0;
     let mGrade = 0;
     let mProfitBonus = 0;
@@ -1408,6 +1424,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
       mBurn += wi * pBurn[i];
       mSugar += wi * pSugar[i];
       mAroma += wi * pAroma[i];
+      mMaturity += wi * pMaturity[i];
       mPrice += wi * pPrice[i];
       mGrade += wi * pGrade[i];
       mProfitBonus += wi * pWeightProfitRatio[i];
@@ -1419,7 +1436,10 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
       Math.pow((mBitter - targetSensory.bitter) / 0.5, 2) +
       Math.pow((mBurn - targetSensory.burn) / 0.5, 2) +
       Math.pow((mSugar - targetSensory.sugar) / 0.5, 2) +
-      Math.pow((mAroma - targetSensory.aroma) / 0.5, 2);
+      Math.pow((mAroma - targetSensory.aroma) / 0.5, 2) +
+      (targetSensory.maturity !== undefined
+        ? Math.pow((mMaturity - targetSensory.maturity) / 0.5, 2)
+        : 0);
 
     const errPrice =
       targetPricePerKg > 0 ? Math.pow((mPrice - targetPricePerKg) / priceScale, 2) * 1.5 : 0;
@@ -1449,7 +1469,10 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
           Math.abs(pBitter[idx] - targetSensory.bitter) +
           Math.abs(pBurn[idx] - targetSensory.burn) +
           Math.abs(pSugar[idx] - targetSensory.sugar) +
-          Math.abs(pAroma[idx] - targetSensory.aroma);
+          Math.abs(pAroma[idx] - targetSensory.aroma) +
+          (targetSensory.maturity !== undefined
+            ? Math.abs(pMaturity[idx] - targetSensory.maturity)
+            : 0);
         return 1 / Math.max(0.1, dist);
       })
     ),
@@ -1554,6 +1577,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
       burnRating: clampRating5(raw.burnRating ?? 4.5),
       sugarRating: clampRating5(raw.sugarRating ?? 4.0),
       aromaRating: clampRating5(raw.aromaRating ?? 4.2),
+      maturityRating: clampRating5(raw.maturityRating ?? 3),
       colorGrade: raw.colorGrade,
       characterNotes: raw.characterNotes,
     });
@@ -1663,6 +1687,17 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
     buildSensoryDiag('burn', 'Burn', targetSensory.burn, achievedMetrics.weightedBurn, burnStats),
     buildSensoryDiag('sugar', 'Sugar', targetSensory.sugar, achievedMetrics.weightedSugar, sugarStats),
     buildSensoryDiag('aroma', 'Aroma', targetSensory.aroma, achievedMetrics.weightedAroma, aromaStats),
+    ...(targetSensory.maturity !== undefined
+      ? [
+          buildSensoryDiag(
+            'maturity',
+            'Maturity',
+            targetSensory.maturity,
+            achievedMetrics.weightedMaturity,
+            maturityStats
+          ),
+        ]
+      : []),
   ];
 
   // Price / HPP Diagnostic

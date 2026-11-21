@@ -346,7 +346,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <button
                       type="button"
                       onClick={() => onOpenGradeScanner('print')}
-                      aria-label="Cetak Kartu Grade (A4 4/Hal)"
+                      aria-label="Cetak Kartu Grade (A4 6/Hal)"
                       className="alucard-edge-btn-quiet inline-flex items-center justify-center h-8 px-2 sm:h-9 sm:px-3 gap-1 sm:gap-1.5 rounded-lg cursor-pointer shrink-0 font-bold text-[10px] sm:text-xs"
                     >
                       <Printer className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400 shrink-0" />

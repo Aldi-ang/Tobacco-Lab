@@ -13,7 +13,7 @@ import {
 
 import { ALUCARD_EASE } from './AlucardMotion';
 
-export const CURRENT_APP_VERSION = 'v4.4.2';
+export const CURRENT_APP_VERSION = 'v4.5.0';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -32,11 +32,40 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v4.5.0',
+    date: '20 November 2026',
+    codename:
+      'Kartu Grade A4 6-in-1 + Catatan Sisi Belakang di Bawah Barcode + Atribut ke-7 Maturity (Imbon) & Pewarnaan Dinamis',
+    isLatest: true,
+    highlights:
+      'Mengembalikan ukuran cetak efisien 6 Kartu per lembar A4 (2×3), memindahkan kotak CATATAN ekstra luas ke sisi belakang tepat di bawah barcode normal, menambahkan atribut ke-7 MATURITY (1–5 skala imbon), serta menerapkan gradasi warna dinamis berbasis sifat atribut positif, negatif, dan kurva Maturity.',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Atribut ke-7: Maturity (Skala Imbon 1–5) di Kartu & Seluruh Aplikasi',
+        description:
+          'Menambahkan parameter Maturity untuk memantau tingkat kematangan dan kesehatan daun berdasar waktu imbon: 1 = Tidak Matang (Merah), 2 = Lumayan Matang (Oranye), 3 = Matang Optimal (Hijau), 4 = Keluwasen / Hampir Lewat (Oranye), 5 = Busuk (Merah).',
+      },
+      {
+        type: 'ui',
+        title: 'Pewarnaan Dinamis Numbox & Levelling (Positif vs Negatif vs Maturity)',
+        description:
+          'Atribut positif (Power, Impact, Sugar, Aroma) bergradasi Merah (1) → Hijau (5). Atribut negatif (Bitter, Burn) terbalik dari Hijau (1, terbaik) → Merah (5, terburuk). Maturity memakai kurva kesehatan Merah (1/5) → Oranye (2/4) → Hijau (3).',
+      },
+      {
+        type: 'ui',
+        title: '6 Kartu Grade per Lembar A4 (2×3) + Catatan Lega di Sisi Belakang Barcode',
+        description:
+          'Bagian depan kartu kembali ke tata letak 6 kartu per A4 yang ringkas dengan Bruto & Harga di strip bawah, sementara kotak CATATAN multi-baris berjarak lega dipindahkan ke sisi belakang kartu tepat di bawah barcode Code 39 ukuran normal.',
+      },
+    ],
+  },
+  {
     version: 'v4.4.2',
     date: '19 November 2026',
     codename:
       'Kotak Catatan / Keterangan Detail Full-Width Multi-Baris Ekstra Luas (Kartu A4 4-Kartu & Thermal)',
-    isLatest: true,
+    isLatest: false,
     highlights:
       'Kolom CATATAN / KETERANGAN DETAIL (TAHAP 2) kini dipisahkan ke baris penuh tersendiri (100% lebar kartu) dengan ruang tulis 3 baris berjarak lega di bawah kolom ringkas Bruto (Kg) & Harga / Kg (Rp), sehingga informasi catatan terbanyak dapat ditulis panjang dan jelas.',
     changes: [

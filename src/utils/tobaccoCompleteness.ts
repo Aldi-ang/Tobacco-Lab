@@ -54,6 +54,7 @@ export interface RawQuickPatch {
   burnRating?: number;
   sugarRating?: number;
   aromaRating?: number;
+  maturityRating?: number;
   characterNotes?: string;
 }
 
@@ -77,6 +78,7 @@ export function getRawTobaccoMissingFlags(t: RawTobacco): RawTobaccoMissingFlags
     Number(t.burnRating) || 0,
     Number(t.sugarRating) || 0,
     Number(t.aromaRating) || 0,
+    Number(t.maturityRating) || 0,
   ];
   const unfilledAttributeCount = attrValues.filter((v) => v <= 0).length;
   const missingAttributes = attrValues.every((v) => v <= 0);
@@ -115,6 +117,7 @@ export function getSerialMissingFlags(s: FinishedTobaccoSerial): SerialMissingFl
     Number(s.weightedBurn) || 0,
     Number(s.weightedSugar) || 0,
     Number(s.weightedAroma) || 0,
+    Number(s.weightedMaturity) || 0,
   ];
 
   const missingWeight = bruto <= 0;
@@ -288,6 +291,10 @@ export function applyQuickPatchToRawTobacco(
       patch.aromaRating !== undefined
         ? clampRating5(patch.aromaRating)
         : existing.aromaRating,
+    maturityRating:
+      patch.maturityRating !== undefined
+        ? clampRating5(patch.maturityRating)
+        : existing.maturityRating,
     characterNotes:
       patch.characterNotes !== undefined
         ? patch.characterNotes.trim()

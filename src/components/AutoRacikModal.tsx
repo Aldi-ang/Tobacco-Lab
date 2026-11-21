@@ -30,6 +30,11 @@ import {
   formatRupiah,
 } from '../utils/tobaccoMath';
 import { CategorizedStockPicker } from './CategorizedStockPicker';
+import {
+  AttributePolarity,
+  getAttributeColorStyle,
+  MATURITY_LEVEL_LABELS,
+} from '../utils/attributePalette';
 
 interface AutoRacikModalProps {
   isOpen: boolean;
@@ -47,13 +52,15 @@ const SENSORY_FIELDS: Array<{
   key: keyof AutoBlendSensoryTargets;
   label: string;
   shortDesc: string;
+  polarity: AttributePolarity;
 }> = [
-  { key: 'power', label: 'Power', shortDesc: 'Tarikan' },
-  { key: 'impact', label: 'Impact', shortDesc: 'Kenyang' },
-  { key: 'bitter', label: 'Bitter', shortDesc: 'Pahit' },
-  { key: 'burn', label: 'Burn', shortDesc: 'Api' },
-  { key: 'sugar', label: 'Sugar', shortDesc: 'Manis' },
-  { key: 'aroma', label: 'Aroma', shortDesc: 'Harum' },
+  { key: 'power', label: 'Power', shortDesc: 'Tarikan', polarity: 'positive' },
+  { key: 'impact', label: 'Impact', shortDesc: 'Kenyang', polarity: 'positive' },
+  { key: 'bitter', label: 'Bitter', shortDesc: 'Pahit', polarity: 'negative' },
+  { key: 'burn', label: 'Burn', shortDesc: 'Api', polarity: 'negative' },
+  { key: 'sugar', label: 'Sugar', shortDesc: 'Manis', polarity: 'positive' },
+  { key: 'aroma', label: 'Aroma', shortDesc: 'Harum', polarity: 'positive' },
+  { key: 'maturity', label: 'Maturity', shortDesc: 'Imbon', polarity: 'maturity' },
 ];
 
 export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
@@ -91,10 +98,11 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
       return {
         power: 4,
         impact: 4,
-        bitter: 3,
-        burn: 5,
+        bitter: 2,
+        burn: 2,
         sugar: 4,
         aroma: 4,
+        maturity: 3,
       };
     }
     const avg = (fn: (t: RawTobacco) => number) =>
@@ -106,6 +114,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
       burn: avg((t) => Number(t.burnRating ?? 0)),
       sugar: avg((t) => Number(t.sugarRating ?? 0)),
       aroma: avg((t) => Number(t.aromaRating ?? 0)),
+      maturity: avg((t) => Number(t.maturityRating ?? 3)),
     };
   });
 
@@ -205,6 +214,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
       burn: avg((t) => Number(t.burnRating ?? 0)),
       sugar: avg((t) => Number(t.sugarRating ?? 0)),
       aroma: avg((t) => Number(t.aromaRating ?? 0)),
+      maturity: avg((t) => Number(t.maturityRating ?? 3)),
     });
     const avgPrice = Math.round(
       pool.reduce((s, t) => s + t.realCostPerNetKg, 0) / pool.length / 500
@@ -527,16 +537,22 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                   <span className="font-mono text-zinc-500 hidden sm:inline">Skala 0 – 5</span>
                 </div>
 
-                {/* Compact 2-Column Grid of 6 Sensory Attributes */}
+                {/* Compact 2-Column Grid of 7 Sensory Attributes */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {SENSORY_FIELDS.map((field) => {
-                    const val = targetSensory[field.key];
+                    const val = Number(targetSensory[field.key] ?? 0);
                     const diag: AutoBlendParameterDiagnostic | undefined =
                       result.parameterDiagnostics.find((d) => d.key === field.key);
 
                     const minPool = diag ? diag.minInPool : 0.0;
                     const maxPool = diag ? diag.maxInPool : 5.0;
                     const achieved = diag ? diag.achievedValue : val;
+                    const targetStyle = getAttributeColorStyle(field.polarity, val);
+                    const achievedStyle = getAttributeColorStyle(field.polarity, achieved);
+                    const matStageLabel =
+                      field.polarity === 'maturity' && val > 0
+                        ? MATURITY_LEVEL_LABELS[Math.round(val)]
+                        : null;
 
                     // Convert 0.0..5.0 to 0%..100% for the psychological bar
                     const toPct = (v: number) =>
@@ -549,7 +565,6 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                     const isTooLow = diag?.status === 'IMPOSSIBLE_TOO_LOW';
                     const isTooHigh = diag?.status === 'IMPOSSIBLE_TOO_HIGH';
                     const isTradeoff = diag?.status === 'CLOSE_TRADEOFF';
-                    const isOptimal = diag?.status === 'OPTIMAL';
 
                     return (
                       <div
@@ -568,9 +583,17 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                             <span className="text-xs font-black text-white truncate">
                               {field.label}
                             </span>
-                            <span className="text-[10px] text-zinc-500 hidden xl:inline">
-                              ({field.shortDesc})
-                            </span>
+                            {matStageLabel ? (
+                              <span
+                                className={`px-1 py-0.2 rounded border text-[9px] font-bold truncate ${targetStyle.badgeClass}`}
+                              >
+                                {matStageLabel}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-zinc-500 hidden xl:inline">
+                                ({field.shortDesc})
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-1 shrink-0 font-mono">
@@ -591,17 +614,11 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                                   [field.key]: num,
                                 }));
                               }}
-                              className="w-12 h-6 px-1 rounded bg-zinc-900 border border-zinc-700 text-right text-[11px] font-black text-amber-400 focus:outline-none focus:border-amber-400"
+                              className={`w-12 h-6 px-1 rounded border text-right text-[11px] font-black focus:outline-none ${targetStyle.badgeClass}`}
                             />
                             <span
-                              className={`px-1.5 h-6 rounded inline-flex items-center text-[11px] font-black border ${
-                                isOptimal
-                                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
-                                  : isTooLow || isTooHigh
-                                  ? 'bg-red-500/20 border-red-500/50 text-red-300'
-                                  : 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                              }`}
-                              title="Hasil rata-rata racikan"
+                              className={`px-1.5 h-6 rounded inline-flex items-center text-[11px] font-black border ${achievedStyle.badgeClass}`}
+                              title={`Hasil rata-rata racikan: ${achievedStyle.levelLabel}`}
                             >
                               → {Number.isInteger(achieved) ? achieved : achieved.toFixed(1)}
                             </span>
@@ -919,10 +936,10 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                         {result.isPoolEmpty
                           ? 'Stok Kosong di Filter Ini'
                           : result.isFullyFeasible
-                          ? `Kejujuran: ${optimalCount}/6 Karakter Pas`
+                          ? `Kejujuran: ${optimalCount}/${sensoryDiagnostics.length} Karakter Pas`
                           : result.hasOutOfBoundsTarget
                           ? `${outOfBoundsCount} Target di Luar Batas Stok`
-                          : `Kompromi Terbaik (${optimalCount}/6 Pas)`}
+                          : `Kompromi Terbaik (${optimalCount}/${sensoryDiagnostics.length} Pas)`}
                       </div>
                       <p className="text-[11px] text-zinc-300 truncate">{result.summaryMessage}</p>
                     </div>
@@ -984,39 +1001,25 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Compact Visual 6-Bar Summary */}
-                  <div className="grid grid-cols-6 gap-1 text-center font-mono">
+                  {/* Compact Visual 7-Bar Summary */}
+                  <div className="grid grid-cols-4 sm:grid-cols-7 gap-1 text-center font-mono">
                     {SENSORY_FIELDS.map((f) => {
                       const diag = result.parameterDiagnostics.find((d) => d.key === f.key);
                       if (!diag) return null;
-                      const isOk = diag.status === 'OPTIMAL';
-                      const isOut = !diag.isWithinPoolBounds && !isOk;
+                      const st = getAttributeColorStyle(f.polarity, diag.achievedValue);
                       return (
                         <div
                           key={f.key}
-                          className={`p-1.5 rounded-lg border ${
-                            isOk
-                              ? 'bg-emerald-950/20 border-emerald-500/40'
-                              : isOut
-                              ? 'bg-red-950/25 border-red-500/50'
-                              : 'bg-amber-950/20 border-amber-500/40'
-                          }`}
+                          title={`${f.label}: ${diag.achievedValue} (${st.levelLabel})`}
+                          className={`p-1.5 rounded-lg border ${st.badgeClass}`}
                         >
-                          <div className="text-[9px] font-sans font-bold text-zinc-400 truncate">
+                          <div className="text-[9px] font-sans font-bold text-zinc-300 truncate">
                             {f.label}
                           </div>
-                          <div
-                            className={`text-xs font-black ${
-                              isOk
-                                ? 'text-emerald-300'
-                                : isOut
-                                ? 'text-red-300'
-                                : 'text-amber-300'
-                            }`}
-                          >
+                          <div className={`text-xs font-black ${st.textClass}`}>
                             {diag.achievedValue}
                           </div>
-                          <div className="text-[8px] text-zinc-500">T:{diag.targetValue}</div>
+                          <div className="text-[8px] text-zinc-400">T:{diag.targetValue}</div>
                         </div>
                       );
                     })}

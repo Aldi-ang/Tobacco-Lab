@@ -115,6 +115,7 @@ test('calculateBlendMetrics aggregates 5 sensory ratings on /5 maximum scale and
   assert.equal(metrics.weightedBitter, 3.0);
   assert.equal(metrics.weightedBurn, 4.5);
   assert.equal(metrics.weightedSugar, 3.5);
+  assert.equal(metrics.weightedMaturity, 3.0);
 });
 
 test('buildGoogleSheetText formats columns and totals matching the Google Sheet screenshot', () => {

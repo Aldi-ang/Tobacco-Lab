@@ -2,6 +2,10 @@ import React, { useId } from 'react';
 import { motion } from 'motion/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatRating5 } from '../utils/tobaccoMath';
+import {
+  AttributePolarity,
+  getAttributeColorStyle,
+} from '../utils/attributePalette';
 
 interface RatingSegmentSliderProps {
   label: string;
@@ -10,6 +14,8 @@ interface RatingSegmentSliderProps {
   onChange: (val: number) => void;
   disabled?: boolean;
   headerExtra?: React.ReactNode;
+  polarity?: AttributePolarity;
+  levelLabels?: Record<number, string>;
 }
 
 const QUICK_STEPS = [0, 1, 2, 3, 4, 5];
@@ -21,10 +27,18 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
   onChange,
   disabled = false,
   headerExtra,
+  polarity = 'positive',
+  levelLabels,
 }) => {
   const safeVal = Math.max(0, Math.min(5, Number(value) || 0));
   const fillPercent = (safeVal / 5) * 100;
   const isEmptyZero = safeVal === 0;
+  const colorStyle = getAttributeColorStyle(polarity, safeVal);
+  const roundedLevel = Math.round(safeVal);
+  const resolvedLevelLabel =
+    !isEmptyZero && levelLabels && levelLabels[roundedLevel]
+      ? levelLabels[roundedLevel]
+      : colorStyle.levelLabel;
 
   const handleStep = (delta: -1 | 1) => {
     if (disabled) return;
@@ -47,9 +61,9 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
             : 'border-zinc-800 hover:border-zinc-600'
       }`}
     >
-      <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-zinc-800/90">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="pb-2.5 border-b border-zinc-800/90 space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
             <span
               className={`text-xs font-bold truncate ${
                 isEmptyZero ? 'text-rose-400' : 'text-white'
@@ -57,53 +71,63 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
             >
               {label}
             </span>
-            {isEmptyZero && (
-              <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/75 text-[9px] font-mono font-bold">
-                Kosong (0)
-              </span>
-            )}
             {headerExtra}
           </div>
-          {sublabel && <span className="text-[10px] text-zinc-400 block truncate">{sublabel}</span>}
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => handleStep(-1)}
-            className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            title={`Kurangi ${label}`}
-            aria-label={`Kurangi ${label}`}
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
-          <div
-            className={`px-2.5 py-1 rounded-lg bg-black border font-mono font-extrabold text-xs min-w-[56px] text-center ${
-              isEmptyZero
-                ? 'text-rose-400 border-rose-500/70'
-                : 'text-white border-zinc-700'
-            }`}
-          >
-            {formatRating5(safeVal)}
-            <span className={isEmptyZero ? 'text-rose-300' : 'text-amber-400'}>/5</span>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => handleStep(-1)}
+              className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title={`Kurangi ${label}`}
+              aria-label={`Kurangi ${label}`}
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <div
+              data-testid={`numbox-${label.toLowerCase()}`}
+              data-band={colorStyle.band}
+              className={`px-2 py-1 rounded-lg border font-mono font-extrabold text-xs min-w-[52px] text-center transition-colors duration-200 ${colorStyle.badgeClass}`}
+            >
+              {formatRating5(safeVal)}
+              <span className="opacity-75">/5</span>
+            </div>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => handleStep(1)}
+              className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title={`Tambah ${label}`}
+              aria-label={`Tambah ${label}`}
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => handleStep(1)}
-            className="h-7 w-7 inline-flex items-center justify-center rounded-lg bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 hover:border-zinc-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            title={`Tambah ${label}`}
-            aria-label={`Tambah ${label}`}
-          >
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+        </div>
+        <div className="flex items-center justify-between gap-1.5 min-h-[20px]">
+          {isEmptyZero ? (
+            <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/75 text-[9px] font-mono font-bold whitespace-nowrap">
+              Kosong (0)
+            </span>
+          ) : (
+            <span
+              className={`px-1.5 py-0.5 rounded border text-[9px] font-bold tracking-tight whitespace-nowrap ${colorStyle.badgeClass}`}
+            >
+              {resolvedLevelLabel}
+            </span>
+          )}
+          {(sublabel || colorStyle.polarityHint) && (
+            <span className="text-[10px] text-zinc-400 text-right truncate">
+              {sublabel || colorStyle.polarityHint}
+            </span>
+          )}
         </div>
       </div>
 
       <div className="pt-0.5 space-y-2.5">
         <div className="relative h-2.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
           <motion.div
-            className="h-full bg-gradient-to-r from-zinc-400 via-white to-amber-400 rounded-full"
+            className={`h-full rounded-full transition-colors duration-200 ${colorStyle.barClass}`}
             initial={false}
             animate={{ width: `${fillPercent}%` }}
             transition={{ type: 'spring', stiffness: 320, damping: 30 }}
@@ -126,20 +150,24 @@ export const RatingSegmentSlider: React.FC<RatingSegmentSliderProps> = ({
         <div className="pt-2 border-t border-zinc-900 grid grid-cols-6 gap-1.5">
           {QUICK_STEPS.map((step) => {
             const isActive = Math.abs(safeVal - step) < 0.05;
+            const stepStyle = getAttributeColorStyle(polarity, step);
+            const stepTooltip =
+              step === 0
+                ? 'Kosong (0)'
+                : levelLabels && levelLabels[step]
+                  ? `${step} — ${levelLabels[step]}`
+                  : `${step} — ${stepStyle.levelLabel}`;
             return (
               <button
                 key={step}
                 type="button"
                 disabled={disabled}
+                title={stepTooltip}
                 onClick={() => {
                   if (!disabled) onChange(step);
                 }}
-                className={`py-1 rounded-md font-mono text-[10px] font-bold transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                  isActive
-                    ? step === 0
-                      ? 'bg-rose-950/60 text-rose-300 border border-rose-500/85'
-                      : 'bg-black text-amber-400 border border-amber-500/80'
-                    : 'bg-zinc-950 text-zinc-400 hover:text-white hover:border-zinc-600 border border-zinc-800/80'
+                className={`py-1 rounded-md font-mono text-[10px] font-bold border transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  isActive ? stepStyle.activeStepClass : stepStyle.idleStepClass
                 }`}
               >
                 {step}
