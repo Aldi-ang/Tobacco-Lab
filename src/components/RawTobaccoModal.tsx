@@ -90,6 +90,7 @@ type RawLockableFieldKey =
   | 'impactRating'
   | 'bitterRating'
   | 'burnRating'
+  | 'heatRating'
   | 'sugarRating'
   | 'aromaRating'
   | 'maturityRating'
@@ -114,6 +115,7 @@ const ALL_RAW_FIELD_KEYS: RawLockableFieldKey[] = [
   'impactRating',
   'bitterRating',
   'burnRating',
+  'heatRating',
   'sugarRating',
   'aromaRating',
   'maturityRating',
@@ -134,22 +136,22 @@ const QUICK_CHARACTER_PRESETS = [
   {
     id: 'ringan',
     label: 'Ringan',
-    values: { power: 2, impact: 2, bitter: 1, burn: 1, sugar: 4, aroma: 4, maturity: 3 },
+    values: { power: 2, impact: 2, bitter: 1, burn: 5, heat: 1, sugar: 4, aroma: 4, maturity: 3 },
   },
   {
     id: 'sedang',
     label: 'Sedang',
-    values: { power: 3, impact: 3, bitter: 2, burn: 2, sugar: 4, aroma: 4, maturity: 3 },
+    values: { power: 3, impact: 3, bitter: 2, burn: 4, heat: 2, sugar: 4, aroma: 4, maturity: 3 },
   },
   {
     id: 'mantap',
     label: 'Mantap',
-    values: { power: 5, impact: 5, bitter: 4, burn: 2, sugar: 3, aroma: 4, maturity: 3 },
+    values: { power: 5, impact: 5, bitter: 4, burn: 4, heat: 3, sugar: 3, aroma: 4, maturity: 3 },
   },
   {
     id: 'manis',
     label: 'Manis Harum',
-    values: { power: 3, impact: 3, bitter: 1, burn: 1, sugar: 5, aroma: 5, maturity: 3 },
+    values: { power: 3, impact: 3, bitter: 1, burn: 5, heat: 1, sugar: 5, aroma: 5, maturity: 3 },
   },
 ];
 
@@ -203,11 +205,12 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
   const [additionalCost, setAdditionalCost] = useState<number>(0);
   const [calcDetail, setCalcDetail] = useState<CalculationDetailData | null>(null);
 
-  // 7 sensory parameters default to 0
+  // 8 sensory parameters default to 0
   const [powerRating, setPowerRating] = useState<number>(0);
   const [impactRating, setImpactRating] = useState<number>(0);
   const [bitterRating, setBitterRating] = useState<number>(0);
   const [burnRating, setBurnRating] = useState<number>(0);
+  const [heatRating, setHeatRating] = useState<number>(0);
   const [sugarRating, setSugarRating] = useState<number>(0);
   const [aromaRating, setAromaRating] = useState<number>(0);
   const [maturityRating, setMaturityRating] = useState<number>(0);
@@ -324,6 +327,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setImpactRating(clampRating5(editingTobacco.impactRating || 0));
       setBitterRating(clampRating5(editingTobacco.bitterRating || 0));
       setBurnRating(clampRating5(editingTobacco.burnRating ?? 0));
+      setHeatRating(clampRating5(editingTobacco.heatRating ?? 0));
       setSugarRating(clampRating5(editingTobacco.sugarRating ?? 0));
       setAromaRating(clampRating5(editingTobacco.aromaRating ?? 0));
       setMaturityRating(clampRating5(editingTobacco.maturityRating ?? 0));
@@ -341,6 +345,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setShowGradeSection(
         (editingTobacco.powerRating || 0) > 0 ||
           (editingTobacco.impactRating || 0) > 0 ||
+          (editingTobacco.heatRating || 0) > 0 ||
           (editingTobacco.aromaRating || 0) > 0 ||
           (editingTobacco.maturityRating || 0) > 0
       );
@@ -362,6 +367,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
         impactRating: clampRating5(editingTobacco.impactRating || 0),
         bitterRating: clampRating5(editingTobacco.bitterRating || 0),
         burnRating: clampRating5(editingTobacco.burnRating ?? 0),
+        heatRating: clampRating5(editingTobacco.heatRating ?? 0),
         sugarRating: clampRating5(editingTobacco.sugarRating ?? 0),
         aromaRating: clampRating5(editingTobacco.aromaRating ?? 0),
         maturityRating: clampRating5(editingTobacco.maturityRating ?? 0),
@@ -388,6 +394,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setImpactRating(0);
       setBitterRating(0);
       setBurnRating(0);
+      setHeatRating(0);
       setSugarRating(0);
       setAromaRating(0);
       setMaturityRating(0);
@@ -414,6 +421,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
         impactRating: 0,
         bitterRating: 0,
         burnRating: 0,
+        heatRating: 0,
         sugarRating: 0,
         aromaRating: 0,
         maturityRating: 0,
@@ -448,6 +456,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
     impactRating,
     bitterRating,
     burnRating,
+    heatRating,
     sugarRating,
     aromaRating,
     maturityRating,
@@ -573,6 +582,8 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
         return !bitterRating || bitterRating <= 0;
       case 'burnRating':
         return !burnRating || burnRating <= 0;
+      case 'heatRating':
+        return !heatRating || heatRating <= 0;
       case 'sugarRating':
         return !sugarRating || sugarRating <= 0;
       case 'aromaRating':
@@ -604,6 +615,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
     'impactRating',
     'bitterRating',
     'burnRating',
+    'heatRating',
     'sugarRating',
     'aromaRating',
     'maturityRating',
@@ -862,6 +874,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       impactRating: Number(impactRating) || 0,
       bitterRating: Number(bitterRating) || 0,
       burnRating: Number(burnRating) || 0,
+      heatRating: Number(heatRating) || 0,
       sugarRating: Number(sugarRating) || 0,
       aromaRating: Number(aromaRating) || 0,
       maturityRating: Number(maturityRating) || 0,
@@ -884,6 +897,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
       setImpactRating(0);
       setBitterRating(0);
       setBurnRating(0);
+      setHeatRating(0);
       setSugarRating(0);
       setAromaRating(0);
       setMaturityRating(0);
@@ -1368,7 +1382,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                   <div className="flex items-center gap-2 min-w-0">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     <span className="text-[11px] font-bold text-zinc-200 truncate">
-                      6. Grade &amp; 7 Atribut (Rasa + Maturity Imbon)
+                      6. Grade &amp; 8 Atribut (Rasa + Heat &amp; Maturity)
                     </span>
                     <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] font-mono font-bold text-amber-300 shrink-0">
                       Grade {colorGrade}
@@ -1401,6 +1415,7 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                                 if (!isLocked('impactRating')) setImpactRating(preset.values.impact);
                                 if (!isLocked('bitterRating')) setBitterRating(preset.values.bitter);
                                 if (!isLocked('burnRating')) setBurnRating(preset.values.burn);
+                                if (!isLocked('heatRating')) setHeatRating(preset.values.heat);
                                 if (!isLocked('sugarRating')) setSugarRating(preset.values.sugar);
                                 if (!isLocked('aromaRating')) setAromaRating(preset.values.aroma);
                                 if (!isLocked('maturityRating')) setMaturityRating(preset.values.maturity);
@@ -1436,13 +1451,14 @@ export const RawTobaccoModal: React.FC<RawTobaccoModalProps> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                       {(
                         [
                           { key: 'powerRating' as RawLockableFieldKey, label: 'Power', value: powerRating, onChange: setPowerRating },
                           { key: 'impactRating' as RawLockableFieldKey, label: 'Impact', value: impactRating, onChange: setImpactRating },
                           { key: 'bitterRating' as RawLockableFieldKey, label: 'Bitter', value: bitterRating, onChange: setBitterRating },
                           { key: 'burnRating' as RawLockableFieldKey, label: 'Burn', value: burnRating, onChange: setBurnRating },
+                          { key: 'heatRating' as RawLockableFieldKey, label: 'Heat', value: heatRating, onChange: setHeatRating },
                           { key: 'sugarRating' as RawLockableFieldKey, label: 'Sugar', value: sugarRating, onChange: setSugarRating },
                           { key: 'aromaRating' as RawLockableFieldKey, label: 'Aroma', value: aromaRating, onChange: setAromaRating },
                           { key: 'maturityRating' as RawLockableFieldKey, label: 'Maturity', value: maturityRating, onChange: setMaturityRating },

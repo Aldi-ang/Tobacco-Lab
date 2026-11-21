@@ -5,6 +5,7 @@ export type AttributeRatingKey =
   | 'impactRating'
   | 'bitterRating'
   | 'burnRating'
+  | 'heatRating'
   | 'sugarRating'
   | 'aromaRating'
   | 'maturityRating';
@@ -34,7 +35,7 @@ export const MATURITY_LEVEL_LABELS: Record<number, string> = {
 
 export const ATTRIBUTE_DEFINITIONS: ReadonlyArray<{
   key: AttributeRatingKey;
-  code: 'Pwr' | 'Imp' | 'Bit' | 'Brn' | 'Sgr' | 'Arm' | 'Mat';
+  code: 'Pwr' | 'Imp' | 'Bit' | 'Brn' | 'Het' | 'Sgr' | 'Arm' | 'Mat';
   shortLabel: string;
   label: string;
   sublabel: string;
@@ -69,7 +70,15 @@ export const ATTRIBUTE_DEFINITIONS: ReadonlyArray<{
     code: 'Brn',
     shortLabel: 'BRN',
     label: 'Burn',
-    sublabel: 'Negatif (1 Hijau → 5 Merah)',
+    sublabel: 'Positif (1 Merah → 5 Hijau)',
+    polarity: 'positive',
+  },
+  {
+    key: 'heatRating',
+    code: 'Het',
+    shortLabel: 'HET',
+    label: 'Heat',
+    sublabel: 'Panas Hisapan (1 Hijau → 5 Merah)',
     polarity: 'negative',
   },
   {
@@ -77,8 +86,8 @@ export const ATTRIBUTE_DEFINITIONS: ReadonlyArray<{
     code: 'Sgr',
     shortLabel: 'SGR',
     label: 'Sugar',
-    sublabel: 'Positif (1 Merah → 5 Hijau)',
-    polarity: 'positive',
+    sublabel: 'Negatif (1 Hijau → 5 Merah)',
+    polarity: 'negative',
   },
   {
     key: 'aromaRating',
@@ -99,8 +108,17 @@ export const ATTRIBUTE_DEFINITIONS: ReadonlyArray<{
 ];
 
 export function getAttributePolarity(key: AttributeRatingKey | string): AttributePolarity {
-  if (key === 'bitterRating' || key === 'burnRating') return 'negative';
-  if (key === 'maturityRating') return 'maturity';
+  if (
+    key === 'bitterRating' ||
+    key === 'heatRating' ||
+    key === 'sugarRating' ||
+    key === 'bitter' ||
+    key === 'heat' ||
+    key === 'sugar'
+  ) {
+    return 'negative';
+  }
+  if (key === 'maturityRating' || key === 'maturity') return 'maturity';
   return 'positive';
 }
 

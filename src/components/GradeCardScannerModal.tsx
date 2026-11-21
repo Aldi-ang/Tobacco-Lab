@@ -75,6 +75,7 @@ const ATTRIBUTE_FIELDS: {
     | 'impactRating'
     | 'bitterRating'
     | 'burnRating'
+    | 'heatRating'
     | 'sugarRating'
     | 'aromaRating'
     | 'maturityRating';
@@ -85,8 +86,9 @@ const ATTRIBUTE_FIELDS: {
   { key: 'powerRating', label: 'Power', shortLabel: 'PWR', polarity: 'positive' },
   { key: 'impactRating', label: 'Impact', shortLabel: 'IMP', polarity: 'positive' },
   { key: 'bitterRating', label: 'Bitter', shortLabel: 'BIT', polarity: 'negative' },
-  { key: 'burnRating', label: 'Burn', shortLabel: 'BRN', polarity: 'negative' },
-  { key: 'sugarRating', label: 'Sugar', shortLabel: 'SGR', polarity: 'positive' },
+  { key: 'burnRating', label: 'Burn', shortLabel: 'BRN', polarity: 'positive' },
+  { key: 'heatRating', label: 'Heat', shortLabel: 'HET', polarity: 'negative' },
+  { key: 'sugarRating', label: 'Sugar', shortLabel: 'SGR', polarity: 'negative' },
   { key: 'aromaRating', label: 'Aroma', shortLabel: 'ARM', polarity: 'positive' },
   { key: 'maturityRating', label: 'Maturity', shortLabel: 'MAT', polarity: 'maturity' },
 ];
@@ -106,6 +108,7 @@ const UNCERTAIN_FIELD_LABELS: Record<string, string> = {
   impactRating: 'Impact',
   bitterRating: 'Bitter',
   burnRating: 'Burn',
+  heatRating: 'Heat',
   sugarRating: 'Sugar',
   aromaRating: 'Aroma',
   maturityRating: 'Maturity',
@@ -474,6 +477,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
           impactRating: 0,
           bitterRating: 0,
           burnRating: 0,
+          heatRating: 0,
           sugarRating: 0,
           aromaRating: 0,
           maturityRating: 0,
@@ -1969,7 +1973,7 @@ export const GradeCardScannerModal: React.FC<GradeCardScannerModalProps> = ({
                               {/* Whole-Number Attribute Tap Selectors (0-5 NO DECIMAL) */}
                               <div className="pt-2 border-t border-zinc-800/80">
                                 <div className="text-[10px] font-extrabold uppercase text-zinc-400 mb-1.5">
-                                  7 Atribut Karakter &amp; Maturity (Skala Bulat 0–5)
+                                  8 Atribut Karakter, Heat &amp; Maturity (Skala Bulat 0–5)
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                                   {ATTRIBUTE_FIELDS.map((attr) => {

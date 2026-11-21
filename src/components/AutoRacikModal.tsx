@@ -57,8 +57,9 @@ const SENSORY_FIELDS: Array<{
   { key: 'power', label: 'Power', shortDesc: 'Tarikan', polarity: 'positive' },
   { key: 'impact', label: 'Impact', shortDesc: 'Kenyang', polarity: 'positive' },
   { key: 'bitter', label: 'Bitter', shortDesc: 'Pahit', polarity: 'negative' },
-  { key: 'burn', label: 'Burn', shortDesc: 'Api', polarity: 'negative' },
-  { key: 'sugar', label: 'Sugar', shortDesc: 'Manis', polarity: 'positive' },
+  { key: 'burn', label: 'Burn', shortDesc: 'Api', polarity: 'positive' },
+  { key: 'heat', label: 'Heat', shortDesc: 'Panas', polarity: 'negative' },
+  { key: 'sugar', label: 'Sugar', shortDesc: 'Manis', polarity: 'negative' },
   { key: 'aroma', label: 'Aroma', shortDesc: 'Harum', polarity: 'positive' },
   { key: 'maturity', label: 'Maturity', shortDesc: 'Imbon', polarity: 'maturity' },
 ];
@@ -99,7 +100,8 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
         power: 4,
         impact: 4,
         bitter: 2,
-        burn: 2,
+        burn: 4,
+        heat: 2,
         sugar: 4,
         aroma: 4,
         maturity: 3,
@@ -112,6 +114,7 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
       impact: avg((t) => Number(t.impactRating ?? 0)),
       bitter: avg((t) => Number(t.bitterRating ?? 0)),
       burn: avg((t) => Number(t.burnRating ?? 0)),
+      heat: avg((t) => Number(t.heatRating ?? 2)),
       sugar: avg((t) => Number(t.sugarRating ?? 0)),
       aroma: avg((t) => Number(t.aromaRating ?? 0)),
       maturity: avg((t) => Number(t.maturityRating ?? 3)),
@@ -1001,8 +1004,8 @@ export const AutoRacikModal: React.FC<AutoRacikModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Compact Visual 7-Bar Summary */}
-                  <div className="grid grid-cols-4 sm:grid-cols-7 gap-1 text-center font-mono">
+                  {/* Compact Visual 8-Bar Summary */}
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-1 text-center font-mono">
                     {SENSORY_FIELDS.map((f) => {
                       const diag = result.parameterDiagnostics.find((d) => d.key === f.key);
                       if (!diag) return null;

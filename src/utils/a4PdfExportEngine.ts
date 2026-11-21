@@ -369,14 +369,15 @@ function drawFrontGradeCardSlot(
     { label: 'IMPACT' },
     { label: 'BITTER' },
     { label: 'BURN' },
+    { label: 'HEAT' },
     { label: 'SUGAR' },
     { label: 'AROMA' },
     { label: 'MATURITY', hint: '1:TdkMtg 2:Lmy 3:Matang 4:Klw 5:Busuk' },
   ];
-  const rowsTop = curY + 22;
-  const rowsAvailH = attrBoxH - 25;
+  const rowsTop = curY + 21;
+  const rowsAvailH = attrBoxH - 24;
   const rowStep = rowsAvailH / attrs.length;
-  const sqSize = Math.max(22, Math.min(28, Math.floor(rowStep - 6)));
+  const sqSize = Math.max(20, Math.min(26, Math.floor(rowStep - 5)));
   const labelColW = 195;
   const boxesAvailW = innerW - 18 - labelColW;
   const sqGap = Math.max(16, Math.min(48, Math.floor((boxesAvailW - sqSize * 5) / 4)));

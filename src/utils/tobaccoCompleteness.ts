@@ -52,6 +52,7 @@ export interface RawQuickPatch {
   impactRating?: number;
   bitterRating?: number;
   burnRating?: number;
+  heatRating?: number;
   sugarRating?: number;
   aromaRating?: number;
   maturityRating?: number;
@@ -76,6 +77,7 @@ export function getRawTobaccoMissingFlags(t: RawTobacco): RawTobaccoMissingFlags
     Number(t.impactRating) || 0,
     Number(t.bitterRating) || 0,
     Number(t.burnRating) || 0,
+    Number(t.heatRating ?? 2) || 0,
     Number(t.sugarRating) || 0,
     Number(t.aromaRating) || 0,
     Number(t.maturityRating) || 0,
@@ -115,6 +117,7 @@ export function getSerialMissingFlags(s: FinishedTobaccoSerial): SerialMissingFl
     Number(s.weightedImpact) || 0,
     Number(s.weightedBitter) || 0,
     Number(s.weightedBurn) || 0,
+    Number(s.weightedHeat ?? 2) || 0,
     Number(s.weightedSugar) || 0,
     Number(s.weightedAroma) || 0,
     Number(s.weightedMaturity) || 0,
@@ -283,6 +286,10 @@ export function applyQuickPatchToRawTobacco(
       patch.burnRating !== undefined
         ? clampRating5(patch.burnRating)
         : existing.burnRating,
+    heatRating:
+      patch.heatRating !== undefined
+        ? clampRating5(patch.heatRating)
+        : existing.heatRating,
     sugarRating:
       patch.sugarRating !== undefined
         ? clampRating5(patch.sugarRating)

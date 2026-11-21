@@ -822,6 +822,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         impact: tobacco.impactRating,
                         bitter: tobacco.bitterRating,
                         burn: tobacco.burnRating,
+                        heat: tobacco.heatRating,
                         sugar: tobacco.sugarRating,
                         aroma: tobacco.aromaRating,
                         maturity: tobacco.maturityRating,
@@ -837,6 +838,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       const impact5 = clampRating5(tobacco.impactRating);
                       const bitter5 = clampRating5(tobacco.bitterRating);
                       const burn5 = clampRating5(tobacco.burnRating ?? 4.5);
+                      const heat5 = clampRating5(tobacco.heatRating ?? 2.0);
                       const sugar5 = clampRating5(tobacco.sugarRating ?? 4.0);
                       const aroma5 = clampRating5(tobacco.aromaRating ?? 4.2);
                       const maturity5 = clampRating5(tobacco.maturityRating ?? 3.0);
@@ -915,16 +917,16 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                               id: 'grade_attr',
                               label: 'Grade & Atribut (/5)',
                               shortLabel: 'Atribut',
-                              sublabel: `Grade ${tobacco.colorGrade} · Pwr ${formatRating5(power5)} · Mat ${formatRating5(maturity5)}`,
+                              sublabel: `Grade ${tobacco.colorGrade} · Pwr ${formatRating5(power5)} · Het ${formatRating5(heat5)} · Mat ${formatRating5(maturity5)}`,
                               detailRows: [
                                 {
-                                  label: 'Power · Impact · Bitter',
-                                  value: `${formatRating5(power5)} · ${formatRating5(impact5)} · ${formatRating5(bitter5)} /5`,
+                                  label: 'Power · Impact · Bitter · Burn',
+                                  value: `${formatRating5(power5)} · ${formatRating5(impact5)} · ${formatRating5(bitter5)} · ${formatRating5(burn5)} /5`,
                                   tone: missingFlags.missingAttributes ? 'rose' : 'emerald',
                                 },
                                 {
-                                  label: 'Burn · Sugar · Aroma · Mat',
-                                  value: `${formatRating5(burn5)} · ${formatRating5(sugar5)} · ${formatRating5(aroma5)} · ${formatRating5(maturity5)} /5`,
+                                  label: 'Heat · Sugar · Aroma · Mat',
+                                  value: `${formatRating5(heat5)} · ${formatRating5(sugar5)} · ${formatRating5(aroma5)} · ${formatRating5(maturity5)} /5`,
                                   tone: missingFlags.missingAttributes ? 'rose' : 'emerald',
                                 },
                               ],
@@ -1166,7 +1168,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                                     ? 'Atribut rasa belum diisi — klik untuk melengkapi'
                                     : undefined
                                 }
-                                className={`grid grid-cols-7 divide-x rounded text-center font-mono border ${
+                                className={`grid grid-cols-8 divide-x rounded text-center font-mono border ${
                                   missingFlags.missingAttributes
                                     ? 'divide-rose-500/40 bg-rose-950/35 border-rose-500/80 cursor-pointer hover:bg-rose-950/55'
                                     : 'divide-zinc-800 bg-black/70 border-zinc-800/90'
@@ -1433,6 +1435,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                 const impact5 = clampRating5(tobacco.impactRating);
                 const bitter5 = clampRating5(tobacco.bitterRating);
                 const burn5 = clampRating5(tobacco.burnRating ?? 4.5);
+                const heat5 = clampRating5(tobacco.heatRating ?? 2.0);
                 const sugar5 = clampRating5(tobacco.sugarRating ?? 4.0);
                 const aroma5 = clampRating5(tobacco.aromaRating ?? 4.2);
                 const maturity5 = clampRating5(tobacco.maturityRating ?? 3.0);
@@ -1525,7 +1528,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                     id: 'grade_attr',
                     label: 'Grade & Atribut (/5)',
                     shortLabel: 'Atribut',
-                    sublabel: `Grade ${tobacco.colorGrade} · Pwr ${formatRating5(power5)} · Mat ${formatRating5(maturity5)}`,
+                    sublabel: `Grade ${tobacco.colorGrade} · Pwr ${formatRating5(power5)} · Het ${formatRating5(heat5)} · Mat ${formatRating5(maturity5)}`,
                     detailRows: [
                       {
                         label: 'Grade Warna',
@@ -1533,15 +1536,15 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                         tone: 'amber' as const,
                       },
                       {
-                        label: 'Power · Impact · Bitter',
-                        value: `${formatRating5(power5)} · ${formatRating5(impact5)} · ${formatRating5(bitter5)} /5`,
+                        label: 'Power · Impact · Bitter · Burn',
+                        value: `${formatRating5(power5)} · ${formatRating5(impact5)} · ${formatRating5(bitter5)} · ${formatRating5(burn5)} /5`,
                         tone: (missingFlags.missingAttributes ? 'rose' : 'emerald') as
                           | 'emerald'
                           | 'rose',
                       },
                       {
-                        label: 'Burn · Sugar · Aroma · Mat',
-                        value: `${formatRating5(burn5)} · ${formatRating5(sugar5)} · ${formatRating5(aroma5)} · ${formatRating5(maturity5)} /5`,
+                        label: 'Heat · Sugar · Aroma · Mat',
+                        value: `${formatRating5(heat5)} · ${formatRating5(sugar5)} · ${formatRating5(aroma5)} · ${formatRating5(maturity5)} /5`,
                         tone: (missingFlags.missingAttributes ? 'rose' : 'emerald') as
                           | 'emerald'
                           | 'rose',
@@ -1677,8 +1680,9 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       { label: 'Power', shortLabel: 'Pwr', value: power5, polarity: 'positive' as AttributePolarity },
                       { label: 'Impact', shortLabel: 'Imp', value: impact5, polarity: 'positive' as AttributePolarity },
                       { label: 'Bitter', shortLabel: 'Bit', value: bitter5, polarity: 'negative' as AttributePolarity },
-                      { label: 'Burn', shortLabel: 'Brn', value: burn5, polarity: 'negative' as AttributePolarity },
-                      { label: 'Sugar', shortLabel: 'Sgr', value: sugar5, polarity: 'positive' as AttributePolarity },
+                      { label: 'Burn', shortLabel: 'Brn', value: burn5, polarity: 'positive' as AttributePolarity },
+                      { label: 'Heat', shortLabel: 'Het', value: heat5, polarity: 'negative' as AttributePolarity },
+                      { label: 'Sugar', shortLabel: 'Sgr', value: sugar5, polarity: 'negative' as AttributePolarity },
                       { label: 'Aroma', shortLabel: 'Arm', value: aroma5, polarity: 'positive' as AttributePolarity },
                       { label: 'Maturity', shortLabel: 'Mat', value: maturity5, polarity: 'maturity' as AttributePolarity },
                     ],
@@ -2581,7 +2585,7 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                       </div>
                     </div>
 
-                    {/* 7 Sensory Ratings (/5) */}
+                    {/* 8 Sensory Ratings (/5) */}
                     <div
                       className={`bg-black p-3.5 rounded-xl border ${
                         missingFlags.missingAttributes ? 'border-rose-500/60' : 'border-zinc-800'
@@ -2592,19 +2596,20 @@ export const RawTobaccoList: React.FC<RawTobaccoListProps> = ({
                           missingFlags.missingAttributes ? 'text-rose-400' : 'text-zinc-200'
                         }`}
                       >
-                        <span>7 Parameter Karakteristik &amp; Maturity (/5)</span>
+                        <span>8 Parameter Karakteristik, Heat &amp; Maturity (/5)</span>
                         {missingFlags.missingAttributes && (
                           <span className="font-mono">Belum Diisi</span>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 text-center">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 text-center">
                         {(
                           [
                             { lbl: 'Power', val: clampRating5(t.powerRating), polarity: 'positive' as AttributePolarity },
                             { lbl: 'Impact', val: clampRating5(t.impactRating), polarity: 'positive' as AttributePolarity },
                             { lbl: 'Bitter', val: clampRating5(t.bitterRating), polarity: 'negative' as AttributePolarity },
-                            { lbl: 'Burn', val: clampRating5(t.burnRating ?? 0), polarity: 'negative' as AttributePolarity },
-                            { lbl: 'Sugar', val: clampRating5(t.sugarRating ?? 0), polarity: 'positive' as AttributePolarity },
+                            { lbl: 'Burn', val: clampRating5(t.burnRating ?? 0), polarity: 'positive' as AttributePolarity },
+                            { lbl: 'Heat', val: clampRating5(t.heatRating ?? 0), polarity: 'negative' as AttributePolarity },
+                            { lbl: 'Sugar', val: clampRating5(t.sugarRating ?? 0), polarity: 'negative' as AttributePolarity },
                             { lbl: 'Aroma', val: clampRating5(t.aromaRating ?? 0), polarity: 'positive' as AttributePolarity },
                             { lbl: 'Maturity', val: clampRating5(t.maturityRating ?? 0), polarity: 'maturity' as AttributePolarity },
                           ] as const

@@ -13,7 +13,7 @@ import {
 
 import { ALUCARD_EASE } from './AlucardMotion';
 
-export const CURRENT_APP_VERSION = 'v4.5.0';
+export const CURRENT_APP_VERSION = 'v4.5.1';
 
 interface PatchNoteItem {
   type: 'feature' | 'fix' | 'ui';
@@ -32,11 +32,40 @@ interface PatchRelease {
 
 export const PATCH_RELEASES: PatchRelease[] = [
   {
+    version: 'v4.5.1',
+    date: '21 November 2026',
+    codename:
+      'Atribut ke-8 Heat & Sugar sebagai Atribut Negatif (1 Hijau → 5 Merah) + Burn Menjadi Atribut Positif',
+    isLatest: true,
+    highlights:
+      'Mengubah sifat atribut Burn (Daya Bakar) menjadi sifat positif (1 = Merah → 5 = Hijau terbaik), mengubah Sugar menjadi sifat negatif (1 = Hijau → 5 = Merah), serta menambahkan atribut ke-8 yaitu Heat (Panas Asap Saat Dihisap) sebagai sifat negatif (1 = Hijau sejuk/halus → 5 = Merah panas menyengat).',
+    changes: [
+      {
+        type: 'feature',
+        title: 'Atribut Negatif: Bitter, Heat (Panas Hisapan) & Sugar (1 Hijau → 5 Merah)',
+        description:
+          'Menambahkan parameter Heat (kode Het) untuk mengukur suhu/panas asap ketika dihisap dan memperbarui Sugar (kode Sgr) menjadi sifat negatif: Level 1 berwarna Hijau bergradasi naik hingga Level 5 berwarna Merah.',
+      },
+      {
+        type: 'ui',
+        title: 'Burn (Daya Bakar) Diperbarui Menjadi Atribut Positif (1 Merah → 5 Hijau)',
+        description:
+          'Burn rate kini diklasifikasikan sebagai sifat positif sehingga semakin tinggi level pembakaran (1 → 5), warna kotak angka dan indikator bergerak dari Merah (1) menuju Hijau (5).',
+      },
+      {
+        type: 'feature',
+        title: 'Sinkronisasi 8 Atribut di Kartu Grade A4 (6 Kartu), PDF, Thermal & Scanner AI',
+        description:
+          'Kartu Grade A4 6-in-1, ekspor PDF 200 DPI, slip Thermal, serta Gemini Vision Scanner kini memuat lengkap 8 baris atribut: Power, Impact, Bitter, Burn, Heat, Sugar, Aroma, dan Maturity.',
+      },
+    ],
+  },
+  {
     version: 'v4.5.0',
     date: '20 November 2026',
     codename:
       'Kartu Grade A4 6-in-1 + Catatan Sisi Belakang di Bawah Barcode + Atribut ke-7 Maturity (Imbon) & Pewarnaan Dinamis',
-    isLatest: true,
+    isLatest: false,
     highlights:
       'Mengembalikan ukuran cetak efisien 6 Kartu per lembar A4 (2×3), memindahkan kotak CATATAN ekstra luas ke sisi belakang tepat di bawah barcode normal, menambahkan atribut ke-7 MATURITY (1–5 skala imbon), serta menerapkan gradasi warna dinamis berbasis sifat atribut positif, negatif, dan kurva Maturity.',
     changes: [

@@ -383,6 +383,7 @@ export function calculateBlendMetrics(params: {
   weightedImpact: number;
   weightedBitter: number;
   weightedBurn: number;
+  weightedHeat: number;
   weightedSugar: number;
   weightedAroma: number;
   weightedMaturity: number;
@@ -409,6 +410,7 @@ export function calculateBlendMetrics(params: {
       weightedImpact: 0,
       weightedBitter: 0,
       weightedBurn: 0,
+      weightedHeat: 0,
       weightedSugar: 0,
       weightedAroma: 0,
       weightedMaturity: 0,
@@ -423,6 +425,7 @@ export function calculateBlendMetrics(params: {
   let impactSum = 0;
   let bitterSum = 0;
   let burnSum = 0;
+  let heatSum = 0;
   let sugarSum = 0;
   let aromaSum = 0;
   let maturitySum = 0;
@@ -439,6 +442,7 @@ export function calculateBlendMetrics(params: {
     const im = clampRating5(item.impactRating || 0);
     const b = clampRating5(item.bitterRating || 0);
     const bu = clampRating5(item.burnRating ?? 4.0);
+    const he = clampRating5(item.heatRating ?? 2.5);
     const su = clampRating5(item.sugarRating ?? 3.5);
     const ar = clampRating5(item.aromaRating ?? 4.2);
     const mat = clampRating5(item.maturityRating ?? 3);
@@ -449,6 +453,7 @@ export function calculateBlendMetrics(params: {
     impactSum += item.usedNetKg * im;
     bitterSum += item.usedNetKg * b;
     burnSum += item.usedNetKg * bu;
+    heatSum += item.usedNetKg * he;
     sugarSum += item.usedNetKg * su;
     aromaSum += item.usedNetKg * ar;
     maturitySum += item.usedNetKg * mat;
@@ -460,6 +465,7 @@ export function calculateBlendMetrics(params: {
       impactRating: im,
       bitterRating: b,
       burnRating: bu,
+      heatRating: he,
       sugarRating: su,
       aromaRating: ar,
       maturityRating: mat,
@@ -481,6 +487,7 @@ export function calculateBlendMetrics(params: {
   const weightedImpact = Number((impactSum / totalBlendNetKg).toFixed(1));
   const weightedBitter = Number((bitterSum / totalBlendNetKg).toFixed(1));
   const weightedBurn = Number((burnSum / totalBlendNetKg).toFixed(1));
+  const weightedHeat = Number((heatSum / totalBlendNetKg).toFixed(1));
   const weightedSugar = Number((sugarSum / totalBlendNetKg).toFixed(1));
   const weightedAroma = Number((aromaSum / totalBlendNetKg).toFixed(1));
   const weightedMaturity = Number((maturitySum / totalBlendNetKg).toFixed(1));
@@ -501,6 +508,7 @@ export function calculateBlendMetrics(params: {
     weightedImpact,
     weightedBitter,
     weightedBurn,
+    weightedHeat,
     weightedSugar,
     weightedAroma,
     weightedMaturity,
@@ -1091,6 +1099,7 @@ export interface AutoBlendSensoryTargets {
   impact: number;
   bitter: number;
   burn: number;
+  heat?: number;
   sugar: number;
   aroma: number;
   maturity?: number;
@@ -1117,7 +1126,7 @@ export interface AutoBlendConfig {
 }
 
 export interface AutoBlendParameterDiagnostic {
-  key: 'power' | 'impact' | 'bitter' | 'burn' | 'sugar' | 'aroma' | 'maturity' | 'price' | 'grade';
+  key: 'power' | 'impact' | 'bitter' | 'burn' | 'heat' | 'sugar' | 'aroma' | 'maturity' | 'price' | 'grade';
   label: string;
   targetValue: number;
   achievedValue: number;
@@ -1251,6 +1260,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
   const impactStats = getPoolStats((t) => clampRating5(t.impactRating));
   const bitterStats = getPoolStats((t) => clampRating5(t.bitterRating));
   const burnStats = getPoolStats((t) => clampRating5(t.burnRating ?? 4.5));
+  const heatStats = getPoolStats((t) => clampRating5(t.heatRating ?? 2.5));
   const sugarStats = getPoolStats((t) => clampRating5(t.sugarRating ?? 4.0));
   const aromaStats = getPoolStats((t) => clampRating5(t.aromaRating ?? 4.2));
   const maturityStats = getPoolStats((t) => clampRating5(t.maturityRating ?? 3));
@@ -1276,6 +1286,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
       (t) => clampRating5(t.impactRating),
       (t) => clampRating5(t.bitterRating),
       (t) => clampRating5(t.burnRating ?? 4.5),
+      (t) => clampRating5(t.heatRating ?? 2.5),
       (t) => clampRating5(t.sugarRating ?? 4.0),
       (t) => clampRating5(t.aromaRating ?? 4.2),
       (t) => clampRating5(t.maturityRating ?? 3),
@@ -1311,6 +1322,9 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
           Math.abs(clampRating5(t.impactRating) - targetSensory.impact) +
           Math.abs(clampRating5(t.bitterRating) - targetSensory.bitter) +
           Math.abs(clampRating5(t.burnRating ?? 4.5) - targetSensory.burn) +
+          (targetSensory.heat !== undefined
+            ? Math.abs(clampRating5(t.heatRating ?? 2.5) - targetSensory.heat)
+            : 0) +
           Math.abs(clampRating5(t.sugarRating ?? 4.0) - targetSensory.sugar) +
           Math.abs(clampRating5(t.aromaRating ?? 4.2) - targetSensory.aroma) +
           (targetSensory.maturity !== undefined
@@ -1392,6 +1406,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
   const pImpact = solverPool.map((t) => clampRating5(t.impactRating));
   const pBitter = solverPool.map((t) => clampRating5(t.bitterRating));
   const pBurn = solverPool.map((t) => clampRating5(t.burnRating ?? 4.5));
+  const pHeat = solverPool.map((t) => clampRating5(t.heatRating ?? 2.5));
   const pSugar = solverPool.map((t) => clampRating5(t.sugarRating ?? 4.0));
   const pAroma = solverPool.map((t) => clampRating5(t.aromaRating ?? 4.2));
   const pMaturity = solverPool.map((t) => clampRating5(t.maturityRating ?? 3));
@@ -1409,6 +1424,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
     let mImpact = 0;
     let mBitter = 0;
     let mBurn = 0;
+    let mHeat = 0;
     let mSugar = 0;
     let mAroma = 0;
     let mMaturity = 0;
@@ -1422,6 +1438,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
       mImpact += wi * pImpact[i];
       mBitter += wi * pBitter[i];
       mBurn += wi * pBurn[i];
+      mHeat += wi * pHeat[i];
       mSugar += wi * pSugar[i];
       mAroma += wi * pAroma[i];
       mMaturity += wi * pMaturity[i];
@@ -1435,6 +1452,9 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
       Math.pow((mImpact - targetSensory.impact) / 0.5, 2) +
       Math.pow((mBitter - targetSensory.bitter) / 0.5, 2) +
       Math.pow((mBurn - targetSensory.burn) / 0.5, 2) +
+      (targetSensory.heat !== undefined
+        ? Math.pow((mHeat - targetSensory.heat) / 0.5, 2)
+        : 0) +
       Math.pow((mSugar - targetSensory.sugar) / 0.5, 2) +
       Math.pow((mAroma - targetSensory.aroma) / 0.5, 2) +
       (targetSensory.maturity !== undefined
@@ -1468,6 +1488,9 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
           Math.abs(pImpact[idx] - targetSensory.impact) +
           Math.abs(pBitter[idx] - targetSensory.bitter) +
           Math.abs(pBurn[idx] - targetSensory.burn) +
+          (targetSensory.heat !== undefined
+            ? Math.abs(pHeat[idx] - targetSensory.heat)
+            : 0) +
           Math.abs(pSugar[idx] - targetSensory.sugar) +
           Math.abs(pAroma[idx] - targetSensory.aroma) +
           (targetSensory.maturity !== undefined
@@ -1575,6 +1598,7 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
       impactRating: clampRating5(raw.impactRating),
       bitterRating: clampRating5(raw.bitterRating),
       burnRating: clampRating5(raw.burnRating ?? 4.5),
+      heatRating: clampRating5(raw.heatRating ?? 2.5),
       sugarRating: clampRating5(raw.sugarRating ?? 4.0),
       aromaRating: clampRating5(raw.aromaRating ?? 4.2),
       maturityRating: clampRating5(raw.maturityRating ?? 3),
@@ -1685,6 +1709,17 @@ export function solveAutoBlend(config: AutoBlendConfig): AutoBlendResult {
     buildSensoryDiag('impact', 'Impact', targetSensory.impact, achievedMetrics.weightedImpact, impactStats),
     buildSensoryDiag('bitter', 'Bitter', targetSensory.bitter, achievedMetrics.weightedBitter, bitterStats),
     buildSensoryDiag('burn', 'Burn', targetSensory.burn, achievedMetrics.weightedBurn, burnStats),
+    ...(targetSensory.heat !== undefined
+      ? [
+          buildSensoryDiag(
+            'heat',
+            'Heat',
+            targetSensory.heat,
+            achievedMetrics.weightedHeat,
+            heatStats
+          ),
+        ]
+      : []),
     buildSensoryDiag('sugar', 'Sugar', targetSensory.sugar, achievedMetrics.weightedSugar, sugarStats),
     buildSensoryDiag('aroma', 'Aroma', targetSensory.aroma, achievedMetrics.weightedAroma, aromaStats),
     ...(targetSensory.maturity !== undefined

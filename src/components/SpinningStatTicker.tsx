@@ -138,11 +138,13 @@ export const SpinningStatTicker: React.FC<SpinningStatTickerProps> = ({
             {current.characterParams && current.characterParams.length > 0 ? (
               <div
                 className={`grid ${
-                  current.characterParams.length >= 7
-                    ? 'grid-cols-7'
-                    : current.characterParams.length >= 6
-                      ? 'grid-cols-6'
-                      : 'grid-cols-5'
+                  current.characterParams.length >= 8
+                    ? 'grid-cols-4 sm:grid-cols-8'
+                    : current.characterParams.length >= 7
+                      ? 'grid-cols-7'
+                      : current.characterParams.length >= 6
+                        ? 'grid-cols-6'
+                        : 'grid-cols-5'
                 } gap-1 text-center`}
               >
                 {current.characterParams.map((param) => {

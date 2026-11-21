@@ -33,6 +33,7 @@ export interface GradeCompositionGroup {
     impact: number;
     bitter: number;
     burn: number;
+    heat: number;
     sugar: number;
     aroma: number;
     maturity: number;
@@ -50,6 +51,7 @@ export interface GradeCompositionGroup {
     impactRating: number;
     bitterRating: number;
     burnRating: number;
+    heatRating: number;
     sugarRating: number;
     aromaRating: number;
     maturityRating: number;
@@ -156,6 +158,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
           impactRating: clampRating5(ing.impactRating),
           bitterRating: clampRating5(ing.bitterRating),
           burnRating: clampRating5(ing.burnRating ?? 4.5),
+          heatRating: clampRating5(ing.heatRating ?? rawMatch?.heatRating ?? 2.0),
           sugarRating: clampRating5(ing.sugarRating ?? 4.0),
           aromaRating: clampRating5(ing.aromaRating ?? rawMatch?.aromaRating ?? 4.2),
           maturityRating: clampRating5(ing.maturityRating ?? rawMatch?.maturityRating ?? 3.0),
@@ -182,6 +185,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
             impact: clampRating5(roll.ratingsSnapshot?.impact ?? 4.0),
             bitter: clampRating5(roll.ratingsSnapshot?.bitter ?? 2.5),
             burn: clampRating5(roll.ratingsSnapshot?.burn ?? 4.5),
+            heat: clampRating5(roll.ratingsSnapshot?.heat ?? 2.0),
             sugar: clampRating5(roll.ratingsSnapshot?.sugar ?? 4.0),
             aroma: clampRating5(roll.ratingsSnapshot?.aroma ?? 4.2),
             maturity: clampRating5(roll.ratingsSnapshot?.maturity ?? 3.0),
@@ -219,6 +223,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
           impactRating: number;
           bitterRating: number;
           burnRating: number;
+          heatRating: number;
           sugarRating: number;
           aromaRating: number;
           maturityRating: number;
@@ -230,6 +235,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
       let iSum = 0;
       let bSum = 0;
       let brnSum = 0;
+      let hetSum = 0;
       let sgrSum = 0;
       let armSum = 0;
       let matSum = 0;
@@ -246,6 +252,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
         iSum += w * clampRating5(ser.weightedImpact);
         bSum += w * clampRating5(ser.weightedBitter);
         brnSum += w * clampRating5(ser.weightedBurn ?? 4.5);
+        hetSum += w * clampRating5(ser.weightedHeat ?? 2.0);
         sgrSum += w * clampRating5(ser.weightedSugar ?? 4.0);
         armSum += w * clampRating5(ser.weightedAroma ?? 4.2);
         matSum += w * clampRating5(ser.weightedMaturity ?? 3.0);
@@ -275,6 +282,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
               impactRating: clampRating5(ing.impactRating),
               bitterRating: clampRating5(ing.bitterRating),
               burnRating: clampRating5(ing.burnRating ?? 4.5),
+              heatRating: clampRating5(ing.heatRating ?? rawMatch?.heatRating ?? 2.0),
               sugarRating: clampRating5(ing.sugarRating ?? 4.0),
               aromaRating: clampRating5(ing.aromaRating ?? rawMatch?.aromaRating ?? 4.2),
               maturityRating: clampRating5(ing.maturityRating ?? rawMatch?.maturityRating ?? 3.0),
@@ -318,6 +326,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
           impact: Number((iSum / safeDiv).toFixed(1)),
           bitter: Number((bSum / safeDiv).toFixed(1)),
           burn: Number((brnSum / safeDiv).toFixed(1)),
+          heat: Number((hetSum / safeDiv).toFixed(1)),
           sugar: Number((sgrSum / safeDiv).toFixed(1)),
           aroma: Number((armSum / safeDiv).toFixed(1)),
           maturity: Number((matSum / safeDiv).toFixed(1)),
@@ -338,6 +347,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
         impact: clampRating5(roll.ratingsSnapshot?.impact ?? 4.0),
         bitter: clampRating5(roll.ratingsSnapshot?.bitter ?? 2.5),
         burn: clampRating5(roll.ratingsSnapshot?.burn ?? 4.5),
+        heat: clampRating5(roll.ratingsSnapshot?.heat ?? 2.0),
         sugar: clampRating5(roll.ratingsSnapshot?.sugar ?? 4.0),
         aroma: clampRating5(roll.ratingsSnapshot?.aroma ?? 4.2),
         maturity: clampRating5(roll.ratingsSnapshot?.maturity ?? 3.0),
@@ -348,6 +358,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
     let im = 0;
     let bi = 0;
     let br = 0;
+    let he = 0;
     let su = 0;
     let ar = 0;
     let ma = 0;
@@ -361,6 +372,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
       im += w * clampRating5(s.weightedImpact);
       bi += w * clampRating5(s.weightedBitter);
       br += w * clampRating5(s.weightedBurn ?? 4.5);
+      he += w * clampRating5(s.weightedHeat ?? 2.0);
       su += w * clampRating5(s.weightedSugar ?? 4.0);
       ar += w * clampRating5(s.weightedAroma ?? 4.2);
       ma += w * clampRating5(s.weightedMaturity ?? 3.0);
@@ -371,6 +383,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
       impact: Number((im / d).toFixed(1)),
       bitter: Number((bi / d).toFixed(1)),
       burn: Number((br / d).toFixed(1)),
+      heat: Number((he / d).toFixed(1)),
       sugar: Number((su / d).toFixed(1)),
       aroma: Number((ar / d).toFixed(1)),
       maturity: Number((ma / d).toFixed(1)),
@@ -399,6 +412,7 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
       impactScore: overallAvg.impact,
       bitterScore: overallAvg.bitter,
       burnScore: overallAvg.burn,
+      heatScore: overallAvg.heat,
       sugarScore: overallAvg.sugar,
       aromaScore: overallAvg.aroma,
       maturityScore: overallAvg.maturity,
@@ -438,14 +452,15 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-center">
           {(
             [
               { label: 'Power', val: overallAvg.power, desc: 'Kekuatan Body', polarity: 'positive' as AttributePolarity },
               { label: 'Impact', val: overallAvg.impact, desc: 'Tarikan', polarity: 'positive' as AttributePolarity },
               { label: 'Bitter', val: overallAvg.bitter, desc: 'Pahit / Gurih', polarity: 'negative' as AttributePolarity },
-              { label: 'Burn', val: overallAvg.burn, desc: 'Daya Bakar', polarity: 'negative' as AttributePolarity },
-              { label: 'Sugar', val: overallAvg.sugar, desc: 'Manis Alami', polarity: 'positive' as AttributePolarity },
+              { label: 'Burn', val: overallAvg.burn, desc: 'Daya Bakar', polarity: 'positive' as AttributePolarity },
+              { label: 'Heat', val: overallAvg.heat, desc: 'Panas Hisapan', polarity: 'negative' as AttributePolarity },
+              { label: 'Sugar', val: overallAvg.sugar, desc: 'Kadar Gula', polarity: 'negative' as AttributePolarity },
               { label: 'Aroma', val: overallAvg.aroma, desc: 'Karakter Aroma', polarity: 'positive' as AttributePolarity },
               { label: 'Maturity', val: overallAvg.maturity, desc: MATURITY_LEVEL_LABELS[Math.round(overallAvg.maturity)] || 'Imbon', polarity: 'maturity' as AttributePolarity },
             ] as const
@@ -550,14 +565,15 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
                     <div className="text-xs font-extrabold uppercase tracking-wider text-zinc-300">
                       Rata-Rata Karakter Grade {grp.grade} (Tetap):
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center font-mono">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center font-mono">
                       {(
                         [
                           { label: 'Power', val: grp.avgCharacter.power, polarity: 'positive' as AttributePolarity },
                           { label: 'Impact', val: grp.avgCharacter.impact, polarity: 'positive' as AttributePolarity },
                           { label: 'Bitter', val: grp.avgCharacter.bitter, polarity: 'negative' as AttributePolarity },
-                          { label: 'Burn', val: grp.avgCharacter.burn, polarity: 'negative' as AttributePolarity },
-                          { label: 'Sugar', val: grp.avgCharacter.sugar, polarity: 'positive' as AttributePolarity },
+                          { label: 'Burn', val: grp.avgCharacter.burn, polarity: 'positive' as AttributePolarity },
+                          { label: 'Heat', val: grp.avgCharacter.heat, polarity: 'negative' as AttributePolarity },
+                          { label: 'Sugar', val: grp.avgCharacter.sugar, polarity: 'negative' as AttributePolarity },
                           { label: 'Aroma', val: grp.avgCharacter.aroma, polarity: 'positive' as AttributePolarity },
                           { label: 'Maturity', val: grp.avgCharacter.maturity, polarity: 'maturity' as AttributePolarity },
                         ] as const
@@ -643,8 +659,9 @@ export const RollCompositionAndEvaluationPanel: React.FC<RollCompositionPanelPro
                                 { lbl: 'Power', val: ing.powerRating, polarity: 'positive' as AttributePolarity },
                                 { lbl: 'Impact', val: ing.impactRating, polarity: 'positive' as AttributePolarity },
                                 { lbl: 'Bitter', val: ing.bitterRating, polarity: 'negative' as AttributePolarity },
-                                { lbl: 'Burn', val: ing.burnRating, polarity: 'negative' as AttributePolarity },
-                                { lbl: 'Sugar', val: ing.sugarRating, polarity: 'positive' as AttributePolarity },
+                                { lbl: 'Burn', val: ing.burnRating, polarity: 'positive' as AttributePolarity },
+                                { lbl: 'Heat', val: ing.heatRating, polarity: 'negative' as AttributePolarity },
+                                { lbl: 'Sugar', val: ing.sugarRating, polarity: 'negative' as AttributePolarity },
                                 { lbl: 'Aroma', val: ing.aromaRating, polarity: 'positive' as AttributePolarity },
                                 { lbl: 'Maturity', val: ing.maturityRating, polarity: 'maturity' as AttributePolarity },
                               ] as const

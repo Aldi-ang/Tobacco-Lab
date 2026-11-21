@@ -2,7 +2,7 @@ import { AttributePolarity } from './attributePalette';
 import { clampRating5, formatRating5 } from './tobaccoMath';
 
 export interface ExcelSensoryCell {
-  code: 'Pwr' | 'Imp' | 'Bit' | 'Brn' | 'Sgr' | 'Arm' | 'Mat';
+  code: 'Pwr' | 'Imp' | 'Bit' | 'Brn' | 'Het' | 'Sgr' | 'Arm' | 'Mat';
   fullLabel: string;
   polarity: AttributePolarity;
   value: number;
@@ -14,6 +14,7 @@ export function formatExcelSensoryRow(params: {
   impact?: number;
   bitter?: number;
   burn?: number;
+  heat?: number;
   sugar?: number;
   aroma?: number;
   maturity?: number;
@@ -28,8 +29,9 @@ export function formatExcelSensoryRow(params: {
     { code: 'Pwr', fullLabel: 'Power', polarity: 'positive', raw: params.power, fallback: 3 },
     { code: 'Imp', fullLabel: 'Impact', polarity: 'positive', raw: params.impact, fallback: 3 },
     { code: 'Bit', fullLabel: 'Bitter', polarity: 'negative', raw: params.bitter, fallback: 3 },
-    { code: 'Brn', fullLabel: 'Burn', polarity: 'negative', raw: params.burn, fallback: 4.5 },
-    { code: 'Sgr', fullLabel: 'Sugar', polarity: 'positive', raw: params.sugar, fallback: 4.0 },
+    { code: 'Brn', fullLabel: 'Burn', polarity: 'positive', raw: params.burn, fallback: 4.5 },
+    { code: 'Het', fullLabel: 'Heat', polarity: 'negative', raw: params.heat, fallback: 2.0 },
+    { code: 'Sgr', fullLabel: 'Sugar', polarity: 'negative', raw: params.sugar, fallback: 2.0 },
     { code: 'Arm', fullLabel: 'Aroma', polarity: 'positive', raw: params.aroma, fallback: 4.2 },
     { code: 'Mat', fullLabel: 'Maturity', polarity: 'maturity', raw: params.maturity, fallback: 3 },
   ];

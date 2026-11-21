@@ -89,11 +89,12 @@ export interface RawTobacco {
 
   currentStockNetKg: number; // Sisa stok fisik di gudang (kg)
 
-  // 7 Penilaian Sensoris & Fisik (Skala Maksimal /5): Power, Impact, Bitter, Burn, Sugar, Aroma, Maturity
+  // 8 Penilaian Sensoris & Fisik (Skala Maksimal /5): Power, Impact, Bitter, Burn, Heat, Sugar, Aroma, Maturity
   powerRating: number; // 0 - 5
   impactRating: number; // 0 - 5
   bitterRating: number; // 0 - 5
   burnRating: number; // 0 - 5
+  heatRating?: number; // 0 - 5 (Negatif: Panas asap saat dihisap, 1 Sejuk/Hijau -> 5 Panas/Merah)
   sugarRating: number; // 0 - 5
   aromaRating?: number; // 0 - 5
   maturityRating?: number; // 0 - 5 (1: Tidak Matang, 2: Lumayan Matang, 3: Matang, 4: Keluwasen, 5: Busuk)
@@ -118,6 +119,7 @@ export interface BlendIngredient {
   impactRating: number; // /5
   bitterRating: number; // /5
   burnRating: number; // /5
+  heatRating?: number; // /5 (Negatif: Panas hisapan)
   sugarRating: number; // /5
   aromaRating?: number; // /5
   maturityRating?: number; // /5
@@ -175,11 +177,12 @@ export interface FinishedTobaccoSerial {
   ingredients: BlendIngredient[];
   totalBlendNetKg: number; // Netto tembakau fisik (riil) pada kemasan seri ini (kg)
 
-  // 7 Nilai Sensoris Campuran (Skala /5): Power, Impact, Bitter, Burn, Sugar, Aroma, Maturity
+  // 8 Nilai Sensoris Campuran (Skala /5): Power, Impact, Bitter, Burn, Heat, Sugar, Aroma, Maturity
   weightedPower: number;
   weightedImpact: number;
   weightedBitter: number;
   weightedBurn: number;
+  weightedHeat?: number;
   weightedSugar: number;
   weightedAroma?: number;
   weightedMaturity?: number;
@@ -256,6 +259,7 @@ export interface TobaccoRollSample {
     impact: number; // /5
     bitter: number; // /5
     burn: number; // /5
+    heat?: number; // /5
     sugar: number; // /5
     aroma?: number; // /5
     maturity?: number; // /5 (1-5 Imbon)
@@ -263,7 +267,7 @@ export interface TobaccoRollSample {
     hppPerKg: number;
   };
 
-  // Evaluasi Karakter Grader Pabrik Menggunakan 7 Parameter Asli (Skala /5)
+  // Evaluasi Karakter Grader Pabrik Menggunakan 8 Parameter Asli (Skala /5)
   smokingTest?: {
     testDate?: string;
     testerName?: string;
@@ -271,6 +275,7 @@ export interface TobaccoRollSample {
     impactScore?: number; // /5
     bitterScore?: number; // /5
     burnScore?: number; // /5
+    heatScore?: number; // /5
     sugarScore?: number; // /5
     aromaScore?: number; // /5
     maturityScore?: number; // /5

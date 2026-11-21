@@ -424,6 +424,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
       impactRating: clampRating5(raw.impactRating),
       bitterRating: clampRating5(raw.bitterRating),
       burnRating: clampRating5(raw.burnRating ?? 4.5),
+      heatRating: clampRating5(raw.heatRating ?? 2.0),
       sugarRating: clampRating5(raw.sugarRating ?? 4.0),
       aromaRating: clampRating5(raw.aromaRating ?? 4.2),
       maturityRating: clampRating5(raw.maturityRating ?? 3.0),
@@ -457,6 +458,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
         impactRating: clampRating5(raw.impactRating),
         bitterRating: clampRating5(raw.bitterRating),
         burnRating: clampRating5(raw.burnRating ?? 4.5),
+        heatRating: clampRating5(raw.heatRating ?? 2.0),
         sugarRating: clampRating5(raw.sugarRating ?? 4.0),
         aromaRating: clampRating5(raw.aromaRating ?? 4.2),
         maturityRating: clampRating5(raw.maturityRating ?? 3.0),
@@ -590,6 +592,7 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
         weightedImpact: metrics.weightedImpact,
         weightedBitter: metrics.weightedBitter,
         weightedBurn: metrics.weightedBurn,
+        weightedHeat: metrics.weightedHeat,
         weightedSugar: metrics.weightedSugar,
         weightedAroma: metrics.weightedAroma,
         weightedMaturity: metrics.weightedMaturity,
@@ -1063,8 +1066,9 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                                     { label: 'Power', val: clampRating5(item.powerRating), polarity: 'positive' as AttributePolarity },
                                     { label: 'Impact', val: clampRating5(item.impactRating), polarity: 'positive' as AttributePolarity },
                                     { label: 'Bitter', val: clampRating5(item.bitterRating), polarity: 'negative' as AttributePolarity },
-                                    { label: 'Burn', val: clampRating5(item.burnRating ?? 4.5), polarity: 'negative' as AttributePolarity },
-                                    { label: 'Sugar', val: clampRating5(item.sugarRating ?? 4.0), polarity: 'positive' as AttributePolarity },
+                                    { label: 'Burn', val: clampRating5(item.burnRating ?? 4.5), polarity: 'positive' as AttributePolarity },
+                                    { label: 'Heat', val: clampRating5(item.heatRating ?? 2.0), polarity: 'negative' as AttributePolarity },
+                                    { label: 'Sugar', val: clampRating5(item.sugarRating ?? 4.0), polarity: 'negative' as AttributePolarity },
                                     { label: 'Aroma', val: clampRating5(item.aromaRating ?? 4.2), polarity: 'positive' as AttributePolarity },
                                     { label: 'Maturity', val: clampRating5(item.maturityRating ?? 3.0), polarity: 'maturity' as AttributePolarity },
                                   ] as const
@@ -1524,8 +1528,8 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                 <span className="flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>
-                    5 Karakteristik (/5): P:{metrics.weightedPower} • I:{metrics.weightedImpact} • B:
-                    {metrics.weightedBitter}
+                    8 Karakteristik (/5): P:{metrics.weightedPower} • I:{metrics.weightedImpact} • B:
+                    {metrics.weightedBitter} • H:{metrics.weightedHeat}
                   </span>
                 </span>
                 {isSensoryExpanded ? (
@@ -1548,8 +1552,9 @@ export const BlendCalculator: React.FC<BlendCalculatorProps> = ({
                         { label: 'Power (Kekuatan)', val: metrics.weightedPower, polarity: 'positive' as AttributePolarity },
                         { label: 'Impact (Tarikan)', val: metrics.weightedImpact, polarity: 'positive' as AttributePolarity },
                         { label: 'Bitter (Pahit/Gurih)', val: metrics.weightedBitter, polarity: 'negative' as AttributePolarity },
-                        { label: 'Burn (Daya Bakar)', val: metrics.weightedBurn, polarity: 'negative' as AttributePolarity },
-                        { label: 'Sugar (Manis)', val: metrics.weightedSugar, polarity: 'positive' as AttributePolarity },
+                        { label: 'Burn (Daya Bakar)', val: metrics.weightedBurn, polarity: 'positive' as AttributePolarity },
+                        { label: 'Heat (Panas Hisapan)', val: metrics.weightedHeat, polarity: 'negative' as AttributePolarity },
+                        { label: 'Sugar (Manis)', val: metrics.weightedSugar, polarity: 'negative' as AttributePolarity },
                         { label: 'Aroma (Karakter Wangi)', val: metrics.weightedAroma, polarity: 'positive' as AttributePolarity },
                         { label: 'Maturity (Imbon)', val: metrics.weightedMaturity, polarity: 'maturity' as AttributePolarity },
                       ] as const

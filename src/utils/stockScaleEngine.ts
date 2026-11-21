@@ -315,6 +315,7 @@ export function pruneCandidatePoolForFastAutoBlend(params: {
     impact: number;
     bitter: number;
     burn: number;
+    heat?: number;
     sugar: number;
     aroma: number;
     maturity?: number;
@@ -344,12 +345,13 @@ export function pruneCandidatePoolForFastAutoBlend(params: {
     kept.push(t);
   };
 
-  // 1. Preserve exact extreme boundary items (min & max for each of the 7 dimensions)
+  // 1. Preserve exact extreme boundary items (min & max for each of the 8 dimensions)
   const getters: Array<(t: RawTobacco) => number> = [
     (t) => clampRating5(t.powerRating),
     (t) => clampRating5(t.impactRating),
     (t) => clampRating5(t.bitterRating),
     (t) => clampRating5(t.burnRating ?? 4.5),
+    (t) => clampRating5(t.heatRating ?? 2.5),
     (t) => clampRating5(t.sugarRating ?? 4.0),
     (t) => clampRating5(t.aromaRating ?? 4.2),
     (t) => clampRating5(t.maturityRating ?? 3),
@@ -387,6 +389,9 @@ export function pruneCandidatePoolForFastAutoBlend(params: {
         Math.abs(clampRating5(t.impactRating) - targetSensory.impact) +
         Math.abs(clampRating5(t.bitterRating) - targetSensory.bitter) +
         Math.abs(clampRating5(t.burnRating ?? 4.5) - targetSensory.burn) +
+        (targetSensory.heat !== undefined
+          ? Math.abs(clampRating5(t.heatRating ?? 2.5) - targetSensory.heat)
+          : 0) +
         Math.abs(clampRating5(t.sugarRating ?? 4.0) - targetSensory.sugar) +
         Math.abs(clampRating5(t.aromaRating ?? 4.2) - targetSensory.aroma) +
         (targetSensory.maturity !== undefined

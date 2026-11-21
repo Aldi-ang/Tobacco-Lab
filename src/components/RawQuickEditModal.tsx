@@ -49,22 +49,22 @@ const CHARACTER_PRESETS = [
   {
     id: 'ringan',
     label: 'Ringan Halus',
-    values: { power: 2, impact: 2, bitter: 1, burn: 1, sugar: 4, aroma: 4, maturity: 3 },
+    values: { power: 2, impact: 2, bitter: 1, burn: 5, heat: 1, sugar: 4, aroma: 4, maturity: 3 },
   },
   {
     id: 'sedang',
     label: 'Sedang Seimbang',
-    values: { power: 3, impact: 3, bitter: 2, burn: 2, sugar: 4, aroma: 4, maturity: 3 },
+    values: { power: 3, impact: 3, bitter: 2, burn: 4, heat: 2, sugar: 4, aroma: 4, maturity: 3 },
   },
   {
     id: 'berat',
     label: 'Berat Mantap',
-    values: { power: 5, impact: 5, bitter: 4, burn: 2, sugar: 3, aroma: 4, maturity: 3 },
+    values: { power: 5, impact: 5, bitter: 4, burn: 4, heat: 3, sugar: 3, aroma: 4, maturity: 3 },
   },
   {
     id: 'manis',
     label: 'Manis Harum',
-    values: { power: 3, impact: 3, bitter: 1, burn: 1, sugar: 5, aroma: 5, maturity: 3 },
+    values: { power: 3, impact: 3, bitter: 1, burn: 5, heat: 1, sugar: 5, aroma: 5, maturity: 3 },
   },
 ];
 
@@ -96,6 +96,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
   const [impactRating, setImpactRating] = useState(0);
   const [bitterRating, setBitterRating] = useState(0);
   const [burnRating, setBurnRating] = useState(0);
+  const [heatRating, setHeatRating] = useState(0);
   const [sugarRating, setSugarRating] = useState(0);
   const [aromaRating, setAromaRating] = useState(0);
   const [maturityRating, setMaturityRating] = useState(0);
@@ -134,6 +135,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
     const initImp = clampRating5(tobacco.impactRating || 0);
     const initBit = clampRating5(tobacco.bitterRating || 0);
     const initBrn = clampRating5(tobacco.burnRating || 0);
+    const initHet = clampRating5(tobacco.heatRating || 0);
     const initSgr = clampRating5(tobacco.sugarRating || 0);
     const initArm = clampRating5(tobacco.aromaRating || 0);
     const initMat = clampRating5(tobacco.maturityRating || 0);
@@ -155,6 +157,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
     setImpactRating(initImp);
     setBitterRating(initBit);
     setBurnRating(initBrn);
+    setHeatRating(initHet);
     setSugarRating(initSgr);
     setAromaRating(initArm);
     setMaturityRating(initMat);
@@ -176,6 +179,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
       initImp,
       initBit,
       initBrn,
+      initHet,
       initSgr,
       initArm,
       initMat,
@@ -217,6 +221,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
     initImp: impactRating,
     initBit: bitterRating,
     initBrn: burnRating,
+    initHet: heatRating,
     initSgr: sugarRating,
     initArm: aromaRating,
     initMat: maturityRating,
@@ -275,6 +280,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
       impactRating,
       bitterRating,
       burnRating,
+      heatRating,
       sugarRating,
       aromaRating,
       maturityRating,
@@ -791,6 +797,7 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                         setImpactRating(p.values.impact);
                         setBitterRating(p.values.bitter);
                         setBurnRating(p.values.burn);
+                        setHeatRating(p.values.heat);
                         setSugarRating(p.values.sugar);
                         setAromaRating(p.values.aroma);
                         setMaturityRating(p.values.maturity);
@@ -827,6 +834,12 @@ export const RawQuickEditModal: React.FC<RawQuickEditModalProps> = ({
                   polarity={getAttributePolarity('burnRating')}
                   value={burnRating}
                   onChange={setBurnRating}
+                />
+                <RatingSegmentSlider
+                  label="Heat"
+                  polarity={getAttributePolarity('heatRating')}
+                  value={heatRating}
+                  onChange={setHeatRating}
                 />
                 <RatingSegmentSlider
                   label="Sugar"

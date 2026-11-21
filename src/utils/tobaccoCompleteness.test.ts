@@ -90,6 +90,7 @@ test('getRawTobaccoMissingFlags flags all-zero attributes and blank seller/kemas
     impactRating: 0,
     bitterRating: 0,
     burnRating: 0,
+    heatRating: 0,
     sugarRating: 0,
     aromaRating: 0,
     maturityRating: 0,
@@ -106,7 +107,7 @@ test('getRawTobaccoMissingFlags flags all-zero attributes and blank seller/kemas
   assert.equal(flags.missingOrigin, true);
   assert.equal(flags.missingPackaging, true);
   assert.equal(flags.missingAttributes, true);
-  assert.equal(flags.unfilledAttributeCount, 7);
+  assert.equal(flags.unfilledAttributeCount, 8);
 });
 
 test('applyQuickPatchToRawTobacco recalculates netto, modal, stock, and profit after late weight & price', () => {

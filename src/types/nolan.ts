@@ -23,6 +23,7 @@ export interface NolanRecommendedBlend {
     impact: number;
     bitter: number;
     burn: number;
+    heat?: number;
     sugar: number;
     aroma: number;
     maturity?: number;
@@ -73,6 +74,7 @@ export interface NolanPendingAction {
     impactRating?: number;
     bitterRating?: number;
     burnRating?: number;
+    heatRating?: number;
     sugarRating?: number;
     aromaRating?: number;
     maturityRating?: number;
@@ -94,6 +96,7 @@ export interface NolanPendingAction {
     impactRating?: number;
     bitterRating?: number;
     burnRating?: number;
+    heatRating?: number;
     sugarRating?: number;
     aromaRating?: number;
     maturityRating?: number;
@@ -116,6 +119,7 @@ export interface NolanPendingAction {
       impactRating?: number;
       bitterRating?: number;
       burnRating?: number;
+      heatRating?: number;
       sugarRating?: number;
       aromaRating?: number;
       maturityRating?: number;
@@ -138,6 +142,7 @@ export interface NolanPendingAction {
       impactRating?: number;
       bitterRating?: number;
       burnRating?: number;
+      heatRating?: number;
       sugarRating?: number;
       aromaRating?: number;
       maturityRating?: number;

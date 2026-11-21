@@ -13,6 +13,7 @@ const PRINT_ATTRIBUTE_FIELDS: {
     | 'impactRating'
     | 'bitterRating'
     | 'burnRating'
+    | 'heatRating'
     | 'sugarRating'
     | 'aromaRating'
     | 'maturityRating';
@@ -23,6 +24,7 @@ const PRINT_ATTRIBUTE_FIELDS: {
   { key: 'impactRating', label: 'Impact' },
   { key: 'bitterRating', label: 'Bitter' },
   { key: 'burnRating', label: 'Burn' },
+  { key: 'heatRating', label: 'Heat' },
   { key: 'sugarRating', label: 'Sugar' },
   { key: 'aromaRating', label: 'Aroma' },
   { key: 'maturityRating', label: 'Maturity', hint: '1:TdkMtg 2:Lmy 3:Matang 4:Klw 5:Busuk' },
@@ -268,41 +270,41 @@ export const PrintableGradeCardPaper: React.FC<{
         </div>
       </div>
 
-      {/* 7 Attributes (Power..Aroma + Maturity) — Compact 7 rows with clear [1][2][3][4][5] square boxes */}
+      {/* 8 Attributes (Power..Burn, Heat, Sugar, Aroma, Maturity) — Compact 8 rows with clear [1][2][3][4][5] square boxes */}
       <div className="border-[1.2px] border-black px-1.5 py-1 mb-1 flex-1 flex flex-col justify-between">
         <div className="flex items-center justify-between gap-1 mb-0.5">
           <span className="text-[7px] font-black uppercase tracking-wider text-zinc-900">
-            KARAKTER RASA, BAKAR &amp; MATURITY (SILANG X 1–5)
+            8 ATRIBUT KARAKTER RASA, HEAT &amp; MATURITY (SILANG X 1–5)
           </span>
         </div>
         <div className="flex-1 flex flex-col justify-between divide-y divide-zinc-200">
           {PRINT_ATTRIBUTE_FIELDS.map((attr) => (
             <div
               key={attr.key}
-              className="flex items-center justify-between gap-2 py-[1.5px] min-w-0"
+              className="flex items-center justify-between gap-2 py-[1px] min-w-0"
             >
               <div className="min-w-0 flex-1 pr-1">
                 <div
                   className={`font-black uppercase tracking-tight leading-none ${
-                    compact ? 'text-[8.5px]' : 'text-[9.5px]'
+                    compact ? 'text-[8px]' : 'text-[9px]'
                   }`}
                 >
                   {attr.label}
                 </div>
                 {attr.hint && (
-                  <div className="text-[5.8px] font-bold text-zinc-600 leading-[1.15] mt-[1px] whitespace-normal">
+                  <div className="text-[5.6px] font-bold text-zinc-600 leading-[1.1] mt-[0.5px] whitespace-normal">
                     {attr.hint}
                   </div>
                 )}
               </div>
-              <div className="shrink-0 flex items-center justify-between w-[142px] sm:w-[156px] gap-1">
+              <div className="shrink-0 flex items-center justify-between w-[140px] sm:w-[154px] gap-1">
                 {[1, 2, 3, 4, 5].map((num) => (
                   <span
                     key={num}
                     className={`${
                       compact
-                        ? 'w-[17px] h-[17px] text-[9.5px]'
-                        : 'w-[19px] h-[19px] text-[10.5px]'
+                        ? 'w-[16px] h-[16px] text-[9px]'
+                        : 'w-[18px] h-[18px] text-[10px]'
                     } rounded-[2px] border-[1.5px] border-black inline-flex items-center justify-center font-mono font-black leading-none`}
                   >
                     {num}

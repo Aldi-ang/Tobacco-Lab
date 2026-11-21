@@ -433,7 +433,7 @@ export function renderThermalCardToCanvas(params: {
   const gradeBoxH = isNarrow ? 82 : 96;
   const attrRowStep = isNarrow ? 29 : 35;
   const attrSqSize = isNarrow ? 24 : 30;
-  const attrBoxH = 28 + 7 * attrRowStep;
+  const attrBoxH = 28 + 8 * attrRowStep;
   const stage2H = isNarrow ? 38 : 44; // Front Tahap 2 strip: Bruto + Harga only
   const catatanBoxH = isNarrow ? 92 : 110;
 
@@ -565,9 +565,9 @@ export function renderThermalCardToCanvas(params: {
   });
   y += pkgBoxH + 7;
 
-  // 7 Attributes (Power..Aroma + Maturity) — wide-spaced square numbered boxes [1][2][3][4][5]
-  const attrs = ['POWER', 'IMPACT', 'BITTER', 'BURN', 'SUGAR', 'AROMA', 'MATURITY'];
-  drawBox('KARAKTER RASA & MATURITY (1-5)', pad, y, innerW, attrBoxH);
+  // 8 Attributes (Power..Burn, Heat, Sugar, Aroma, Maturity) — wide-spaced square numbered boxes [1][2][3][4][5]
+  const attrs = ['POWER', 'IMPACT', 'BITTER', 'BURN', 'HEAT', 'SUGAR', 'AROMA', 'MATURITY'];
+  drawBox('8 KARAKTER RASA & MATURITY (1-5)', pad, y, innerW, attrBoxH);
   const labelColumnW = isNarrow ? 82 : 114;
   const startX = pad + 8 + labelColumnW;
   const boxGap = isNarrow ? 5 : 10;

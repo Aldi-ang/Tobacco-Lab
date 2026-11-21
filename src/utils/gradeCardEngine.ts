@@ -30,6 +30,7 @@ export interface ScannedGradeCardRawInput {
   impactRating?: number;
   bitterRating?: number;
   burnRating?: number;
+  heatRating?: number;
   sugarRating?: number;
   aromaRating?: number;
   maturityRating?: number;
@@ -70,6 +71,7 @@ export interface ReviewedScannedGradeCard {
   impactRating: number;
   bitterRating: number;
   burnRating: number;
+  heatRating: number;
   sugarRating: number;
   aromaRating: number;
   maturityRating: number;
@@ -593,6 +595,7 @@ export function classifyScannedCardsForReview(params: {
     const imp = clampWholeAttribute1to5(raw.impactRating, 3);
     const bit = clampWholeAttribute1to5(raw.bitterRating, 3);
     const brn = clampWholeAttribute1to5(raw.burnRating, 4);
+    const het = clampWholeAttribute1to5(raw.heatRating, 2);
     const sgr = clampWholeAttribute1to5(raw.sugarRating, 3);
     const arm = clampWholeAttribute1to5(raw.aromaRating, 4);
     const mat = clampWholeAttribute1to5(raw.maturityRating, 3);
@@ -602,6 +605,7 @@ export function classifyScannedCardsForReview(params: {
       Number(raw.impactRating) > 0 ||
       Number(raw.bitterRating) > 0 ||
       Number(raw.burnRating) > 0 ||
+      Number(raw.heatRating) > 0 ||
       Number(raw.sugarRating) > 0 ||
       Number(raw.aromaRating) > 0 ||
       Number(raw.maturityRating) > 0;
@@ -755,6 +759,7 @@ export function classifyScannedCardsForReview(params: {
           cmpAttr('Impact', imp, matchedExisting.impactRating);
           cmpAttr('Bitter', bit, matchedExisting.bitterRating);
           cmpAttr('Burn', brn, matchedExisting.burnRating);
+          cmpAttr('Heat', het, matchedExisting.heatRating);
           cmpAttr('Sugar', sgr, matchedExisting.sugarRating);
           cmpAttr('Aroma', arm, matchedExisting.aromaRating);
           cmpAttr('Maturity', mat, matchedExisting.maturityRating);
@@ -863,6 +868,10 @@ export function classifyScannedCardsForReview(params: {
         matchedExisting && !hasExplicitAttributes
           ? clampRating5(matchedExisting.burnRating ?? 4)
           : brn,
+      heatRating:
+        matchedExisting && !hasExplicitAttributes
+          ? clampRating5(matchedExisting.heatRating ?? 2)
+          : het,
       sugarRating:
         matchedExisting && !hasExplicitAttributes
           ? clampRating5(matchedExisting.sugarRating ?? 3)
@@ -915,6 +924,7 @@ export function buildEditableReviewCardFromExistingStock(
     impactRating: clampRating5(existingRecord.impactRating ?? 0),
     bitterRating: clampRating5(existingRecord.bitterRating ?? 0),
     burnRating: clampRating5(existingRecord.burnRating ?? 0),
+    heatRating: clampRating5(existingRecord.heatRating ?? 2),
     sugarRating: clampRating5(existingRecord.sugarRating ?? 0),
     aromaRating: clampRating5(existingRecord.aromaRating ?? 0),
     maturityRating: clampRating5(existingRecord.maturityRating ?? 0),
@@ -1059,6 +1069,9 @@ export function materializeRawTobaccoFromReview(params: {
     burnRating: useScannedAttributes
       ? clampRating5(card.burnRating)
       : clampRating5(existingRecord?.burnRating ?? 4),
+    heatRating: useScannedAttributes
+      ? clampRating5(card.heatRating)
+      : clampRating5(existingRecord?.heatRating ?? 2),
     sugarRating: useScannedAttributes
       ? clampRating5(card.sugarRating)
       : clampRating5(existingRecord?.sugarRating ?? 3),

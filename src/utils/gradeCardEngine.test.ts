@@ -550,7 +550,7 @@ test('v4.4.0 Barcode-bound fixed Grader overrides OCR misread ("Adi" -> "Aldi") 
   assert.equal(viaMetadata[0].graderBoundFromBarcode, true);
 });
 
-test('v4.5.0 7th attribute Maturity (1-5 Imbon) is extracted, diffed on UPDATE_MENYUSUL, and materialized cleanly', () => {
+test('v4.5.1 8 attributes including Heat (1-5 negative) & Maturity (1-5 Imbon) are extracted, diffed on UPDATE_MENYUSUL, and materialized cleanly', () => {
   const existingRecord: RawTobacco = {
     id: 'raw-mat-1',
     lotNumber: 'MTL010',
@@ -572,6 +572,7 @@ test('v4.5.0 7th attribute Maturity (1-5 Imbon) is extracted, diffed on UPDATE_M
     impactRating: 4,
     bitterRating: 2,
     burnRating: 4,
+    heatRating: 2,
     sugarRating: 4,
     aromaRating: 4,
     maturityRating: 2, // Lumayan Matang
@@ -579,7 +580,7 @@ test('v4.5.0 7th attribute Maturity (1-5 Imbon) is extracted, diffed on UPDATE_M
     characterNotes: '',
   };
 
-  // New card with Maturity 3 (Matang)
+  // New card with Heat 3 & Maturity 4 (Keluwasen)
   const newReview = classifyScannedCardsForReview({
     scannedCards: [
       {
@@ -592,6 +593,7 @@ test('v4.5.0 7th attribute Maturity (1-5 Imbon) is extracted, diffed on UPDATE_M
         impactRating: 4,
         bitterRating: 1,
         burnRating: 5,
+        heatRating: 2,
         sugarRating: 4,
         aromaRating: 5,
         maturityRating: 4, // Keluwasen
@@ -603,14 +605,16 @@ test('v4.5.0 7th attribute Maturity (1-5 Imbon) is extracted, diffed on UPDATE_M
     packagingList: SAMPLE_PACKAGINGS,
   });
 
+  assert.equal(newReview[0].heatRating, 2);
   assert.equal(newReview[0].maturityRating, 4);
   const materializedNew = materializeRawTobaccoFromReview({
     card: newReview[0],
     packagingList: SAMPLE_PACKAGINGS,
   });
+  assert.equal(materializedNew.heatRating, 2);
   assert.equal(materializedNew.maturityRating, 4);
 
-  // Rescan existing card where Maturity changed from 2 -> 3
+  // Rescan existing card where Heat changed from 2 -> 4 and Maturity changed from 2 -> 3
   const updatedReview = classifyScannedCardsForReview({
     scannedCards: [
       {
@@ -619,6 +623,7 @@ test('v4.5.0 7th attribute Maturity (1-5 Imbon) is extracted, diffed on UPDATE_M
         impactRating: 4,
         bitterRating: 2,
         burnRating: 4,
+        heatRating: 4,
         sugarRating: 4,
         aromaRating: 4,
         maturityRating: 3, // Matang
@@ -630,7 +635,9 @@ test('v4.5.0 7th attribute Maturity (1-5 Imbon) is extracted, diffed on UPDATE_M
   });
 
   assert.equal(updatedReview[0].matchStatus, 'UPDATE_MENYUSUL');
+  assert.equal(updatedReview[0].heatRating, 4);
   assert.equal(updatedReview[0].maturityRating, 3);
+  assert.ok(updatedReview[0].updateDiffSummary.some((d) => d.includes('Heat 2→4')));
   assert.ok(updatedReview[0].updateDiffSummary.some((d) => d.includes('Maturity 2→3')));
 });
 

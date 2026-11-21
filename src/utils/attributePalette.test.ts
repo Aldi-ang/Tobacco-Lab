@@ -7,10 +7,10 @@ import {
   resolveAttributeToneBand,
 } from './attributePalette';
 
-test('Positive traits (power, impact, sugar, aroma) map 1..5 from red to green', () => {
+test('Positive traits (power, impact, burn, aroma) map 1..5 from red to green', () => {
   assert.equal(getAttributePolarity('powerRating'), 'positive');
   assert.equal(getAttributePolarity('impactRating'), 'positive');
-  assert.equal(getAttributePolarity('sugarRating'), 'positive');
+  assert.equal(getAttributePolarity('burnRating'), 'positive');
   assert.equal(getAttributePolarity('aromaRating'), 'positive');
 
   assert.equal(resolveAttributeToneBand('positive', 0), 'unset');
@@ -21,9 +21,10 @@ test('Positive traits (power, impact, sugar, aroma) map 1..5 from red to green',
   assert.equal(resolveAttributeToneBand('positive', 5), 'green');
 });
 
-test('Negative traits (burn, bitter) invert gradient 1..5 from green (best) to red (worst)', () => {
+test('Negative traits (bitter, heat, sugar) invert gradient 1..5 from green (best) to red (worst)', () => {
   assert.equal(getAttributePolarity('bitterRating'), 'negative');
-  assert.equal(getAttributePolarity('burnRating'), 'negative');
+  assert.equal(getAttributePolarity('heatRating'), 'negative');
+  assert.equal(getAttributePolarity('sugarRating'), 'negative');
 
   assert.equal(resolveAttributeToneBand('negative', 1), 'green');
   assert.equal(resolveAttributeToneBand('negative', 2), 'lime');

@@ -63,6 +63,7 @@ type LockableFieldKey =
   | 'impact'
   | 'bitter'
   | 'burn'
+  | 'heat'
   | 'sugar'
   | 'aroma'
   | 'maturity';
@@ -84,6 +85,7 @@ const ALL_LOCKABLE_KEYS: LockableFieldKey[] = [
   'impact',
   'bitter',
   'burn',
+  'heat',
   'sugar',
   'aroma',
   'maturity',
@@ -123,6 +125,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
   const [impact, setImpact] = useState(4);
   const [bitter, setBitter] = useState(4);
   const [burn, setBurn] = useState(5);
+  const [heat, setHeat] = useState(2);
   const [sugar, setSugar] = useState(4);
   const [aroma, setAroma] = useState(4);
   const [maturity, setMaturity] = useState(3);
@@ -190,6 +193,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
     setImpact(clampRating5(serial.weightedImpact));
     setBitter(clampRating5(serial.weightedBitter));
     setBurn(clampRating5(serial.weightedBurn ?? 4.5));
+    setHeat(clampRating5(serial.weightedHeat ?? 2.0));
     setSugar(clampRating5(serial.weightedSugar ?? 4.0));
     setAroma(clampRating5(serial.weightedAroma ?? 4.2));
     setMaturity(clampRating5(serial.weightedMaturity ?? 3.0));
@@ -212,6 +216,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
         impact: true,
         bitter: true,
         burn: true,
+        heat: true,
         sugar: true,
         aroma: true,
         maturity: true,
@@ -435,6 +440,7 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
       weightedImpact: clampRating5(impact),
       weightedBitter: clampRating5(bitter),
       weightedBurn: clampRating5(burn),
+      weightedHeat: clampRating5(heat),
       weightedSugar: clampRating5(sugar),
       weightedAroma: clampRating5(aroma),
       weightedMaturity: clampRating5(maturity),
@@ -908,16 +914,17 @@ export const EditFinishedSerialModal: React.FC<EditFinishedSerialModalProps> = (
               <div className="bg-black p-3 rounded-xl border border-zinc-800 space-y-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-zinc-200 flex items-center gap-1.5">
                   <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                  7 Parameter Karakteristik &amp; Maturity (/5)
+                  8 Parameter Karakteristik, Heat &amp; Maturity (/5)
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
                   {(
                     [
                       { key: 'power' as LockableFieldKey, lbl: 'Power', val: power, set: setPower, polarity: 'positive' as AttributePolarity },
                       { key: 'impact' as LockableFieldKey, lbl: 'Impact', val: impact, set: setImpact, polarity: 'positive' as AttributePolarity },
                       { key: 'bitter' as LockableFieldKey, lbl: 'Bitter', val: bitter, set: setBitter, polarity: 'negative' as AttributePolarity },
-                      { key: 'burn' as LockableFieldKey, lbl: 'Burn', val: burn, set: setBurn, polarity: 'negative' as AttributePolarity },
-                      { key: 'sugar' as LockableFieldKey, lbl: 'Sugar', val: sugar, set: setSugar, polarity: 'positive' as AttributePolarity },
+                      { key: 'burn' as LockableFieldKey, lbl: 'Burn', val: burn, set: setBurn, polarity: 'positive' as AttributePolarity },
+                      { key: 'heat' as LockableFieldKey, lbl: 'Heat', val: heat, set: setHeat, polarity: 'negative' as AttributePolarity },
+                      { key: 'sugar' as LockableFieldKey, lbl: 'Sugar', val: sugar, set: setSugar, polarity: 'negative' as AttributePolarity },
                       { key: 'aroma' as LockableFieldKey, lbl: 'Aroma', val: aroma, set: setAroma, polarity: 'positive' as AttributePolarity },
                       { key: 'maturity' as LockableFieldKey, lbl: 'Maturity', val: maturity, set: setMaturity, polarity: 'maturity' as AttributePolarity },
                     ] as const
